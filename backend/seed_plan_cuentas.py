@@ -51,6 +51,7 @@ CATALOGO = [
     ("3.1",     "Capital Social",        "patrimonio", "acreedora", 2, "3"),
     ("3.2",     "Reserva Legal",         "patrimonio", "acreedora", 2, "3"),
     ("3.3",     "Utilidades Retenidas",  "patrimonio", "acreedora", 2, "3"),
+    ("3.3.1",   "Utilidades/Pérdidas Acumuladas",  "patrimonio", "acreedora", 3, "3.3"),
     ("3.4",     "Utilidad o Pérdida del Ejercicio", "patrimonio", "acreedora", 2, "3"),
 
     ("4",       "Ingresos",              "ingreso",     "acreedora", 1, None),

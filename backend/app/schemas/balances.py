@@ -34,3 +34,14 @@ class BalanceComprobacionResponse(BaseModel):
     fecha_inicio: Optional[date] = None
     fecha_fin: Optional[date] = None
     filas: List[FilaBalance]
+
+class EstadoResultadosResponse(BaseModel):
+    empresa_id: UUID
+    empresa_nombre: str
+    fecha_inicio: date
+    fecha_fin: date
+    ingresos: List[FilaBalance]
+    total_ingresos: Decimal
+    gastos: List[FilaBalance]
+    total_gastos: Decimal
+    utilidad_neta: Decimal  # Puede ser negativo si es pérdida

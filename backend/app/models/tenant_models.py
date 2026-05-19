@@ -77,3 +77,5 @@ class PeriodoFiscal(Base):
     fecha_fin = Column(Date, nullable=False)
     cerrado = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False)
+    empresa = relationship("Empresa")

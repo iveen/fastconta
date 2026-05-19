@@ -1,0 +1,48 @@
+# --- Python / Backend ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.env
+.venv/
+venv/
+env/
+*.log
+pip-log.txt
+pip-delete-this-directory.txt
+.mypy_cache/
+.pytest_cache/
+*.db
+*.sqlite3
+
+# --- Node / Frontend ---
+node_modules/
+dist/
+.vite/
+output/
+*.local
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# --- IDEs ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# --- Docker (opcional) ---
+docker-compose.override.yml
+
+# --- Migraciones (solo incluir las nuestras, no las de terceros) ---
+# Las migraciones de Alembic sí se versionan, así que NO las ignores.
+
+# --- Configuración sensible ---
+*.pem
+*.key
+secrets/

@@ -1,0 +1,20 @@
+# FastAPI y servidor ASGI
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+
+# Base de datos (PostgreSQL asíncrono)
+sqlalchemy==2.0.32
+asyncpg==0.29.0
+alembic==1.13.1
+
+# Configuración y variables de entorno
+pydantic-settings==2.4.0
+
+# Seguridad: JWT y hash de contraseñas
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+
+# Validación con Pydantic (incluido en FastAPI, pero se explicita)
+pydantic==2.8.2
+email-validator==2.1.0

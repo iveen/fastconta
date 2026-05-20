@@ -85,3 +85,6 @@ ON CONFLICT (version_num) DO NOTHING;
 
 
 UPDATE tenant_contaguate.plan_cuentas SET activa = false WHERE codigo = '1.1.1';
+
+UPDATE tenant_contaguate.periodos_fiscales SET cerrado = false WHERE nombre = '2026';
+

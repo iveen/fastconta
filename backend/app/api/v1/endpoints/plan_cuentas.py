@@ -9,12 +9,19 @@ from app.db.session import get_tenant_db
 from app.models.tenant_models import CuentaContable, Partida, DetallePartida, Empresa
 from app.schemas.plan_cuentas import CuentaCreate, CuentaUpdate, CuentaOut
 from app.schemas.balances import LibroMayorResponse, MovimientoCuenta, BalanceComprobacionResponse, FilaBalance
+from uuid import UUID
 
 router = APIRouter()
 
 @router.get("/", response_model=list[CuentaOut])
-async def list_cuentas(db: AsyncSession = Depends(get_tenant_db)):
-    result = await db.execute(select(CuentaContable).order_by(CuentaContable.codigo))
+async def list_cuentas(
+    empresa_id: UUID = Query(None, description="Filtrar por empresa"),
+    db: AsyncSession = Depends(get_tenant_db)
+):
+    stmt = select(CuentaContable).order_by(CuentaContable.codigo)
+    if empresa_id:
+        stmt = stmt.where(CuentaContable.empresa_id == empresa_id)
+    result = await db.execute(stmt)
     return result.scalars().all()
 
 @router.get("/{cuenta_id}", response_model=CuentaOut)

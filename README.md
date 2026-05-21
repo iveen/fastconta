@@ -17,7 +17,8 @@ Permite a firmas contables llevar la contabilidad de múltiples clientes (empres
 
 ---
 
-## 📁 Estructura del proyecto
+## 📁 Estructura del proyecto<br/>
+```text
 fastconta/
 ├── backend/ # API FastAPI
 │ ├── app/
@@ -34,7 +35,7 @@ fastconta/
 │ └── requirements.txt
 ├── frontend/ # (próximamente) Aplicación Vue 3 + TailwindCSS
 └── README.md
-
+```
 
 ---
 

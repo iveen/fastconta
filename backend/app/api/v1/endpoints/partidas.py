@@ -221,3 +221,41 @@ async def libro_diario(
         ))
 
     return lineas
+
+@router.get("/{partida_id}", response_model=PartidaOut)
+async def get_partida(partida_id: str, db: AsyncSession = Depends(get_tenant_db)):
+    stmt = (select(Partida)
+            .where(Partida.id == partida_id)
+            .options(selectinload(Partida.detalles).selectinload(DetallePartida.cuenta).selectinload(CuentaContable.empresa)))
+    result = await db.execute(stmt)
+    partida = result.scalar_one_or_none()
+    if not partida:
+        raise HTTPException(status_code=404, detail="Partida no encontrada")
+
+    detalles_out = [
+        DetallePartidaOut(
+            id=d.id,
+            cuenta_id=d.cuenta_id,
+            cuenta_codigo=d.cuenta.codigo,
+            cuenta_nombre=d.cuenta.nombre,
+            tipo_movimiento=d.tipo_movimiento,
+            monto=d.monto
+        ) for d in partida.detalles
+    ]
+
+    empresa_nombre = ""
+    if partida.detalles:
+        cuenta = partida.detalles[0].cuenta
+        if cuenta and cuenta.empresa:
+            empresa_nombre = cuenta.empresa.nombre
+
+    return PartidaOut(
+        id=partida.id,
+        numero=partida.numero,
+        numero_poliza=partida.numero_poliza,
+        fecha=partida.fecha,
+        descripcion=partida.descripcion,
+        empresa_nombre=empresa_nombre,
+        created_at=partida.created_at,
+        detalles=detalles_out
+    )

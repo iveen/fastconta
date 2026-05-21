@@ -147,15 +147,29 @@ async def seed(schema_name: str, empresa_id: uuid.UUID, num_partidas: int = 10):
             if not detalles:
                 continue
 
-            # Asegurar partida doble: sumas iguales
-            debe = sum(d["monto"] for d in detalles if d["tipo_movimiento"] == "debe")
-            haber = sum(d["monto"] for d in detalles if d["tipo_movimiento"] == "haber")
-            # Si no cuadra, ajustamos el último detalle (o añadimos diferencia)
-            if debe != haber:
-                diff = debe - haber
-                # Buscamos el último detalle y le ajustamos el monto
-                last = detalles[-1]
-                last["monto"] += abs(diff)
+            # Asegurar partida doble: sumas iguales usando Caja como cuenta puente
+            total_debe = sum(d["monto"] for d in detalles if d["tipo_movimiento"] == "debe")
+            total_haber = sum(d["monto"] for d in detalles if d["tipo_movimiento"] == "haber")
+
+            if total_debe != total_haber:
+                cuenta_caja = cuentas_por_codigo.get("1.1.1")
+                if not cuenta_caja:
+                    print("  [!] No se encontró la cuenta 1.1.1 (Caja) para balancear. Saltando partida.")
+                    continue
+                if total_debe > total_haber:
+                    diff = total_debe - total_haber
+                    detalles.append({
+                        "cuenta_id": cuenta_caja.id,
+                        "tipo_movimiento": "haber",
+                        "monto": diff
+                    })
+                else:
+                    diff = total_haber - total_debe
+                    detalles.append({
+                        "cuenta_id": cuenta_caja.id,
+                        "tipo_movimiento": "debe",
+                        "monto": diff
+                    })
 
             # Fecha aleatoria dentro del período fiscal
             dias_rango = (fecha_fin - fecha_inicio).days

@@ -21,6 +21,9 @@
         <router-link to="/dashboard/cierre" class="block py-2 px-3 rounded hover:bg-gray-700 transition">
           🔒 Cierre Contable
         </router-link>
+        <router-link to="/dashboard/periodos-fiscales" class="block py-2 px-3 rounded hover:bg-gray-700 transition">
+            📅 Períodos Fiscales
+        </router-link>
       </nav>
       <div class="p-4 border-t border-gray-700 text-sm text-gray-400">
         {{ authStore.user?.tenant_name }}

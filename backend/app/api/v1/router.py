@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, tenants, empresas, plan_cuentas, partidas, balances, cierre
+from app.api.v1.endpoints import auth, tenants, empresas, plan_cuentas, partidas, balances, cierre, periodos_fiscales
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
@@ -9,3 +9,4 @@ api_router.include_router(plan_cuentas.router, prefix="/plan-cuentas", tags=["pl
 api_router.include_router(partidas.router, prefix="/partidas", tags=["partidas"])  
 api_router.include_router(balances.router, prefix="/balances", tags=["balances"])
 api_router.include_router(cierre.router, prefix="/cierre", tags=["cierre-contable"])
+api_router.include_router(periodos_fiscales.router, prefix="/periodos-fiscales", tags=["periodos-fiscales"])

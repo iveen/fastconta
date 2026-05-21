@@ -7,6 +7,7 @@ import Partidas from '@/views/Partidas.vue'
 import Reportes from '@/views/Reportes.vue'
 import Cierre from '@/views/Cierre.vue'
 import PartidaDetalle from '@/views/PartidaDetalle.vue'
+import PeriodosFiscales from '@/views/PeriodosFiscales.vue'
 
 const routes = [
   { path: '/', redirect: '/login' },
@@ -22,7 +23,8 @@ const routes = [
       { path: 'partidas', name: 'Partidas', component: Partidas },
       { path: 'reportes', name: 'Reportes', component: Reportes },
       { path: 'cierre', name: 'Cierre', component: Cierre },
-      { path: 'partidas/:id', name: 'PartidaDetalle', component: PartidaDetalle}
+      { path: 'partidas/:id', name: 'PartidaDetalle', component: PartidaDetalle},
+      { path: 'periodos-fiscales', name: 'PeriodosFiscales', component: PeriodosFiscales},
     ]
   }
 ]

@@ -95,7 +95,12 @@
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
           <tr v-for="fila in balanceComp.filas" :key="fila.cuenta_id" class="hover:bg-gray-50">
-            <td class="px-4 py-3 whitespace-nowrap text-sm font-mono">{{ fila.codigo }}</td>
+            <!-- Vínculo a Libro Mayor por Cuenta-->
+            <td class="px-4 py-3 whitespace-nowrap text-sm font-mono text-blue-600 hover:text-blue-800">
+                <router-link :to="`/dashboard/reportes/libro-mayor/${fila.cuenta_id}?fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`">
+                    {{ fila.codigo }}
+                </router-link>
+                </td>
             <td class="px-4 py-3 whitespace-nowrap text-sm">{{ fila.nombre }}</td>
             <td class="px-4 py-3 whitespace-nowrap text-sm text-right">{{ fila.sum_debe }}</td>
             <td class="px-4 py-3 whitespace-nowrap text-sm text-right">{{ fila.sum_haber }}</td>

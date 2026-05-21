@@ -8,6 +8,7 @@ import Reportes from '@/views/Reportes.vue'
 import Cierre from '@/views/Cierre.vue'
 import PartidaDetalle from '@/views/PartidaDetalle.vue'
 import PeriodosFiscales from '@/views/PeriodosFiscales.vue'
+import LibroMayor from '@/views/LibroMayor.vue'
 
 const routes = [
   { path: '/', redirect: '/login' },
@@ -25,6 +26,7 @@ const routes = [
       { path: 'cierre', name: 'Cierre', component: Cierre },
       { path: 'partidas/:id', name: 'PartidaDetalle', component: PartidaDetalle},
       { path: 'periodos-fiscales', name: 'PeriodosFiscales', component: PeriodosFiscales},
+      { path: 'reportes/libro-mayor/:cuenta_id', name: 'LibroMayor', component: LibroMayor },
     ]
   }
 ]

@@ -146,5 +146,32 @@ VALUES (gen_random_uuid(), 'superadmin@fastconta.com', '<HASH-GENERADO>', 'Super
 uvicorn app.main:app --reload
 ```
 <br/>
-La API estará disponible en **http://localhost:8000**.<br/>
-Documentación interactiva en **http://localhost:8000/docs**.<br/>
+La API estará disponible en http://localhost:8000.<br/>
+Documentación interactiva en http://localhost:8000/docs.<br/>
+
+## 🧪 Crear un tenant y probar
+1. Login como superadmin: POST /api/v1/auth/login
+```json
+Body: {"email": "superadmin@fastconta.com", "password": "admin"}
+```
+2. Crear tenant: POST /api/v1/tenants/
+```json
+Body: {"tenant_name":"ContaGuate","admin_email":"admin@contaguate.com","admin_password":"clave123","nit":"1234567-8"}
+```
+3. Login como admin del nuevo tenant.
+4. Crear empresa, cuentas y partidas usando los endpoints protegidos.
+5. Poblar datos de prueba:
+```bash
+python seed_plan_cuentas.py tenant_contaguate <id_empresa>
+python seed_partidas.py tenant_contaguate <id_empresa> --num 30
+```
+## 🤝 Contribución
+Las contribuciones son bienvenidas. Por favor, abre un issue o envía un pull request.
+
+## 📄 Licencia
+Este proyecto está bajo la licencia MIT. Ver archivo **LICENSE** para más detalles.
+
+## ✨ Créditos
+Desarrollado por Iveen Duarte.
+Proyecto en desarrollo activo. ¡Pronto más funcionalidades!
+

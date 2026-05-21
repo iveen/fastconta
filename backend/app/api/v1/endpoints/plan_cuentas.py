@@ -75,8 +75,8 @@ async def delete_cuenta(cuenta_id: str, db: AsyncSession = Depends(get_tenant_db
 @router.get("/{cuenta_id}/movimientos", response_model=LibroMayorResponse)
 async def libro_mayor_cuenta(
     cuenta_id: str,
-    fecha_inicio: Optional[date] = None,
-    fecha_fin: Optional[date] = None,
+    fecha_inicio: date = Query(..., description="Fecha inicial del período"),
+    fecha_fin: date = Query(..., description="Fecha final del período"),
     db: AsyncSession = Depends(get_tenant_db)
 ):
     # Obtener la cuenta
@@ -89,10 +89,8 @@ async def libro_mayor_cuenta(
     stmt = (select(DetallePartida, Partida)
             .join(Partida, DetallePartida.partida_id == Partida.id)
             .where(DetallePartida.cuenta_id == cuenta_id))
-    if fecha_inicio:
-        stmt = stmt.where(Partida.fecha >= fecha_inicio)
-    if fecha_fin:
-        stmt = stmt.where(Partida.fecha <= fecha_fin)
+    stmt = stmt.where(Partida.fecha >= fecha_inicio)
+    stmt = stmt.where(Partida.fecha <= fecha_fin)
     stmt = stmt.order_by(Partida.fecha, Partida.created_at)
 
     result = await db.execute(stmt)

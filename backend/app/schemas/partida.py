@@ -47,3 +47,14 @@ class PartidaOut(BaseModel):
     empresa_nombre: Optional[str] = ""
     created_at: datetime
     detalles: List[DetallePartidaOut]
+
+class LineaLibroDiario(BaseModel):
+    partida_id: UUID
+    numero_poliza: Optional[str]
+    fecha: date
+    descripcion: str
+    cuenta_id: UUID
+    cuenta_codigo: str
+    cuenta_nombre: str
+    tipo_movimiento: str
+    monto: Decimal

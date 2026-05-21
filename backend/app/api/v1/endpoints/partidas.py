@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload
 from app.db.session import get_tenant_db
 from app.models.tenant_models import Partida, DetallePartida, CuentaContable, \
     Empresa, PeriodoFiscal
-from app.schemas.partida import PartidaCreate, PartidaOut, DetallePartidaOut
+from app.schemas.partida import PartidaCreate, PartidaOut, DetallePartidaOut, LineaLibroDiario
 from uuid import UUID
 from typing import Optional
 from app.crud.secuencias import get_next_poliza
@@ -175,3 +175,49 @@ async def listar_partidas(
             detalles=detalles_out
         ))
     return resp
+
+
+@router.get("/libro-diario", response_model=list[LineaLibroDiario])
+async def libro_diario(
+    empresa_id: UUID = Query(..., description="ID de la empresa"),
+    fecha_inicio: date = Query(..., description="Fecha inicial (inclusive)"),
+    fecha_fin: date = Query(..., description="Fecha final (inclusive)"),
+    db: AsyncSession = Depends(get_tenant_db)
+):
+    # Validar empresa
+    result_emp = await db.execute(select(Empresa).where(Empresa.id == empresa_id))
+    if not result_emp.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Empresa no encontrada")
+
+    # Construir consulta: obtener todas las líneas de detalle de partidas
+    # cuyas cuentas pertenezcan a la empresa y las fechas estén en el rango
+    stmt = (
+        select(Partida, DetallePartida, CuentaContable)
+        .join(DetallePartida, Partida.id == DetallePartida.partida_id)
+        .join(CuentaContable, DetallePartida.cuenta_id == CuentaContable.id)
+        .where(
+            CuentaContable.empresa_id == empresa_id,
+            Partida.fecha >= fecha_inicio,
+            Partida.fecha <= fecha_fin
+        )
+        .order_by(Partida.fecha, Partida.numero_poliza, CuentaContable.codigo)
+    )
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    lineas = []
+    for partida, detalle, cuenta in rows:
+        lineas.append(LineaLibroDiario(
+            partida_id=partida.id,
+            numero_poliza=partida.numero_poliza,
+            fecha=partida.fecha,
+            descripcion=partida.descripcion,
+            cuenta_id=cuenta.id,
+            cuenta_codigo=cuenta.codigo,
+            cuenta_nombre=cuenta.nombre,
+            tipo_movimiento=detalle.tipo_movimiento,
+            monto=detalle.monto
+        ))
+
+    return lineas

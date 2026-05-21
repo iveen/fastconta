@@ -32,3 +32,4 @@ LEFT JOIN tenant_contaguate.detalle_partidas d ON d.cuenta_id = c.id
 WHERE c.empresa_id = '4c79a36b-7bb7-41bf-bd2d-3e78fe3568e3'
   AND (c.codigo IN ('3.4', '3.3.1') OR c.tipo IN ('activo', 'pasivo'))
 GROUP BY c.id;
+

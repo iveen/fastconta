@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -11,7 +11,10 @@ class Tenant(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
-    schema_name = Column(String(63), unique=True, nullable=False)  # ej: tenant_<id>
+    schema_name = Column(String(63), unique=True, nullable=False)
+    nit = Column(String(15), unique=True, nullable=False)       # <-- añadir
+    plan = Column(String(20), default="freemium", nullable=False)  # <-- añadir
+    max_empresas = Column(Integer, default=5, nullable=False)     # <-- añadir
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -31,3 +34,12 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     tenant = relationship("Tenant", back_populates="users")
+
+class RegistrationAttempt(Base):
+    __tablename__ = "registration_attempts"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    ip_address = Column(String(45), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    

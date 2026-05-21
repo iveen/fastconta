@@ -22,7 +22,7 @@ def get_sync_session():
 def run_public_migrations():
     alembic_cfg = Config(ALEMBIC_GLOBAL_INI)
     alembic_cfg.set_main_option("script_location", "alembic")
-    command.upgrade(alembic_cfg, "global")
+    command.upgrade(alembic_cfg, "head")
     print("Migraciones globales aplicadas.")
 
 def run_tenant_migrations():

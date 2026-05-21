@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from uuid import UUID
 
@@ -13,3 +13,4 @@ class EmpresaOut(BaseModel):
     nit: str
     direccion: str | None
     created_at: datetime
+    model_config = ConfigDict(from_attributes=True)

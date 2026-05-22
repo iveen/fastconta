@@ -119,16 +119,15 @@ def parse_fel_xml(xml_content: str) -> Optional[Dict]:
                 'iva_linea': iva_linea,
             })
 
-        # Detectar si es factura de exportación (complemento cex:Exportacion)
+        # Detectar si es factura de exportación (tiene el complemento cex:Exportacion)
         es_exportacion = False
-        cex_ns = None
         for val in root.nsmap.values():
             if val and 'ComplementoExportaciones' in val:
                 cex_ns = val
+                # Buscar directamente cualquier elemento Exportacion en ese namespace
+                if root.xpath('//cex:Exportacion', namespaces={'cex': cex_ns}):
+                    es_exportacion = True
                 break
-        if cex_ns:
-            export_el = root.xpath('//dte:Complementos/dte:Complemento/cex:Exportacion', namespaces={'dte': dte_ns, 'cex': cex_ns})
-            es_exportacion = bool(export_el)
 
         return {
             'numero_autorizacion': numero_autorizacion,

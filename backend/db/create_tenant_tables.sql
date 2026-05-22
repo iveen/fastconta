@@ -59,6 +59,29 @@ CREATE TABLE IF NOT EXISTS {schema}.periodos_fiscales (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS {schema}.facturas_electronicas (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    empresa_id UUID NOT NULL REFERENCES tenant_contaguate.empresas(id),
+    xml_original TEXT NOT NULL,
+    numero_autorizacion VARCHAR(50) NOT NULL,
+    autorizacion_uuid VARCHAR(50),
+    serie VARCHAR(20),
+    numero VARCHAR(20) NOT NULL,
+    tipo_documento VARCHAR(10),
+    moneda VARCHAR(5),
+    fecha_emision TIMESTAMPTZ NOT NULL,
+    emisor_nit VARCHAR(15) NOT NULL,
+    emisor_nombre VARCHAR(255) NOT NULL,
+    receptor_nit VARCHAR(15) NOT NULL,
+    receptor_nombre VARCHAR(255) NOT NULL,
+    total_gravado NUMERIC(12,2) DEFAULT 0,
+    total_iva NUMERIC(12,2) DEFAULT 0,
+    total_exento NUMERIC(12,2) DEFAULT 0,
+    total NUMERIC(12,2) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+-- Repite para los otros esquemas cambiando el nombre del schema
+
 -- Historial de Alembic
 CREATE TABLE IF NOT EXISTS {schema}.alembic_version (
     version_num VARCHAR(32) NOT NULL PRIMARY KEY

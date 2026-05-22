@@ -79,3 +79,55 @@ class PeriodoFiscal(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False)
     empresa = relationship("Empresa")
+
+class FacturaElectronica(Base):
+    __tablename__ = "facturas_electronicas"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False)
+    xml_original = Column(Text, nullable=False)
+
+    # Campos de la certificación
+    numero_autorizacion = Column(String(50), nullable=False)      # Número de autorización (ej. 2818130895)
+    autorizacion_uuid = Column(String(50), nullable=True)         # UUID de la autorización
+    serie = Column(String(20), nullable=True)                     # Serie (ej. 0F1C6151)
+    numero = Column(String(20), nullable=False)                   # Número de factura
+    tipo_documento = Column(String(10), nullable=True)            # FACT, CAMB, etc.
+    moneda = Column(String(5), nullable=True)                     # GTQ, USD, etc.
+
+    # Fechas
+    fecha_emision = Column(DateTime(timezone=True), nullable=False)
+
+    # Emisor
+    emisor_nit = Column(String(15), nullable=False)
+    emisor_nombre = Column(String(255), nullable=False)
+
+    # Receptor
+    receptor_nit = Column(String(15), nullable=False)
+    receptor_nombre = Column(String(255), nullable=False)
+
+    # Totales
+    total_gravado = Column(Numeric(12,2), default=0)
+    total_iva = Column(Numeric(12,2), default=0)
+    total_exento = Column(Numeric(12,2), default=0)
+    total = Column(Numeric(12,2), nullable=False)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    empresa = relationship("Empresa")
+    detalles = relationship("FacturaDetalle", back_populates="factura", cascade="all, delete-orphan")
+
+    es_exportacion = Column(Boolean, default=False) 
+
+class FacturaDetalle(Base):
+    __tablename__ = "factura_detalles"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    factura_id = Column(UUID(as_uuid=True), ForeignKey("facturas_electronicas.id", ondelete="CASCADE"), nullable=False)
+    cantidad = Column(Numeric(12,4), nullable=False)
+    descripcion = Column(String(500), nullable=False)
+    precio_unitario = Column(Numeric(12,2), nullable=False)
+    total_linea = Column(Numeric(12,2), nullable=False)
+    iva_linea = Column(Numeric(12,2), default=0)
+    # Relación
+    factura = relationship("FacturaElectronica", back_populates="detalles")

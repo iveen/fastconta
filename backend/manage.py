@@ -29,18 +29,14 @@ def run_tenant_migrations():
     session = get_sync_session()
     try:
         tenants = session.execute(select(Tenant).where(Tenant.is_active == True)).scalars().all()
-        if not tenants:
-            print("No hay tenants activos.")
-            return
         for tenant in tenants:
             schema_name = tenant.schema_name
             print(f"Aplicando migraciones de tenant a {schema_name}...")
-            alembic_cfg = Config(ALEMBIC_TENANT_INI)   # <-- Usa exclusivamente la config de tenant
+            alembic_cfg = Config(ALEMBIC_TENANT_INI)  # <-- usa tenant ini
             alembic_cfg.set_main_option("script_location", "alembic_tenant")
             os.environ["TENANT_SCHEMA"] = schema_name
             command.upgrade(alembic_cfg, "head")
             os.environ.pop("TENANT_SCHEMA", None)
-            print(f"Migraciones de tenant aplicadas a {schema_name}.")
     finally:
         session.close()
 

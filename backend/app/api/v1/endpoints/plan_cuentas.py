@@ -95,10 +95,12 @@ async def libro_mayor_cuenta(
     # Construir query de movimientos
     stmt = (select(DetallePartida, Partida)
             .join(Partida, DetallePartida.partida_id == Partida.id)
-            .where(DetallePartida.cuenta_id == cuenta_id))
-    stmt = stmt.where(Partida.fecha >= fecha_inicio)
-    stmt = stmt.where(Partida.fecha <= fecha_fin)
-    stmt = stmt.order_by(Partida.fecha, Partida.created_at)
+            .where(
+                DetallePartida.cuenta_id == cuenta_id,
+                Partida.fecha >= fecha_inicio,
+                Partida.fecha <= fecha_fin
+            )
+            .order_by(Partida.fecha, Partida.created_at))
 
     result = await db.execute(stmt)
     rows = result.all()
@@ -112,7 +114,7 @@ async def libro_mayor_cuenta(
                 saldo += monto
             else:
                 saldo -= monto
-        else:  # haber
+        else:
             if cuenta.naturaleza == "acreedora":
                 saldo += monto
             else:
@@ -121,6 +123,7 @@ async def libro_mayor_cuenta(
         movimientos.append(MovimientoCuenta(
             fecha=part.fecha,
             partida_id=part.id,
+            numero_poliza=part.numero_poliza,  # <-- añadido
             descripcion_partida=part.descripcion,
             tipo_movimiento=det.tipo_movimiento,
             monto=monto

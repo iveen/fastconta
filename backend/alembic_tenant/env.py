@@ -12,6 +12,11 @@ from app.db.base import Base
 from app.models.global_models import Tenant, User  # noqa
 from app.models.tenant_models import Empresa, CuentaContable, Partida, DetallePartida, Secuencia, PeriodoFiscal  # noqa
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -58,8 +63,7 @@ def run_migrations_online():
     with connectable.connect() as connection:
         tenant_schema = os.environ.get("TENANT_SCHEMA")
         if not tenant_schema:
-            raise RuntimeError("TENANT_SCHEMA no definida")
-        # Forzar el search_path para que todo DDL vaya al schema del tenant
+            raise RuntimeError("TENANT_SCHEMA no definida; no se puede migrar un tenant sin schema")
         connection.execute(text(f"SET search_path TO {tenant_schema}, public"))
         context.configure(
             connection=connection,

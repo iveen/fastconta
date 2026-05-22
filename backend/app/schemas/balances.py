@@ -8,8 +8,9 @@ from typing import Optional, List
 class MovimientoCuenta(BaseModel):
     fecha: date
     partida_id: UUID
+    numero_poliza: Optional[str] = None  # <-- nuevo
     descripcion_partida: str
-    tipo_movimiento: str  # "debe" o "haber"
+    tipo_movimiento: str
     monto: Decimal
 
 class LibroMayorResponse(BaseModel):

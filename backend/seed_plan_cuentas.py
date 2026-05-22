@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy import text
 
 from app.config import settings
-from app.models.tenant_models import CuentaContable
+from app.models.tenant_models import CuentaContable, Empresa
 
 # ---------------------------------------------------------------------------
 CATALOGO = [
@@ -75,25 +75,39 @@ async def seed(schema_name: str, empresa_id: uuid.UUID):
     async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with async_session() as session:
-        await session.execute(text(f"SET search_path TO {schema_name}, public"))
+        # 1. Verificar que la empresa existe usando SQL cualificado (sin depender del search_path)
+        check_query = text(f"SELECT id FROM {schema_name}.empresas WHERE id = :empresa_id")
+        result = await session.execute(check_query, {"empresa_id": empresa_id})
+        if not result.fetchone():
+            print(f"Error: La empresa {empresa_id} no existe en el esquema {schema_name}.")
+            return
 
-        # Mapa: código -> objeto CuentaContable
+        # 2. Insertar cuentas directamente con SQL cualificado para evitar problemas con el ORM y search_path
         cuentas_map = {}
-
         for codigo, nombre, tipo, naturaleza, nivel, codigo_padre in CATALOGO:
-            padre_id = cuentas_map[codigo_padre].id if codigo_padre else None
-            cuenta = CuentaContable(
-                codigo=codigo,
-                nombre=nombre,
-                tipo=tipo,
-                naturaleza=naturaleza,
-                nivel=nivel,
-                cuenta_padre_id=padre_id,
-                empresa_id=empresa_id,
-            )
-            session.add(cuenta)
-            await session.flush()  # para obtener el ID generado
-            cuentas_map[codigo] = cuenta
+            padre_id = cuentas_map.get(codigo_padre) if codigo_padre else None
+
+            insert_query = text(f"""
+                INSERT INTO {schema_name}.plan_cuentas 
+                    (id, codigo, nombre, tipo, naturaleza, acepta_tercero, nivel, cuenta_padre_id, activa, empresa_id)
+                VALUES 
+                    (gen_random_uuid(), :codigo, :nombre, :tipo, :naturaleza, :acepta_tercero, :nivel, :padre_id, :activa, :empresa_id)
+                RETURNING id
+            """)
+            insert_params = {
+                "codigo": codigo,
+                "nombre": nombre,
+                "tipo": tipo,
+                "naturaleza": naturaleza,
+                "acepta_tercero": False,
+                "nivel": nivel,
+                "padre_id": padre_id,
+                "activa": True,
+                "empresa_id": empresa_id
+            }
+            res = await session.execute(insert_query, insert_params)
+            cuenta_id = res.scalar_one()
+            cuentas_map[codigo] = cuenta_id
 
         await session.commit()
         print(f"Plan de cuentas insertado correctamente en {schema_name} (empresa {empresa_id}).")

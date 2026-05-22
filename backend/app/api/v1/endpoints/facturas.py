@@ -20,9 +20,10 @@ async def upload_facturas(
 ):
     # Validar empresa
     result_emp = await db.execute(select(Empresa).where(Empresa.id == empresa_id))
-    if not result_emp.scalar_one_or_none():
+    empresa = emp.scalar_one_orNone()
+    if not empresa:
         raise HTTPException(status_code=400, detail="Empresa no encontrada")
-
+    log_rechazos = []
     facturas = []
     for file in files:
         if not file.filename.endswith('.xml'):
@@ -31,8 +32,31 @@ async def upload_facturas(
         xml_str = content.decode('utf-8')
         datos = parse_fel_xml(xml_str)
         if not datos:
-            raise HTTPException(status_code=400, detail=f"No se pudo parsear {file.filename}")
+            log_rechazos.append(f"{file.filename}: No se pudo procesar")
+            continue
 
+        # Verificar duplicado (serie + numero_autorizacion)
+        existe = await db.execute(
+            select(FacturaElectronica).where(
+                FacturaElectronica.empresa_id == empresa_id,
+                FacturaElectronica.serie == datos.get('serie'),
+                FacturaElectronica.numero_autorizacion == datos.get('numero_autorizacion')
+            )
+        )
+        if existe.scalar_one_or_none():
+            log_rechazos.append(f"{file.filename}: Factura duplicada (serie {datos.get('serie')} número {datos.get('numero_autorizacion')})")
+            continue
+
+        # Clasificar
+        emisor_nit = datos.get('emisor_nit', '').replace('-', '')
+        receptor_nit = datos.get('receptor_nit', '').replace('-', '')
+        if emisor_nit == empresa_nit:
+            tipo_op = 'Venta'
+        elif receptor_nit == empresa_nit:
+            tipo_op = 'Compra'
+        else:
+            log_rechazos.append(f"{file.filename}: NIT de emisor ({emisor_nit}) y receptor ({receptor_nit}) no coinciden con la empresa ({empresa_nit})")
+            continue
         # Extraer los items para guardarlos después
         items_factura = datos.pop('items', [])
 
@@ -55,6 +79,9 @@ async def upload_facturas(
             total_exento=datos.get('total_exento', 0),
             total=datos['total'],
             es_exportacion=datos.get('es_exportacion', False),
+            nombre_comercial=datos.get('emisor_nombre_comercial'),
+            tipo_operacion=tipo_op,
+            estado='Activa'
         )
         db.add(factura)
         await db.flush()
@@ -73,14 +100,17 @@ async def upload_facturas(
         facturas.append(factura)
 
     await db.commit()
-    # Recargar las facturas con sus detalles precargados
+    # Recargar facturas con detalles
     ids = [f.id for f in facturas]
-    stmt = (select(FacturaElectronica)
-            .where(FacturaElectronica.id.in_(ids))
-            .options(selectinload(FacturaElectronica.detalles)))
+    stmt = select(FacturaElectronica).where(FacturaElectronica.id.in_(ids)).options(selectinload(FacturaElectronica.detalles))
     result = await db.execute(stmt)
-    facturas_cargadas = result.scalars().all()
-    return [FacturaOut.model_validate(f) for f in facturas_cargadas]
+    facturas_resp = result.scalars().all()
+
+    return {
+        "cargadas": len(facturas_resp),
+        "facturas": [FacturaOut.model_validate(f) for f in facturas_resp],
+        "rechazadas": log_rechazos  # lista de strings con los motivos
+    }
 
 @router.get("/", response_model=List[FacturaOut])
 async def listar_facturas(

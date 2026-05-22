@@ -16,10 +16,11 @@ app.add_middleware(
 
 # Incluir rutas
 app.include_router(api_router, prefix="/api/v1")
-
+'''
 # Evento de inicio para crear tablas (solo desarrollo)
 @app.on_event("startup")
 async def startup_event():
     # Crear tablas automáticamente (solo si no se usa Alembic)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+'''

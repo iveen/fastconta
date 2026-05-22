@@ -58,17 +58,20 @@ async def crear_partida(payload: PartidaCreate, db: AsyncSession = Depends(get_t
 
     # Validar unicidad de numero_poliza si se proporciona
     if not numero_poliza:
-        numero_poliza = await get_next_poliza(db, empresa_id)
+        schema_name = db.info["current_user"]["schema"]
+        numero_poliza = await get_next_poliza(db, empresa_id, schema_name)
     else:
-        existente = await db.execute(select(Partida).where(Partida.numero_poliza == numero_poliza))
+        existente = await db.execute(
+        select(Partida).where(Partida.numero_poliza == numero_poliza, Partida.empresa_id == empresa_id))
         if existente.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="El número de póliza ya existe")
+            raise HTTPException(status_code=400, detail="El número de póliza ya existe para esta empresa")
 
     # Crear partida (sin empresa_id)
     partida = Partida(
         fecha=payload.fecha,
         descripcion=payload.descripcion,
         numero_poliza=numero_poliza,
+        empresa_id=empresa_id,
     )
     db.add(partida)
     await db.flush()
@@ -128,31 +131,26 @@ async def listar_partidas(
         if not result_emp.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="Empresa no encontrada")
 
-    # Construir consulta base
+    # Construir consulta base con precarga de relaciones (incluida la empresa directa)
     stmt = (select(Partida)
             .options(selectinload(Partida.detalles)
                      .selectinload(DetallePartida.cuenta)
-                     .selectinload(CuentaContable.empresa))
+                     .selectinload(CuentaContable.empresa),
+                     selectinload(Partida.empresa))  # ← precargar la empresa directa
             .order_by(Partida.fecha.desc()))
 
-    # Aplicar filtro por empresa si se solicita
+    # Aplicar filtro por empresa directamente sobre Partida.empresa_id
     if empresa_id:
-        subquery = (select(DetallePartida.partida_id)
-                    .join(CuentaContable, DetallePartida.cuenta_id == CuentaContable.id)
-                    .where(CuentaContable.empresa_id == empresa_id))
-        stmt = stmt.where(Partida.id.in_(subquery))
+        stmt = stmt.where(Partida.empresa_id == empresa_id)
 
     result = await db.execute(stmt)
     partidas = result.scalars().all()
 
-    # Construir respuesta (igual que antes)
+    # Construir respuesta
     resp = []
     for p in partidas:
-        empresa_nombre = ""
-        if p.detalles:
-            cuenta = p.detalles[0].cuenta
-            if cuenta and cuenta.empresa:
-                empresa_nombre = cuenta.empresa.nombre
+        # Ahora podemos obtener el nombre de empresa directamente
+        empresa_nombre = p.empresa.nombre if p.empresa else ""
 
         detalles_out = [
             DetallePartidaOut(
@@ -175,7 +173,6 @@ async def listar_partidas(
             detalles=detalles_out
         ))
     return resp
-
 
 @router.get("/libro-diario", response_model=list[LineaLibroDiario])
 async def libro_diario(

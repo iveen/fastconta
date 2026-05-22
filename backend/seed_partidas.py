@@ -92,109 +92,91 @@ async def seed(schema_name: str, empresa_id: uuid.UUID, num_partidas: int = 10):
     async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with async_session() as session:
-        await session.execute(text(f"SET search_path TO {schema_name}, public"))
-
-        # Obtener cuentas de la empresa
+        # Obtener cuentas de la empresa (consulta cualificada)
         result = await session.execute(
-            select(CuentaContable).where(
-                CuentaContable.empresa_id == empresa_id,
-                CuentaContable.activa == True
-            )
+            text(f"SELECT id, codigo FROM {schema_name}.plan_cuentas WHERE empresa_id = :emp_id AND activa = true"),
+            {"emp_id": empresa_id}
         )
-        cuentas = result.scalars().all()
-
-        if not cuentas:
+        cuentas_rows = result.fetchall()
+        if not cuentas_rows:
             print(f"No hay cuentas para la empresa {empresa_id} en {schema_name}.")
             return
 
-        # Mapa código -> cuenta
-        cuentas_por_codigo = {c.codigo: c for c in cuentas}
+        cuentas_por_codigo = {row[1]: row[0] for row in cuentas_rows}
 
-        # Obtener período fiscal abierto para esta empresa
+        # Obtener período fiscal abierto
         result_periodo = await session.execute(
-            select(PeriodoFiscal).where(
-                PeriodoFiscal.empresa_id == empresa_id,
-                PeriodoFiscal.cerrado == False
-            )
+            text(f"SELECT fecha_inicio, fecha_fin FROM {schema_name}.periodos_fiscales WHERE empresa_id = :emp_id AND cerrado = false LIMIT 1"),
+            {"emp_id": empresa_id}
         )
-        periodo = result_periodo.scalar_one_or_none()
+        periodo = result_periodo.fetchone()
         if not periodo:
             print("No se encontró un período fiscal abierto para la empresa.")
             return
 
-        fecha_inicio = periodo.fecha_inicio
-        fecha_fin = periodo.fecha_fin
+        fecha_inicio = periodo[0]
+        fecha_fin = periodo[1]
 
         for i in range(num_partidas):
-            # Elegir una transacción al azar
             t = random.choice(TRANSACCIONES)
-
-            # Construir detalles usando los códigos de cuentas
             detalles = []
             for d in t["detalles"]:
-                codigo = d["codigo"]
-                cuenta = cuentas_por_codigo.get(codigo)
-                if not cuenta:
-                    print(f"  [!] Cuenta {codigo} no encontrada, saltando transacción.")
+                cuenta_id = cuentas_por_codigo.get(d["codigo"])
+                if not cuenta_id:
+                    print(f"  [!] Cuenta {d['codigo']} no encontrada, saltando.")
                     detalles = None
                     break
-                monto = Decimal(str(random.randint(100, 2000)))  # Monto aleatorio entre 100 y 2000
+                monto = Decimal(str(random.randint(100, 2000)))
                 detalles.append({
-                    "cuenta_id": cuenta.id,
+                    "cuenta_id": cuenta_id,
                     "tipo_movimiento": d["movimiento"],
                     "monto": monto
                 })
             if not detalles:
                 continue
 
-            # Asegurar partida doble: sumas iguales usando Caja como cuenta puente
+            # Balancear con Caja si es necesario
             total_debe = sum(d["monto"] for d in detalles if d["tipo_movimiento"] == "debe")
             total_haber = sum(d["monto"] for d in detalles if d["tipo_movimiento"] == "haber")
-
             if total_debe != total_haber:
-                cuenta_caja = cuentas_por_codigo.get("1.1.1")
-                if not cuenta_caja:
-                    print("  [!] No se encontró la cuenta 1.1.1 (Caja) para balancear. Saltando partida.")
+                cuenta_caja_id = cuentas_por_codigo.get("1.1.1")
+                if not cuenta_caja_id:
+                    print("  [!] No se encontró Caja para balancear.")
                     continue
-                if total_debe > total_haber:
-                    diff = total_debe - total_haber
-                    detalles.append({
-                        "cuenta_id": cuenta_caja.id,
-                        "tipo_movimiento": "haber",
-                        "monto": diff
-                    })
+                diff = total_debe - total_haber
+                if diff > 0:
+                    detalles.append({"cuenta_id": cuenta_caja_id, "tipo_movimiento": "haber", "monto": diff})
                 else:
-                    diff = total_haber - total_debe
-                    detalles.append({
-                        "cuenta_id": cuenta_caja.id,
-                        "tipo_movimiento": "debe",
-                        "monto": diff
-                    })
+                    detalles.append({"cuenta_id": cuenta_caja_id, "tipo_movimiento": "debe", "monto": abs(diff)})
 
-            # Fecha aleatoria dentro del período fiscal
-            dias_rango = (fecha_fin - fecha_inicio).days
-            fecha_aleatoria = fecha_inicio + timedelta(days=random.randint(0, dias_rango))
+            # Generar número de póliza (la función get_next_poliza ya usa la tabla secuencias por empresa)
+            numero_poliza = await get_next_poliza(session, empresa_id, schema_name)
 
-            # Generar número de póliza usando la función del sistema
-            numero_poliza = await get_next_poliza(session, empresa_id)
+            fecha_aleatoria = fecha_inicio + timedelta(days=random.randint(0, (fecha_fin - fecha_inicio).days))
 
-            partida = Partida(
-                fecha=fecha_aleatoria,
-                descripcion=t["descripcion"],
-                numero_poliza=numero_poliza,
-            )
-            session.add(partida)
-            await session.flush()
+            # Insertar partida con SQL cualificado
+            insert_partida = text(f"""
+                INSERT INTO {schema_name}.partidas (id, numero_poliza, fecha, descripcion, empresa_id)
+                VALUES (gen_random_uuid(), :num_poliza, :fecha, :descripcion, :empresa_id)
+                RETURNING id
+            """)
+            res = await session.execute(insert_partida, {
+                "num_poliza": numero_poliza,
+                "fecha": fecha_aleatoria,
+                "descripcion": t["descripcion"],
+                "empresa_id": empresa_id
+            })
+            partida_id = res.scalar_one()
 
+            # Insertar detalles con SQL cualificado
             for det in detalles:
-                session.add(DetallePartida(
-                    partida_id=partida.id,
-                    cuenta_id=det["cuenta_id"],
-                    tipo_movimiento=det["tipo_movimiento"],
-                    monto=det["monto"]
-                ))
+                await session.execute(
+                    text(f"""INSERT INTO {schema_name}.detalle_partidas (id, partida_id, cuenta_id, tipo_movimiento, monto)
+                             VALUES (gen_random_uuid(), :partida_id, :cuenta_id, :tipo, :monto)"""),
+                    {"partida_id": partida_id, "cuenta_id": det["cuenta_id"], "tipo": det["tipo_movimiento"], "monto": det["monto"]}
+                )
 
-            print(f"  [{i+1}] {partida.numero_poliza}: {partida.descripcion} ({partida.fecha})")
+            print(f"  [{i+1}] {numero_poliza}: {t['descripcion']} ({fecha_aleatoria})")
 
         await session.commit()
         print(f"\nSe generaron {num_partidas} partidas de prueba en {schema_name} (empresa {empresa_id}).")

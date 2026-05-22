@@ -18,11 +18,14 @@ class Empresa(Base):
 
 class CuentaContable(Base):
     __tablename__ = "plan_cuentas"
+    __table_args__ = (
+        UniqueConstraint('codigo', 'empresa_id', name='plan_cuentas_codigo_empresa_unique'),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    codigo = Column(String(20), unique=True, nullable=False, index=True)
+    codigo = Column(String(20), nullable=False, index=True)   # El índice simple lo puedes dejar o quitar
     nombre = Column(String(255), nullable=False)
-    tipo = Column(String(20), nullable=False)          # <-- String en lugar de Enum
+    tipo = Column(String(20), nullable=False)
     naturaleza = Column(String(10), nullable=False)
     acepta_tercero = Column(Boolean, default=False)
     nivel = Column(Integer, default=1)
@@ -37,10 +40,13 @@ class Partida(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     numero = Column(Integer, Sequence('partidas_numero_seq'), unique=True, nullable=False)
-    numero_poliza = Column(String(50), unique=True, nullable=True)
+    numero_poliza = Column(String(50), nullable=True)
     fecha = Column(Date, nullable=False)
     descripcion = Column(Text, nullable=False)
+    empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    empresa = relationship("Empresa")
     detalles = relationship("DetallePartida", back_populates="partida", cascade="all, delete-orphan")
 
 class DetallePartida(Base):
@@ -118,6 +124,9 @@ class FacturaElectronica(Base):
     detalles = relationship("FacturaDetalle", back_populates="factura", cascade="all, delete-orphan")
 
     es_exportacion = Column(Boolean, default=False) 
+    nombre_comercial = Column(String(255), nullable=True)
+    tipo_operacion = Column(String(10), nullable=False, default='Compra')
+    estado = Column(String(20), nullable=False, default='Activa')
 
 class FacturaDetalle(Base):
     __tablename__ = "factura_detalles"

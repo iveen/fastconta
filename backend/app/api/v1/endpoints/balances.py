@@ -10,6 +10,13 @@ from app.models.tenant_models import CuentaContable, DetallePartida, Partida, Em
 from app.schemas.balances import BalanceComprobacionResponse, FilaBalance, EstadoResultadosResponse
 from uuid import UUID
 from pydantic import BaseModel
+from fastapi.responses import StreamingResponse
+from app.services.reportes_export import (
+    generar_balance_comprobacion_excel, generar_balance_comprobacion_pdf,
+    generar_estado_resultados_excel, generar_estado_resultados_pdf,
+    generar_balance_general_excel, generar_balance_general_pdf
+)
+import io
 
 router = APIRouter()
 
@@ -76,8 +83,6 @@ async def balance_comprobacion(
         fecha_fin=fecha_fin,
         filas=filas
     )
-
-from app.schemas.balances import EstadoResultadosResponse
 
 @router.get("/estado-resultados", response_model=EstadoResultadosResponse)
 async def estado_resultados(
@@ -298,4 +303,95 @@ async def balance_general(
         patrimonio=patrimonio,
         total_patrimonio=total_patrimonio,
         utilidad_ejercicio=utilidad_ejercicio
+    )
+
+# ---------- EXCEL ----------
+@router.get("/comprobacion/excel")
+async def balance_comprobacion_excel(
+    empresa_id: UUID = Query(...),
+    fecha_inicio: date = Query(...),
+    fecha_fin: date = Query(...),
+    db: AsyncSession = Depends(get_tenant_db)
+):
+    # Obtener los mismos datos que el endpoint JSON
+    datos = await balance_comprobacion(empresa_id, fecha_inicio, fecha_fin, db)
+    excel = generar_balance_comprobacion_excel(datos.dict())
+    return StreamingResponse(
+        excel,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=balance_comprobacion.xlsx"}
+    )
+
+@router.get("/estado-resultados/excel")
+async def estado_resultados_excel(
+    empresa_id: UUID = Query(...),
+    fecha_inicio: date = Query(...),
+    fecha_fin: date = Query(...),
+    db: AsyncSession = Depends(get_tenant_db)
+):
+    datos = await estado_resultados(empresa_id, fecha_inicio, fecha_fin, db)
+    excel = generar_estado_resultados_excel(datos.dict())
+    return StreamingResponse(
+        excel,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=estado_resultados.xlsx"}
+    )
+
+@router.get("/balance-general/excel")
+async def balance_general_excel(
+    empresa_id: UUID = Query(...),
+    fecha: date = Query(...),
+    db: AsyncSession = Depends(get_tenant_db)
+):
+    datos = await balance_general(empresa_id, fecha, db)
+    excel = generar_balance_general_excel(datos.dict())
+    return StreamingResponse(
+        excel,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=balance_general.xlsx"}
+    )
+
+# ---------- PDF ----------
+@router.get("/comprobacion/pdf")
+async def balance_comprobacion_pdf(
+    empresa_id: UUID = Query(...),
+    fecha_inicio: date = Query(...),
+    fecha_fin: date = Query(...),
+    db: AsyncSession = Depends(get_tenant_db)
+):
+    datos = await balance_comprobacion(empresa_id, fecha_inicio, fecha_fin, db)
+    pdf = generar_balance_comprobacion_pdf(datos.dict())
+    return StreamingResponse(
+        pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=balance_comprobacion.pdf"}
+    )
+
+@router.get("/estado-resultados/pdf")
+async def estado_resultados_pdf(
+    empresa_id: UUID = Query(...),
+    fecha_inicio: date = Query(...),
+    fecha_fin: date = Query(...),
+    db: AsyncSession = Depends(get_tenant_db)
+):
+    datos = await estado_resultados(empresa_id, fecha_inicio, fecha_fin, db)
+    pdf = generar_estado_resultados_pdf(datos.dict())
+    return StreamingResponse(
+        pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=estado_resultados.pdf"}
+    )
+
+@router.get("/balance-general/pdf")
+async def balance_general_pdf(
+    empresa_id: UUID = Query(...),
+    fecha: date = Query(...),
+    db: AsyncSession = Depends(get_tenant_db)
+):
+    datos = await balance_general(empresa_id, fecha, db)
+    pdf = generar_balance_general_pdf(datos.dict())
+    return StreamingResponse(
+        pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=balance_general.pdf"}
     )

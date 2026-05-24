@@ -35,5 +35,7 @@ class FacturaOut(BaseModel):
     created_at: datetime
     detalles: List[FacturaDetalleOut] = []
     es_exportacion: bool = False
+    tipo_operacion: Optional[str] = "Venta"
+    estado: Optional[str] = 'Activa'
 
     model_config = ConfigDict(from_attributes=True)

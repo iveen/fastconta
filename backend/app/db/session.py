@@ -1,3 +1,5 @@
+# backend/app/db/session.py
+
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text                        # <-- Añadir import
@@ -5,6 +7,9 @@ from app.db.base import AsyncSessionLocal
 from app.core.security import decode_access_token
 from fastapi.security import OAuth2PasswordBearer
 from app.core.tenant import tenant_schema_exists
+import logging
+
+logger = logging.getLogger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -18,19 +23,27 @@ async def get_tenant_db(
 ) -> AsyncSession:
     payload = decode_access_token(token)
     if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token inválido o expirado"
-        )
+        raise HTTPException(status_code=401, detail="Token inválido")
+    
     schema_name = payload.get("schema")
     if not schema_name:
-        raise HTTPException(status_code=400, detail="Token sin schema de tenant")
+        raise HTTPException(status_code=400, detail="Token sin schema")
 
-    # Verificar que el schema exista
     if not await tenant_schema_exists(db, schema_name):
-        raise HTTPException(status_code=400, detail="El tenant asociado al token no está configurado correctamente")
+        raise HTTPException(status_code=400, detail="Tenant no configurado")
 
-    # Envolver con text()
+    # 🔹 CRÍTICO: Asegurar que el SET se aplica en la conexión subyacente
+    # Opción 1: Ejecutar y hacer flush para aplicar el cambio
     await db.execute(text(f"SET search_path TO {schema_name}, public"))
+    await db.flush()  # ← Aplica el SET sin cerrar transacción
+    
+    
+    # 🔹 Opción 2 (más robusta): Configurar a nivel de conexión raw
+    # await db.sync_session.connection().execute(text(f"SET search_path TO {schema_name}, public"))
+    
+    # Debug temporal: imprime en consola (visible en terminal de uvicorn)
+    result = await db.execute(text("SELECT current_schema()"))
+    logger.info(f"Search path aplicado: schema={schema_name}")
+    
     db.info["current_user"] = payload
     return db

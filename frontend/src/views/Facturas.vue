@@ -46,6 +46,8 @@
             </th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Moneda</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Operacion</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Emisor</th>
             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total IVA</th>
             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
@@ -62,6 +64,8 @@
             <td class="px-4 py-3 text-sm">{{ formatearFecha(f.fecha_emision) }}</td>
             <td class="px-4 py-3 text-sm">{{ f.es_exportacion ? 'E' : (f.tipo_documento || 'L') }}</td>
             <td class="px-4 py-3 text-sm">{{ f.moneda }}</td>
+            <td class="px-4 py-3 text-sm">{{ f.tipo_operacion || 'N/A'}}</td>
+            <td class="px-4 py-3 text-sm">{{ f.estado || 'N/A'}}</td>
             <td class="px-4 py-3 text-sm">{{ f.emisor_nombre }}</td>
             <td class="px-4 py-3 text-sm text-right">{{ f.moneda }} {{ f.total_iva }}</td>
             <td class="px-4 py-3 text-sm text-right">{{ f.moneda }} {{ f.total }}</td>
@@ -73,7 +77,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch} from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/services/api'
 
@@ -83,6 +87,11 @@ const router = useRouter()
 const facturas = ref([])
 const empresas = ref([])
 const empresaFiltro = ref(route.query.empresa || '')
+// Sincronizar el filtro con la URL para que se conserve al volver del detalle
+watch(empresaFiltro, (newVal) => {
+  router.replace({ path: '/dashboard/facturas', query: { empresa: newVal || undefined } })
+  cargarFacturas()
+})
 const busqueda = ref('')
 const cargando = ref(false)
 const error = ref('')
@@ -173,8 +182,14 @@ async function handleUpload(event) {
     const resp = await api.post(`/facturas/upload?empresa_id=${empresaFiltro.value}`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
-    const count = Array.isArray(resp.data) ? resp.data.length : 1
-    exito.value = `${count} factura(s) cargada(s) correctamente`
+    const data = resp.data
+    const cargadas = data.cargadas ?? 0
+    const rechazadas = data.rechazadas?.length || 0
+    let mensaje = `${cargadas} factura(s) cargada(s) correctamente.`
+    if (rechazadas > 0) {
+    mensaje += ` ${rechazadas} rechazada(s): ${data.rechazadas.join(', ')}`
+    }
+    exito.value = mensaje
     fileInput.value.value = ''
     await cargarFacturas()
     setTimeout(() => { exito.value = '' }, 5000)

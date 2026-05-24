@@ -70,11 +70,19 @@
 
     <!-- Botón generar -->
     <button
-      @click="generarReporte"
-      :disabled="!empresaId || cargando"
-      class="mb-4 bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600 transition disabled:opacity-50"
+    @click="generarReporte()"
+    :disabled="!empresaId || cargando"
+    class="bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600 transition disabled:opacity-50"
     >
-      {{ cargando ? 'Generando...' : 'Generar Reporte' }}
+    {{ cargando ? 'Generando...' : 'Generar Reporte' }}
+    </button>
+    <button @click="generarReporte('excel')" :disabled="!empresaId || cargando" class="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition disabled:opacity-50">
+        <span v-if="cargando">Generando...</span>
+            <span v-else>📥 Excel</span>
+            </button>
+            <button @click="generarReporte('pdf')" :disabled="!empresaId || cargando" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition disabled:opacity-50">
+            <span v-if="cargando">Generando...</span>
+        <span v-else>📄 PDF</span>
     </button>
 
     <!-- Estado de carga -->
@@ -204,6 +212,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
 
 const tabs = [
   { id: 'balance-comprobacion', nombre: 'Balance de Comprobación' },
@@ -234,65 +243,90 @@ async function cargarEmpresas() {
 
 function cambiarTipo(id) {
   tipoReporte.value = id
-  // Limpiar resultados al cambiar de reporte
   balanceComp.value = null
   estadoResultados.value = null
   balanceGeneral.value = null
   error.value = ''
 }
 
-async function generarReporte() {
+async function descargarArchivo(url) {
+  const authStore = useAuthStore()
+  try {
+    const response = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${authStore.token}` }
+    })
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ detail: 'Error al descargar' }))
+      throw new Error(err.detail || 'Error al descargar')
+    }
+    const blob = await response.blob()
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    const disposition = response.headers.get('Content-Disposition')
+    let filename = 'reporte'
+    if (disposition && disposition.includes('filename=')) {
+      filename = disposition.split('filename=')[1].replace(/"/g, '')
+    } else {
+      if (url.endsWith('.xlsx')) filename += '.xlsx'
+      else if (url.endsWith('.pdf')) filename += '.pdf'
+    }
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(link.href)
+  } catch (err) {
+    error.value = err.message
+  }
+}
+
+const PATH_MAP = {
+  'balance-comprobacion': 'comprobacion',
+  'estado-resultados': 'estado-resultados',
+  'balance-general': 'balance-general'
+}
+
+async function generarReporte(formato = null) {
   if (!empresaId.value) return
   cargando.value = true
   error.value = ''
+
+  const segmento = PATH_MAP[tipoReporte.value]          // ← corregido
+  const basePath = `/balances/${segmento}`
+  const params = { empresa_id: empresaId.value }
+
+  if (tipoReporte.value === 'balance-general') {
+    if (!fechaCorte.value) {
+      error.value = 'Debe seleccionar la fecha de corte'
+      cargando.value = false
+      return
+    }
+    params.fecha = fechaCorte.value
+  } else {
+    if (!fechaInicio.value || !fechaFin.value) {
+      error.value = 'Debe seleccionar fecha inicio y fin'
+      cargando.value = false
+      return
+    }
+    params.fecha_inicio = fechaInicio.value
+    params.fecha_fin = fechaFin.value
+  }
+
   try {
-    switch (tipoReporte.value) {
-      case 'balance-comprobacion':
-        if (!fechaInicio.value || !fechaFin.value) {
-          error.value = 'Debe seleccionar fecha inicio y fin'
-          return
-        }
-        const respComp = await api.get('/balances/comprobacion', {
-          params: {
-            empresa_id: empresaId.value,
-            fecha_inicio: fechaInicio.value,
-            fecha_fin: fechaFin.value
-          }
-        })
-        balanceComp.value = respComp.data
-        break
-
-      case 'estado-resultados':
-        if (!fechaInicio.value || !fechaFin.value) {
-          error.value = 'Debe seleccionar fecha inicio y fin'
-          return
-        }
-        const respEst = await api.get('/balances/estado-resultados', {
-          params: {
-            empresa_id: empresaId.value,
-            fecha_inicio: fechaInicio.value,
-            fecha_fin: fechaFin.value
-          }
-        })
-        estadoResultados.value = respEst.data
-        break
-
-      case 'balance-general':
-        if (!fechaCorte.value) {
-          error.value = 'Debe seleccionar la fecha de corte'
-          return
-        }
-        const respBG = await api.get('/balances/balance-general', {
-          params: {
-            empresa_id: empresaId.value,
-            fecha: fechaCorte.value
-          }
-        })
-        balanceGeneral.value = respBG.data
-        break
+    if (formato) {
+      // Descarga de archivo autenticada
+      const url = `/api/v1/balances/${segmento}/${formato}?${new URLSearchParams(params).toString()}`
+      await descargarArchivo(url)
+    } else {
+      // Mostrar en pantalla
+      const resp = await api.get(basePath, { params })
+      const data = resp.data
+      if (tipoReporte.value === 'balance-comprobacion') balanceComp.value = data
+      else if (tipoReporte.value === 'estado-resultados') estadoResultados.value = data
+      else if (tipoReporte.value === 'balance-general') balanceGeneral.value = data
     }
   } catch (err) {
-    error.value = err.response?.data?.detail || 'Error al generar el reporte'
+    error.value = err.response?.data?.detail || err.message || 'Error al generar el reporte'
   } finally {
     cargando.value = false
   }

@@ -30,7 +30,7 @@ const routes = [
       { path: 'periodos-fiscales', name: 'PeriodosFiscales', component: PeriodosFiscales},
       { path: 'reportes/libro-mayor/:cuenta_id', name: 'LibroMayor', component: LibroMayor },
       { path: 'facturas', name: 'Facturas', component: Facturas },
-      { path: 'facturas/:id', name: 'FacturaDetalle', component: FacturaDetalle },
+      { path: 'facturas/:factura_id', name: 'FacturaDetalle', component: FacturaDetalle, 'props':true },
     ]
   }
 ]

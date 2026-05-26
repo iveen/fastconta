@@ -1,8 +1,10 @@
 <template>
   <div class="p-6 max-w-7xl mx-auto space-y-6">
     <!-- Navegación -->
-    <button @click="router.back()" class="text-gray-600 hover:text-gray-900 flex items-center gap-2 transition">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    <button @click="volverAlListado" class="text-gray-600 hover:text-gray-900 flex items-center gap-2 transition">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+      </svg>
       Volver a Facturas
     </button>
 
@@ -22,7 +24,7 @@
       </div>
     </div>
 
-    <!--  Contenido Principal (Solo si factura existe) -->
+    <!-- ✅ Contenido Principal (Solo si factura existe) -->
     <div v-else-if="factura" class="space-y-6">
       
       <!-- Encabezado -->
@@ -36,14 +38,24 @@
               Auth: {{ factura.numero_autorizacion }}
             </p>
           </div>
-          <div class="flex gap-2">
+          
+          <!-- Badges: Estado, Operación y ÁMBITO -->
+          <div class="flex gap-2 flex-wrap">
             <span :class="estadoBadgeClass">{{ factura.estado || 'N/A' }}</span>
             <span :class="tipoOpBadgeClass">{{ factura.tipo_operacion || 'N/A' }}</span>
+            
+            <!-- 🔹 NUEVO: Badge de Ámbito -->
+            <span 
+              :class="factura.es_exportacion ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-gray-100 text-gray-700 border-gray-200'"
+              class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border"
+            >
+              {{ factura.es_exportacion ? 'Exportación' : 'Local' }}
+            </span>
           </div>
         </div>
 
-        <!-- Info Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+        <!-- 🔹 Info Grid (Sin duplicados) -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
           <div class="bg-gray-50 p-3 rounded border">
             <p class="text-xs text-gray-500 uppercase tracking-wide">Fecha Emisión</p>
             <p class="font-semibold text-gray-900">{{ formatearFecha(factura.fecha_emision) }}</p>
@@ -53,22 +65,40 @@
             <p class="font-semibold text-gray-900">{{ factura.moneda || 'GTQ' }}</p>
           </div>
           <div class="bg-gray-50 p-3 rounded border">
+            <p class="text-xs text-gray-500 uppercase tracking-wide">Tasa de Cambio</p>
+            <p class="font-semibold text-gray-900 font-mono">
+              {{ formatoTipoCambio(factura.tipo_cambio, factura.moneda) }}
+            </p>
+          </div>
+          <div class="bg-gray-50 p-3 rounded border">
             <p class="text-xs text-gray-500 uppercase tracking-wide">Tipo Documento</p>
             <p class="font-semibold text-gray-900">{{ factura.tipo_documento || 'FACT' }}</p>
           </div>
         </div>
 
-        <!-- Emisor / Receptor -->
+        <!-- 🔹 Emisor / Receptor con lógica dinámica -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 pt-6 border-t">
           <div>
-            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Emisor</h3>
-            <p class="font-medium text-gray-900">{{ factura.emisor_nombre || 'N/A' }}</p>
-            <p class="text-sm text-gray-600 font-mono">NIT: {{ formatearNit(factura.emisor_nit) }}</p>
+            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              {{ factura.tipo_operacion === 'Venta' ? 'Cliente (Receptor)' : 'Proveedor (Emisor)' }}
+            </h3>
+            <p class="font-medium text-gray-900">
+              {{ factura.tipo_operacion === 'Venta' ? factura.receptor_nombre : factura.emisor_nombre }}
+            </p>
+            <p class="text-sm text-gray-600 font-mono">
+              NIT: {{ formatearNit(factura.tipo_operacion === 'Venta' ? factura.receptor_nit : factura.emisor_nit) }}
+            </p>
           </div>
           <div>
-            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Receptor</h3>
-            <p class="font-medium text-gray-900">{{ factura.receptor_nombre || 'N/A' }}</p>
-            <p class="text-sm text-gray-600 font-mono">NIT: {{ formatearNit(factura.receptor_nit) }}</p>
+            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              {{ factura.tipo_operacion === 'Venta' ? 'Nosotros (Emisor)' : 'Nosotros (Receptor)' }}
+            </h3>
+            <p class="font-medium text-gray-900">
+              {{ factura.tipo_operacion === 'Venta' ? factura.emisor_nombre : factura.receptor_nombre }}
+            </p>
+            <p class="text-sm text-gray-600 font-mono">
+              NIT: {{ formatearNit(factura.tipo_operacion === 'Venta' ? factura.emisor_nit : factura.receptor_nit) }}
+            </p>
           </div>
         </div>
       </div>
@@ -151,15 +181,17 @@
         </button>
         
         <router-link 
-            :to="{ path: '/dashboard/facturas', query: { empresa: factura.empresa_id } }" 
-            class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition font-medium"
-            >
-            Volver al Listado
+          :to="{ path: '/dashboard/facturas', query: { empresa: factura.empresa_id } }" 
+          class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition font-medium"
+        >
+          Volver al Listado
         </router-link>
       </div>
 
     </div>
+    <!-- ✅ Cierre del contenedor principal v-else-if="factura" -->
   </div>
+  <!-- ✅ Cierre del contenedor raíz -->
 </template>
 
 <script setup>
@@ -193,7 +225,7 @@ const tipoOpBadgeClass = computed(() => {
     : `${base} bg-indigo-100 text-indigo-700 border border-indigo-200`
 })
 
-// 🛠️ Utilidades de formato
+// ️ Utilidades de formato
 const formatearFecha = (fecha) => {
   if (!fecha) return 'N/A'
   return fecha.includes('T') ? fecha.split('T')[0] : fecha.substring(0, 10)
@@ -208,27 +240,46 @@ const formatearNit = (nit) => {
 const formatCurrency = (valor) => {
   if (valor === null || valor === undefined) return 'Q 0.00'
   const num = typeof valor === 'string' ? parseFloat(valor) : valor
-  return `Q ${num.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  
+  // Determinar símbolo según la moneda de la factura
+  const simbolo = factura.value?.moneda === 'USD' ? '$' : 
+                  factura.value?.moneda === 'GTQ' ? 'Q' : 
+                  factura.value?.moneda || 'Q'
+  
+  return `${simbolo} ${num.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-// 📥 Carga de datos (Lógica corregida y limpia)
+// 🔹 Formateador de tipo de cambio (5 decimales, estándar Banco de Guatemala)
+const formatoTipoCambio = (valor, moneda) => {
+  if (!valor && moneda === 'GTQ') return '1.00000'
+  if (!valor) return 'N/A'
+
+  const num = typeof valor === 'string' ? parseFloat(valor) : valor
+  return num.toLocaleString('es-GT', { 
+    minimumFractionDigits: 5, 
+    maximumFractionDigits: 5,
+    useGrouping: false 
+  })
+}
+
+// 📥 Carga de datos
 const cargarFactura = async () => {
   cargando.value = true
   error.value = ''
-  
+
   const facturaId = route.params.factura_id
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-  
+
   if (!facturaId || facturaId === 'undefined' || !uuidRegex.test(facturaId)) {
     error.value = `ID inválido: "${facturaId}"`
     cargando.value = false
     return
   }
-  
+
   try {
     const resp = await api.get(`/facturas/${facturaId}`)
     factura.value = resp.data
-    
+
     if (!factura.value?.id) {
       error.value = 'La factura no tiene datos válidos'
       factura.value = null
@@ -240,7 +291,7 @@ const cargarFactura = async () => {
   }
 }
 
-// ⚡ Acciones (Placeholders para siguiente paso)
+// ⚡ Acciones
 const anularFactura = async () => {
   if (!confirm('¿Confirmas la anulación de esta factura?')) return
   accionCargando.value = true
@@ -252,8 +303,15 @@ const anularFactura = async () => {
     error.value = err.response?.data?.detail || 'Error al anular'
   } finally {
     accionCargando.value = false
-    accionActual.value = ''
+    accionActual.value = '' 
   }
+}
+
+const volverAlListado = () => {
+  router.push({ 
+    path: '/dashboard/facturas', 
+    query: { empresa: factura.value?.empresa_id } 
+  })
 }
 
 const generarPartida = async () => {

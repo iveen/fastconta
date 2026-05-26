@@ -1,29 +1,31 @@
 import os
-from logging.config import fileConfig
-
-from sqlalchemy import engine_from_config, pool, text
-from alembic import context
-
-from app.config import settings
-from app.db.base import Base
-from app.models.global_models import Tenant, User  # noqa
-from app.models.tenant_models import Empresa, CuentaContable  # noqa
 import sys
 from pathlib import Path
+from logging.config import fileConfig
+from sqlalchemy import engine_from_config, pool
+from alembic import context
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# 🔹 RUTA CORREGIDA (__file__ con guiones bajos)
+BASE_DIR = Path(__file__).resolve().parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+from app.config import settings
 config.set_main_option("sqlalchemy.url", settings.SYNC_DATABASE_URL)
-target_metadata = Base.metadata
 
+# Solo metadata global
+from app.db.base import Base
+from app.models.global_models import Tenant, User  # noqa
+target_metadata = Base.metadata
 
 def include_object(object, name, type_, reflected, compare_to):
     tenant_schema = os.environ.get("TENANT_SCHEMA")
     obj_schema = None
+    
     if type_ == "table":
         obj_schema = object.schema
     elif type_ == "column":
@@ -32,26 +34,25 @@ def include_object(object, name, type_, reflected, compare_to):
         tbl = getattr(object, 'table', None)
         obj_schema = tbl.schema if tbl is not None else getattr(object, 'schema', None)
 
-    if tenant_schema:
-        return obj_schema == tenant_schema
-    else:
-        return obj_schema == "public"
-
+    # Durante revision/autogenerate: permitir todo para que Alembic vea el diff
+    if not tenant_schema:
+        return True
+    
+    # Durante upgrade/downgrade: solo objetos de public o sin schema explícito
+    return obj_schema == "public" or obj_schema is None
 
 def run_migrations_offline():
     url = config.get_main_option("sqlalchemy.url")
-    tenant_schema = os.environ.get("TENANT_SCHEMA") 
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         include_object=include_object,
-        version_table_schema=tenant_schema if tenant_schema else "public",
+        version_table_schema="public",
     )
     with context.begin_transaction():
         context.run_migrations()
-
 
 def run_migrations_online():
     connectable = engine_from_config(
@@ -59,14 +60,12 @@ def run_migrations_online():
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
-    tenant_schema = os.environ.get("TENANT_SCHEMA") 
     with connectable.connect() as connection:
-        # Ya no necesitamos SET search_path ni default_schema
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
             include_object=include_object,
-            version_table_schema=tenant_schema if tenant_schema else "public",
+            version_table_schema="public",
         )
         with context.begin_transaction():
             context.run_migrations()

@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?><dte:GTDocumento xmlns:dte="http://www.sat.gob.gt/dte/fel/0.2.0" xmlns:cex="http://www.sat.gob.gt/face2/ComplementoExportaciones/0.1.0" xmlns:cfc="http://www.sat.gob.gt/dte/fel/CompCambiaria/0.1.0" xmlns:cfe="http://www.sat.gob.gt/face2/ComplementoFacturaEspecial/0.1.0" xmlns:cno="http://www.sat.gob.gt/face2/ComplementoReferenciaNota/0.1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Version="0.1">
+   <dte:SAT ClaseDocumento="dte">
+      <dte:DTE ID="DatosCertificados">
+         <dte:DatosEmision ID="DatosEmision">
+            <dte:DatosGenerales CodigoMoneda="GTQ" FechaHoraEmision="2025-05-18T17:05:11.000-06:00" Tipo="FACT" />
+            <dte:Emisor AfiliacionIVA="GEN" CodigoEstablecimiento="1" NITEmisor="100446329" NombreComercial="Delivery Hero Guatemala, S.A." NombreEmisor="Delivery Hero Guatemala, S.A.">
+               <dte:DireccionEmisor>
+                  <dte:Direccion>Edificio 4 Venezia, Oficina 302, Ruta 2, 4-61, Zona 4</dte:Direccion>
+                  <dte:CodigoPostal>01004</dte:CodigoPostal>
+                  <dte:Municipio>Guatemala</dte:Municipio>
+                  <dte:Departamento>GUATEMALA</dte:Departamento>
+                  <dte:Pais>GT</dte:Pais>
+               </dte:DireccionEmisor>
+            </dte:Emisor>
+            <dte:Receptor CorreoReceptor="diegoadg53@gmail.com" IDReceptor="120192799" NombreReceptor="SERVICIOS INTEGRALES DG" />
+            <dte:Frases>
+               <dte:Frase CodigoEscenario="1" TipoFrase="1" />
+               <dte:Frase CodigoEscenario="1" TipoFrase="2" />
+            </dte:Frases>
+            <dte:Items>
+               <dte:Item BienOServicio="B" NumeroLinea="1">
+                  <dte:Cantidad>1</dte:Cantidad>
+                  <dte:UnidadMedida>PZA</dte:UnidadMedida>
+                  <dte:Descripcion>Servicio Logistico</dte:Descripcion>
+                  <dte:PrecioUnitario>8.00</dte:PrecioUnitario>
+                  <dte:Precio>8.00</dte:Precio>
+                  <dte:Descuento>0</dte:Descuento>
+                  <dte:Impuestos>
+                     <dte:Impuesto>
+                        <dte:NombreCorto>IVA</dte:NombreCorto>
+                        <dte:CodigoUnidadGravable>1</dte:CodigoUnidadGravable>
+                        <dte:MontoGravable>7.14</dte:MontoGravable>
+                        <dte:MontoImpuesto>0.86</dte:MontoImpuesto>
+                     </dte:Impuesto>
+                  </dte:Impuestos>
+                  <dte:Total>8.00</dte:Total>
+               </dte:Item>
+               <dte:Item BienOServicio="B" NumeroLinea="2">
+                  <dte:Cantidad>1</dte:Cantidad>
+                  <dte:UnidadMedida>PZA</dte:UnidadMedida>
+                  <dte:Descripcion>Tarifa de servicio</dte:Descripcion>
+                  <dte:PrecioUnitario>1.00</dte:PrecioUnitario>
+                  <dte:Precio>1.00</dte:Precio>
+                  <dte:Descuento>0</dte:Descuento>
+                  <dte:Impuestos>
+                     <dte:Impuesto>
+                        <dte:NombreCorto>IVA</dte:NombreCorto>
+                        <dte:CodigoUnidadGravable>1</dte:CodigoUnidadGravable>
+                        <dte:MontoGravable>0.89</dte:MontoGravable>
+                        <dte:MontoImpuesto>0.11</dte:MontoImpuesto>
+                     </dte:Impuesto>
+                  </dte:Impuestos>
+                  <dte:Total>1.00</dte:Total>
+               </dte:Item>
+            </dte:Items>
+            <dte:Totales>
+               <dte:TotalImpuestos>
+                  <dte:TotalImpuesto NombreCorto="IVA" TotalMontoImpuesto="0.96" />
+               </dte:TotalImpuestos>
+               <dte:GranTotal>9.00</dte:GranTotal>
+            </dte:Totales>
+         </dte:DatosEmision>
+      <dte:Certificacion><dte:NITCertificador>50510231</dte:NITCertificador><dte:NombreCertificador>Megaprint, S.A.</dte:NombreCertificador><dte:NumeroAutorizacion Numero="1581468096" Serie="E4B0C673">E4B0C673-5E43-49C0-AAD7-3EE5AFDFC19C</dte:NumeroAutorizacion><dte:FechaHoraCertificacion>2025-05-18T17:05:11.822-06:00</dte:FechaHoraCertificacion></dte:Certificacion></dte:DTE>
+      
+   </dte:SAT><ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="xmldsig-de47aadc-6339-4b5f-873f-adae10b32d5a"><ds:SignedInfo><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315" /><ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256" /><ds:Reference Id="xmldsig-de47aadc-6339-4b5f-873f-adae10b32d5a-ref0" URI="#DatosEmision"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" /></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" /><ds:DigestValue>x7vG5FpC0TXvbf8PZ9PolW6rW+YPNonoDLXM6Kp0gZ4=</ds:DigestValue></ds:Reference><ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#xmldsig-de47aadc-6339-4b5f-873f-adae10b32d5a-signedprops"><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" /><ds:DigestValue>D/M7XD1e68kaKA7Y8cSkJea9tGtyw3aJ+O6zW594+24=</ds:DigestValue></ds:Reference></ds:SignedInfo><ds:SignatureValue Id="xmldsig-de47aadc-6339-4b5f-873f-adae10b32d5a-sigvalue">mlzHM/5lI6bfct0Aun7VTkHArUn5WRRhYtMNu/KKvEK8y6+rn+A1zjq2yO2MjPyU96opt4RtcOM2YijAuxyAIltgCl/+Aau9DrL/WYF5ePbYiPfAsJv3jzXSgcPVl53VvNfwhEX68x8Lw3zsuhn9uhRt7kbl98YJt/3XMejx+rGxC1f7hsyqnYG1R0nsi9PdgmwIjzIKt23cxZhhQUBCW56hoPmdyvAy2JBhRt8HXoFtdb0kqFtMK9WHcRjzy5OCuSD2cspbdsooEVk3GPUTHwu/S/oB17gBm1mLcaT8cSUm5//mT3NxcWk11dILqhvFuNQpiy9is9geqNwKwkk5fg==</ds:SignatureValue><ds:KeyInfo><ds:X509Data><ds:X509IssuerSerial><ds:X509IssuerName>CN=Superintendencia de Administracion Tributaria</ds:X509IssuerName><ds:X509SerialNumber>1473411702191267846</ds:X509SerialNumber></ds:X509IssuerSerial><ds:X509SubjectName>O=sat.gob.gt, CN=100446329</ds:X509SubjectName><ds:X509Certificate>MIIDYjCCAkqgAwIBAgIIFHKcIv0DoAYwDQYJKoZIhvcNAQELBQAwODE2MDQGA1UEAwwtU3VwZXJpbnRlbmRlbmNpYSBkZSBBZG1pbmlzdHJhY2lvbiBUcmlidXRhcmlhMB4XDTI1MDIyMDE4MzQxNVoXDTI3MDIyMDE4MzQxNVowKTESMBAGA1UEAwwJMTAwNDQ2MzI5MRMwEQYDVQQKDApzYXQuZ29iLmd0MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvRQtSidkcApitzVaOLg+bYRZLQ4DZ0ShHWSvWqOVuOeuIgJpwqh3mnWySADdt/j8edzPlOctDwHY8nbBlf5VQpjdv/ga6RvGpydmqp3O8msK8p9eysV443Yc5MWQRcv5t0x4YO/KhvFs9xEi7uk8hknVfxjW97fa76H64WBdwdzBmll8gpodQaPfF6mzl1pTzzS71whNHyjV1ZB6YFrum9mZrEWb30XXEzD2mxmAo2LIpZxuav83JkkFElFiGXo2Q4qsn0EGJv3s7bUEvHJS89GeIJvCcukCBq6IdztMefFcqo6jMC3anJwFjy4mf90ZVYwV5eW7xyp/OfE7d4i0ZwIDAQABo38wfTAMBgNVHRMBAf8EAjAAMB8GA1UdIwQYMBaAFFiCdo1YKLHJQwQCtNXIXmov//hKMB0GA1UdJQQWMBQGCCsGAQUFBwMCBggrBgEFBQcDBDAdBgNVHQ4EFgQU5HGeXcyYRWBtIYADIe2oQ4geDWUwDgYDVR0PAQH/BAQDAgXgMA0GCSqGSIb3DQEBCwUAA4IBAQBJYv+iUgQYEqSfO4Wv17qPDVbNqApxxdMmPJlCBUfyrXQkOzSnma56YdeuCGe8rY65wb/7QadLtIUUSN5xd6r1hyBphUG9gT7gOGBCS/rqIvzLfTYWshPoXvclyjVeHdm9ReBRAahH3bVAmzvPD7hBq1Mp3utqIs3RcZGe2b620qcEIAicUeGZ1O+TBt5Me2LnwX3tyspqnvIONsOaONXdvYFxY0XCqclMYSlrKNuDEMxG7sxoBHHn1eJhscZil2BPg7eyEO1e5ZhF1aS+r0cEfPhJnOuGsdJdoUvRyxx/JnasvhjPsol75UYEDxudhEHA/87MeXmZq0NdDJu+A3wN</ds:X509Certificate></ds:X509Data></ds:KeyInfo><ds:Object><xades:QualifyingProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Target="#xmldsig-de47aadc-6339-4b5f-873f-adae10b32d5a"><xades:SignedProperties Id="xmldsig-de47aadc-6339-4b5f-873f-adae10b32d5a-signedprops"><xades:SignedSignatureProperties><xades:SigningTime>2025-05-18T17:05:06.604+00:00</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" /><ds:DigestValue>zbIMqjbyFvkNk+KaPmL4f0yuNP5o59yo1NSGP3HtjXE=</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName>CN=Superintendencia de Administracion Tributaria</ds:X509IssuerName><ds:X509SerialNumber>1473411702191267846</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate></xades:SignedSignatureProperties></xades:SignedProperties></xades:QualifyingProperties></ds:Object></ds:Signature>
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="xmldsig-81058a64-b935-4b93-8387-14af2002bee8">
+<ds:SignedInfo>
+<ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315" />
+<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256" />
+<ds:Reference Id="xmldsig-81058a64-b935-4b93-8387-14af2002bee8-ref0" URI="#DatosCertificados">
+<ds:Transforms>
+<ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" />
+</ds:Transforms>
+<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" />
+<ds:DigestValue>56fEvEH3lW2TBz/G+q8vdLTlfMZulefWkjemF37HTYI=</ds:DigestValue>
+</ds:Reference>
+<ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#xmldsig-81058a64-b935-4b93-8387-14af2002bee8-signedprops">
+<ds:Transforms>
+<ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315" />
+</ds:Transforms>
+<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" />
+<ds:DigestValue>WuaHzxd6EO9Z7BxZKMueueTdSXmSmw96QLn5oXQ3WvM=</ds:DigestValue>
+</ds:Reference>
+</ds:SignedInfo>
+<ds:SignatureValue Id="xmldsig-81058a64-b935-4b93-8387-14af2002bee8-sigvalue">
+atViDdNBeLbbMPbxt4vqKiuseevW6XWi59TJJqbwiUBILX3GV3fU71QxsRD415EGOkDvwP+WplRE
+NeDkR3oGWKU+S761HQbRIqaE+8+NloxZRo/GnhjMooFBTiZnZOT4VcuQPTs0qecG37v2as4hTVZ6
++cfHBmKbK925dBucIGPranYdXm6cqCdrJ2vM6vZxVZqHJvyx5RkPnEG0LJomvrW+T72C+MARf+K7
+6BRLxHHmVju4ex9OQdRpjx5YuxACYtbZv/YtSHePryrAkvEI37veshwnpinvyMydC3OEODV7H9cW
+8jFy3gnPOrQSMQZ+0nWt5U241MIPFVEblRGiPQ==
+</ds:SignatureValue>
+<ds:KeyInfo>
+<ds:X509Data>
+<ds:X509Certificate>
+MIIJ9TCCB92gAwIBAgIILAcnZMRM5qUwDQYJKoZIhvcNAQELBQAwgcAxFjAUBgNVBGEMDVZBVEdU
+LTM1MTU5LTgxLTArBgNVBAMMJENhbWFyYSBkZSBDb21lcmNpbyBkZSBHdWF0ZW1hbGEgQ0EgMTEs
+MCoGA1UECwwjUFNDLUNhbWFyYSBkZSBDb21lcmNpbyBkZSBHdWF0ZW1hbGExKDAmBgNVBAoMH0Nh
+bWFyYSBkZSBDb21lcmNpbyBkZSBHdWF0ZW1hbGExEjAQBgNVBAcMCUd1YXRlbWFsYTELMAkGA1UE
+BhMCR1QwHhcNMjUwNDEwMjI1MTAwWhcNMjYwNDEwMjI1MTAwWjCB9DFZMFcGA1UECQxQS20uIDku
+NSBDYXJyZXRlcmEgYSBFbCBTYWx2YWRvciBDQS0wMSwgVG9ycmUgVGlnbyBPZi4gMiBBLCBTYW50
+YSBDYXRhcmluYSBQaW51bGExJDAiBgNVBAMMG01FR0FQUklOVCwgU09DSUVEQUQgQU5PTklNQTER
+MA8GA1UEBRMINTA1MTAyMzExJDAiBgNVBAoMG01FR0FQUklOVCwgU09DSUVEQUQgQU5PTklNQTES
+MBAGA1UEBwwJR1VBVEVNQUxBMQswCQYDVQQGEwJHVDEXMBUGA1UEYQwOVkFUR1QtNTA1MTAyMzEw
+ggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC4BekFJdL4oDk39cFxGf4q7Ma9Vy0BVVQm
+NfBYeQ5Y1k4qx/9xdz+hGjQ0BBAGPlV0P7yFPbg91J7N2o7Mo6gX0kDUhEXWML81ENligv1uVO3e
+JvB19ODjC2eQcmrt/wsC16ooG9WQgKKB49Xc0Uf2oR34rOe85EL/1Rl0+X0AiuldgKo9cUBJ206C
+q01V7G2b15k8CE5SeVDFU5CTKz4GkD4vtMiHCtCiiD+WKesDc9pR7pEkC9+PxjLuAdFQaGH8dsHe
+4nUwStJg8dwEPO1e9SZbNDFwYPYjb/qithMx1eeAGpG+kqPb6qzBf45xL2i4kiR8l5+L1D/UBgza
+1ygzAgMBAAGjggS7MIIEtzCBywYIKwYBBQUHAQEEgb4wgbswSQYIKwYBBQUHMAKGPWh0dHA6Ly93
+d3cuZmlybWEtZS5jb20uZ3QvY2VydGlmaWNhZG9zL2FjX3N1Ym9yZGluYWRhX2NjZy5jZXIwNgYI
+KwYBBQUHMAGGKmh0dHA6Ly9vY3NwMS51YW5hdGFjYS5jb20vcHVibGljL3BraS9vY3NwLzA2Bggr
+BgEFBQcwAYYqaHR0cDovL29jc3AyLnVhbmF0YWNhLmNvbS9wdWJsaWMvcGtpL29jc3AvMB0GA1Ud
+DgQWBBSVxniHc1Xc8yY3RJwIfxHen7FeoTAMBgNVHRMBAf8EAjAAMB8GA1UdIwQYMBaAFAcyElo7
+LxJGg1YxrYbl00IWLcCbMBYGA1UdEgQPMA2BC2luZm9AY2NnLmd0MIICrAYDVR0gBIICozCCAp8w
+ggKRBgorBgEEAYG1YwEGMIICgTArBggrBgEFBQcCARYfaHR0cHM6Ly9maXJtYS1lLmNvbS5ndC9q
+dXJpZGljbzCCAUYGCCsGAQUFBwICMIIBOB6CATQAQwBlAHIAdABpAGYAaQBjAGEAZABvACAARABp
+AGcAaQB0AGEAbAAgAGQAZQAgAFAAZQByAHMAbwBuAGEAIABKAHUAcgDtAGQAaQBjAGEAIABlAG0A
+aQB0AGkAZABvACAAcABvAHIAIABDAOEAbQBhAHIAYQAgAGQAZQAgAEMAbwBtAGUAcgBjAGkAbwAg
+AGQAZQAgAEcAdQBhAHQAZQBtAGEAbABhACwAIABOAEkAVAAgADMANQAxADUAOQAtADgALAAgAGkA
+bgBmAG8AQABjAGMAZwAuAGcAdAAsACAAdQBiAGkAYwBhAGQAbwAgAGUAbgAgADEAMAAgAEMAYQBs
+AGwAZQAgADMALQA4ADAAIABaAG8AbgBhACAAMQAsACAARwB1AGEAdABlAG0AYQBsAGEALjCCAQYG
+CCsGAQUFBwICMIH5HoH2AEEAdQB0AG8AcgBpAHoAYQBkAG8AIABzAGUAZwD6AG4AIAByAGUAcwBv
+AGwAdQBjAGkA8wBuACAAZABlACAAMgAzAC4AMAAxAC4AMgAwADEAMgAsACAATgBvAC4AIABQAFMA
+QwAtADAAMQAtADIAMAAxADIAIABkAGUAbAAgAFIAUABTAEMAIABkAGUAbAAgAE0AaQBuAGkAcwB0
+AGUAcgBpAG8AIABkAGUAIABFAGMAbwBuAG8AbQDtAGEAIABkAGUAIABsAGEAIABSAGUAcAD6AGIA
+bABpAGMAYQAgAGQAZQAgAEcAdQBhAHQAZQBtAGEAbABhMAgGBgQAj3oBAjB5BgNVHR8EcjBwMDag
+NKAyhjBodHRwOi8vY3JsMS51YW5hdGFjYS5jb20vcHVibGljL3BraS9jcmwvQ0NHVC5jcmwwNqA0
+oDKGMGh0dHA6Ly9jcmwyLnVhbmF0YWNhLmNvbS9wdWJsaWMvcGtpL2NybC9DQ0dULmNybDAOBgNV
+HQ8BAf8EBAMCBeAwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUFBwMEMCcGA1UdEQQgMB6BHGou
+amFyYW1pbGxvQG1lZ2FwcmludC5jb20uZ3QwDQYJKoZIhvcNAQELBQADggIBAFUUld04Pz0fT24j
+EYWSFq30K2tOSAguFHfdm6YRNdJUXw+QdQtuE+iFo7pqA1ikh+F/dKfIcoCLWm4HPCAje+vvYmps
+h56CCJnUP5SCuoIa5ejgotPVXFGdoFUrdtM6FIBTClHf5yA0FYtCewWwTPShU4RUz8h4IadICVAk
+BY7oYveitIc+xtSdRobB2s4EhHsaQld0OS70BTSdK5lk7UVLzvzW5yRZEbOOko1p5kKMPV2C4TfX
+WSqLy3hotLJwX1lhOWkIH08iNp/LkB+VDH+lkyrIVeHyVex4BJSshg8Oyn06skqFFoUxk9GnjdVy
+6hRbWHJYwBHev9FyzzJKxnnU+SeohB7YsAG3O5h/5GWUITdMiGdEJtFn6WS4Bg/gU3/SBYJ2uxRE
+H+D4a9fim/KA2I+xyAR0J2zEZJQAqdlGChcFHem1RnNa1iktXoi21zRLlVDlZksxcOvdjy/1liJP
+DGGiPTUBIvyrO65xR4EArzewDH8BIxKEb3Q3wbxZG3UELEMjCl/lvJeWAHDyFSf0PyYN8iM2syr0
+UESr+A3FfGvQaYTgID6xXL6dUo8cM+VcuY5CGLovS7CW3yfNmQUHH9xSY29CET20HSRTjaxJY+kZ
+XbkBJn/s0lgBIMXOLKJUNXT08mbkEkHY2QY/o+WJqZHaIYgGj/DYayBQ3gmS
+</ds:X509Certificate>
+<ds:X509SubjectName>2.5.4.97=VATGT-50510231,c=GT,l=GUATEMALA,o=MEGAPRINT\, SOCIEDAD ANONIMA,serialNumber=50510231,cn=MEGAPRINT\, SOCIEDAD ANONIMA,street=Km. 9.5 Carretera a El Salvador CA-01\, Torre Tigo Of. 2 A\, Santa Catarina Pinula</ds:X509SubjectName>
+<ds:X509IssuerSerial>
+<ds:X509IssuerName>c=GT,l=Guatemala,o=Camara de Comercio de Guatemala,ou=PSC-Camara de Comercio de Guatemala,cn=Camara de Comercio de Guatemala CA 1,2.5.4.97=VATGT-35159-8</ds:X509IssuerName>
+<ds:X509SerialNumber>3172547776249390757</ds:X509SerialNumber>
+</ds:X509IssuerSerial>
+</ds:X509Data>
+</ds:KeyInfo>
+<ds:Object><xades:QualifyingProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" xmlns:xades141="http://uri.etsi.org/01903/v1.4.1#" Target="#xmldsig-81058a64-b935-4b93-8387-14af2002bee8"><xades:SignedProperties Id="xmldsig-81058a64-b935-4b93-8387-14af2002bee8-signedprops"><xades:SignedSignatureProperties><xades:SigningTime>2025-05-18T17:05:11.843-06:00</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" /><ds:DigestValue>olke2dhWf6cCRjuSbwx2JY/brQTsmssQaRNKh2402Zk=</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName>c=GT,l=Guatemala,o=Camara de Comercio de Guatemala,ou=PSC-Camara de Comercio de Guatemala,cn=Camara de Comercio de Guatemala CA 1,2.5.4.97=VATGT-35159-8</ds:X509IssuerName><ds:X509SerialNumber>3172547776249390757</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate></xades:SignedSignatureProperties></xades:SignedProperties></xades:QualifyingProperties></ds:Object>
+</ds:Signature></dte:GTDocumento>

@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dte:GTDocumento xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:dte="http://www.sat.gob.gt/dte/fel/0.2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Version="0.1" xsi:schemaLocation="http://www.sat.gob.gt/dte/fel/0.2.0">
+  <dte:SAT ClaseDocumento="dte">
+    <dte:DTE ID="DatosCertificados">
+      <dte:DatosEmision ID="DatosEmision">
+        <dte:DatosGenerales CodigoMoneda="GTQ" FechaHoraEmision="2025-05-18T05:21:42.842-06:00" Tipo="FACT" />
+        <dte:Emisor AfiliacionIVA="GEN" CodigoEstablecimiento="98" CorreoEmisor="" NITEmisor="21056234" NombreComercial="ZONA 15" NombreEmisor="ALIMENTOS CORPORATIVOS CORALSA, S.A.">
+          <dte:DireccionEmisor>
+            <dte:Direccion>18 AVENIDA "A" 1-70 ZONA 15 VISTA HERMOSA II GUATEMALA, GUATEMALA</dte:Direccion>
+            <dte:CodigoPostal>01015</dte:CodigoPostal>
+            <dte:Municipio>Guatemala</dte:Municipio>
+            <dte:Departamento>Guatemala</dte:Departamento>
+            <dte:Pais>GT</dte:Pais>
+          </dte:DireccionEmisor>
+        </dte:Emisor>
+        <dte:Receptor CorreoReceptor="" IDReceptor="120192799" NombreReceptor="SERVICIOS INTEGRALES D&amp;G, SOCIEDAD AN?NIMA">
+          <dte:DireccionReceptor>
+            <dte:Direccion>CIUDAD</dte:Direccion>
+            <dte:CodigoPostal>01001</dte:CodigoPostal>
+            <dte:Municipio>GUATEMALA</dte:Municipio>
+            <dte:Departamento>GUATEMALA</dte:Departamento>
+            <dte:Pais>GT</dte:Pais>
+          </dte:DireccionReceptor>
+        </dte:Receptor>
+        <dte:Frases>
+          <dte:Frase CodigoEscenario="1" TipoFrase="1" />
+          <dte:Frase CodigoEscenario="1" TipoFrase="2" />
+        </dte:Frases>
+        <dte:Items>
+          <dte:Item BienOServicio="B" NumeroLinea="1">
+            <dte:Cantidad>1</dte:Cantidad>
+            <dte:UnidadMedida>UND</dte:UnidadMedida>
+            <dte:Descripcion>3rdP - Crazy Bread</dte:Descripcion>
+            <dte:PrecioUnitario>20.94</dte:PrecioUnitario>
+            <dte:Precio>20.94</dte:Precio>
+            <dte:Descuento>0.00</dte:Descuento>
+            <dte:Impuestos>
+              <dte:Impuesto>
+                <dte:NombreCorto>IVA</dte:NombreCorto>
+                <dte:CodigoUnidadGravable>1</dte:CodigoUnidadGravable>
+                <dte:MontoGravable>18.70</dte:MontoGravable>
+                <dte:MontoImpuesto>2.24</dte:MontoImpuesto>
+              </dte:Impuesto>
+            </dte:Impuestos>
+            <dte:Total>20.94</dte:Total>
+          </dte:Item>
+          <dte:Item BienOServicio="B" NumeroLinea="2">
+            <dte:Cantidad>1</dte:Cantidad>
+            <dte:UnidadMedida>UND</dte:UnidadMedida>
+            <dte:Descripcion>3rdP - Super Cheese Pepperoni</dte:Descripcion>
+            <dte:PrecioUnitario>70.63</dte:PrecioUnitario>
+            <dte:Precio>70.63</dte:Precio>
+            <dte:Descuento>0.00</dte:Descuento>
+            <dte:Impuestos>
+              <dte:Impuesto>
+                <dte:NombreCorto>IVA</dte:NombreCorto>
+                <dte:CodigoUnidadGravable>1</dte:CodigoUnidadGravable>
+                <dte:MontoGravable>63.06</dte:MontoGravable>
+                <dte:MontoImpuesto>7.57</dte:MontoImpuesto>
+              </dte:Impuesto>
+            </dte:Impuestos>
+            <dte:Total>70.63</dte:Total>
+          </dte:Item>
+          <dte:Item BienOServicio="B" NumeroLinea="3">
+            <dte:Cantidad>1</dte:Cantidad>
+            <dte:UnidadMedida>UND</dte:UnidadMedida>
+            <dte:Descripcion>3rdP - Refresco de 2L</dte:Descripcion>
+            <dte:PrecioUnitario>21.43</dte:PrecioUnitario>
+            <dte:Precio>21.43</dte:Precio>
+            <dte:Descuento>0.00</dte:Descuento>
+            <dte:Impuestos>
+              <dte:Impuesto>
+                <dte:NombreCorto>IVA</dte:NombreCorto>
+                <dte:CodigoUnidadGravable>1</dte:CodigoUnidadGravable>
+                <dte:MontoGravable>19.13</dte:MontoGravable>
+                <dte:MontoImpuesto>2.30</dte:MontoImpuesto>
+              </dte:Impuesto>
+            </dte:Impuestos>
+            <dte:Total>21.43</dte:Total>
+          </dte:Item>
+          <dte:Item BienOServicio="B" NumeroLinea="4">
+            <dte:Cantidad>1</dte:Cantidad>
+            <dte:UnidadMedida>UND</dte:UnidadMedida>
+            <dte:Descripcion>3rdP - Super Cheese Pepperoni</dte:Descripcion>
+            <dte:PrecioUnitario>72.50</dte:PrecioUnitario>
+            <dte:Precio>72.50</dte:Precio>
+            <dte:Descuento>0.00</dte:Descuento>
+            <dte:Impuestos>
+              <dte:Impuesto>
+                <dte:NombreCorto>IVA</dte:NombreCorto>
+                <dte:CodigoUnidadGravable>1</dte:CodigoUnidadGravable>
+                <dte:MontoGravable>64.73</dte:MontoGravable>
+                <dte:MontoImpuesto>7.77</dte:MontoImpuesto>
+              </dte:Impuesto>
+            </dte:Impuestos>
+            <dte:Total>72.50</dte:Total>
+          </dte:Item>
+          <dte:Item BienOServicio="B" NumeroLinea="5">
+            <dte:Cantidad>1</dte:Cantidad>
+            <dte:UnidadMedida>UND</dte:UnidadMedida>
+            <dte:Descripcion>3rdP - Super Cheese Pepperoni</dte:Descripcion>
+            <dte:PrecioUnitario>72.50</dte:PrecioUnitario>
+            <dte:Precio>72.50</dte:Precio>
+            <dte:Descuento>0.00</dte:Descuento>
+            <dte:Impuestos>
+              <dte:Impuesto>
+                <dte:NombreCorto>IVA</dte:NombreCorto>
+                <dte:CodigoUnidadGravable>1</dte:CodigoUnidadGravable>
+                <dte:MontoGravable>64.73</dte:MontoGravable>
+                <dte:MontoImpuesto>7.77</dte:MontoImpuesto>
+              </dte:Impuesto>
+            </dte:Impuestos>
+            <dte:Total>72.50</dte:Total>
+          </dte:Item>
+        </dte:Items>
+        <dte:Totales>
+          <dte:TotalImpuestos>
+            <dte:TotalImpuesto NombreCorto="IVA" TotalMontoImpuesto="27.65" />
+          </dte:TotalImpuestos>
+          <dte:GranTotal>258.00</dte:GranTotal>
+        </dte:Totales>
+      </dte:DatosEmision><dte:Certificacion><dte:NITCertificador>12521337</dte:NITCertificador><dte:NombreCertificador>INFILE, S.A.</dte:NombreCertificador><dte:NumeroAutorizacion Numero="794904844" Serie="3188C90A">3188C90A-2F61-490C-A193-B4E0F3747B78</dte:NumeroAutorizacion><dte:FechaHoraCertificacion>2025-05-18T17:21:44-06:00</dte:FechaHoraCertificacion></dte:Certificacion>
+    </dte:DTE>
+  </dte:SAT>
+<ds:Signature Id="Signature-c91f21f0-58af-4806-a81f-e72993cecf7b">
+  <ds:SignedInfo>
+    <ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315" />
+    <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256" />
+    <ds:Reference URI="#DatosEmision"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" /></ds:Transforms>
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" />
+      <ds:DigestValue>nHq7wz73KaHsIsqzyWqah8Cg8bVE7lzAYkrCBL+cLZI=</ds:DigestValue>
+    </ds:Reference>
+    <ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#SignedProperties-Signature-c91f21f0-58af-4806-a81f-e72993cecf7b">
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" />
+      <ds:DigestValue>uUNW83O4HolGtxBHPqlOdTod/dmiGtC8CtnevWCovzU=</ds:DigestValue>
+    </ds:Reference>
+  </ds:SignedInfo>
+  <ds:SignatureValue Id="Signature-c91f21f0-58af-4806-a81f-e72993cecf7b-sigvalue">F5IhxEri2/yOgExqt6RWqWM1IdsKM61xW08rXV+t+oVYb5L78MqGEmM37pbQfEiLPdE7wrm0xWgGKtFhYZWNY2e+Aj7bcv6HjVk0lrY9WlfgzHPIIZWKUlNc9mBC5PmX4bdKb39i5A2D1PnuaFdVjmo+dci9aexa/eA8eidpd0OlUCtQphds5EFYqbpkAM1cyycOtAl5ZGHStO2EmuRe7QDJRy8Tnr0Sw5wRuQI8PFDo0CcPv/B4r9L+xSx+08NySWofclCico7Vkv0s4qZ4F2Cr8PSneHlP+KU0hWvTtfOv+DcS5x6ju6sPs8/uZS2GvGsG5uo/jFcG54OgaNQOPQ==</ds:SignatureValue>
+  <ds:KeyInfo>
+    <ds:X509Data>
+      <ds:X509Certificate>MIIDYTCCAkmgAwIBAgIIVsnoFGP8zOwwDQYJKoZIhvcNAQELBQAwODE2MDQGA1UEAwwtU3VwZXJpbnRlbmRlbmNpYSBkZSBBZG1pbmlzdHJhY2lvbiBUcmlidXRhcmlhMB4XDTIzMDYyNjE0NDMzNloXDTI1MDYyNTE0NDMzNlowKDERMA8GA1UEAwwIMjEwNTYyMzQxEzARBgNVBAoMCnNhdC5nb2IuZ3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCwERsX7sS4/3qetOQr5gD4JUQYW8yAzMplxy8KNwBW66KYfygLm23sBxZLQpL6yHkproUyGDRM2ZqdvGtq+ZIlvnrVvNh32XOhIMrp44OwQjd6cDhxhTYcf8z6L+bL2NEyGokZ0ywYC5tAzGaBxTB+Jcxf5mLyTGAsSwIxV2r+n75sO27Y62AMd+RcWVgRkfftXY67evLDTXnYFsuXILdAGA8ALi9QQAEC7LwACJocl4sRWUvpCAWgkVM3aW3dHlaGbVVdxkvWD/AZeKdxrwKpp4DolDwFItO5pKy++5qmcvLSDbQLnXFkvO6XyiCYuEwyT2G3U5et6hrrro/7WbiXAgMBAAGjfzB9MAwGA1UdEwEB/wQCMAAwHwYDVR0jBBgwFoAUWIJ2jVgosclDBAK01cheai//+EowHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUFBwMEMB0GA1UdDgQWBBQdO3zEFScm4RD0QBTQy2xiI8TS1DAOBgNVHQ8BAf8EBAMCBeAwDQYJKoZIhvcNAQELBQADggEBABzuxWmKFDkWw/nQzn7+t2vDoC7qFUNAfjUD03+ERpXeZP7ieQI14gKv6vIbUhPArIBvEfUs8ZKiv0bpoZDDGUaf69UT+WOOe2+FIB913aX/RSIBCh764xacnEwn4Yo9R+lirME4MvGYwoEzA32W8lkMz9pzUaBnlxVv/Ii6Ajsz8gx4C2bblNoMcjZ1qMqwLHTfEHCQiocOUNgZaLuBCJSACa+ZuwEwRv8+DK2gSgDezAAB3IJoLCfkjnSoIXSPLEc446F+1L4BWxLPeQ91T1XB+RMQJMeqnr8xjuMz8EPaHqkAYkAIbBLouGY3xczz4HcvPPBTQOaNmgiMmnEbIXE=</ds:X509Certificate>
+      <ds:X509SubjectName>O=sat.gob.gt, CN=21056234</ds:X509SubjectName>
+      <ds:X509SKI>HTt8xBUnJuEQ9EAU0MtsYiPE0tQ=</ds:X509SKI>
+    </ds:X509Data>
+  </ds:KeyInfo>
+  <ds:Object>
+    <xades:QualifyingProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="QualifyingProperties-aa262416-8607-4f02-8897-0a6440a1ae03" Target="#Signature-c91f21f0-58af-4806-a81f-e72993cecf7b">
+    <xades:SignedProperties Id="SignedProperties-Signature-c91f21f0-58af-4806-a81f-e72993cecf7b">
+        <xades:SignedSignatureProperties>
+            <xades:SigningTime>2025-05-18T17:21:43-06:00</xades:SigningTime>
+            <xades:SigningCertificate>
+                <xades:Cert>
+                    <xades:CertDigest>
+                        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" />
+                        <ds:DigestValue>zkcoK8HxHe7tVj4wgbWfwPIbLMyQ444AeAuk33Cc69A=</ds:DigestValue>
+                    </xades:CertDigest>
+                </xades:Cert>
+            </xades:SigningCertificate>
+        </xades:SignedSignatureProperties>
+    </xades:SignedProperties>
+</xades:QualifyingProperties>
+</ds:Object>
+</ds:Signature><ds:Signature Id="xmldsig-cd9682cf-62f0-4749-889e-30de0317983d">
+<ds:SignedInfo>
+<ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315" />
+<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256" />
+<ds:Reference Id="xmldsig-cd9682cf-62f0-4749-889e-30de0317983d-ref0" URI="#DatosEmision">
+<ds:Transforms>
+<ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" />
+</ds:Transforms>
+<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" />
+<ds:DigestValue>nHq7wz73KaHsIsqzyWqah8Cg8bVE7lzAYkrCBL+cLZI=</ds:DigestValue>
+</ds:Reference>
+<ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#xmldsig-cd9682cf-62f0-4749-889e-30de0317983d-signedprops">
+<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" />
+<ds:DigestValue>vpcllSHwjfe2WQp8h3wXEOqXvrfhdAkQIvZXxzUMLrc=</ds:DigestValue>
+</ds:Reference>
+</ds:SignedInfo>
+<ds:SignatureValue Id="xmldsig-cd9682cf-62f0-4749-889e-30de0317983d-sigvalue">
+JLgQeYe4IqJfzFXyEl2TGGG2wuq+ZN6GzmjEE4tWSYwUft1atb6M4rfddWx+N+TeLGNd7yxQZC8T
+Aj5yywKS5np67awCGRZynkxlQN91dKCdgWwb1KpihSzO8mG1Ly/5ROrFU8ctV60RNArAO+sR2k8m
+w7egGY0VdOqqex5HUR3QdOgejGz1IgInLl6wIHdZe08Mp1jHmJounLclaEkPj0Nu2QJPxZTohjxT
+04IZLuvRphoNH96gety0FhJMHLraLL7qCEtwkVZ3xYd9M6DhbQisJMhS7xHAi5wTJfrzC6QvF7B6
+zW+IqNX0uqEDxUuGFGXElU4eDB67fwdBJ1leWA==
+</ds:SignatureValue>
+<ds:KeyInfo>
+<ds:X509Data>
+<ds:X509Certificate>
+MIIJ5zCCB8+gAwIBAgIMQUNHVEkyAAAAAAAYMA0GCSqGSIb3DQEBCwUAMIIBLzEmMCQGA1UEAxYd
+UmVnaXN0cm8gRGlnaXRhbCBQcmlzbWEsIFMuQS4xKjAoBgkqhkiG9w0BCQEWG3NlcnZpY2lvYWxj
+bGllbnRlQHByaXNtYS5ndDEmMCQGA1UEChYdUmVnaXN0cm8gRGlnaXRhbCBQcmlzbWEsIFMuQS4x
+EjAQBgNVBAsTCUd1YXRlbWFsYTERMA8GA1UELRMINTkzOTg0ODUxRTBDBgNVBAkWPEF2ZW5pZGEg
+UmVmb3JtYSAzLTQ4IFpvbmEgOSBFZGlmLiBBbmVsIDV0byBuaXZlbCBPZmljaW5hIDUwMzEOMAwG
+A1UEERMFMDEwMDkxEjAQBgNVBAcTCUd1YXRlbWFsYTESMBAGA1UECBMJR3VhdGVtYWxhMQswCQYD
+VQQGEwJHVDAeFw0yMjA4MTgyMjU4MjZaFw0yNTA4MTgyMjU4MjZaMIIBgDEaMBgGA1UEDQwRUGVy
+c29uYSBKdXLDrWRpY2ExCzAJBgNVBAYTAkdUMR4wHAYDVQQHDBVHVUFURU1BTEEgLyBHVUFURU1B
+TEExOTA3BgNVBAkMMEFWIFJFRk9STUEgMy00OCBaT05BIDkgRURJRklDSU8gQU5FTCBPRklDSU5B
+IDQwMTESMBAGA1UEFBMJMjIwOC0yMjA4MRQwEgYDVQQLDAtQUkVTSURFTkNJQTEPMA0GA1UECgwG
+SU5GSUxFMTMwMQYDVQQMDCpQUkVTSURFTlRFIEVKRUNVVElWTyBZIFJFUFJFU0VOVEFOVEUgTEVH
+QUwxGDAWBgNVBAUTDzE2NTMgMjQ5ODggMDEwMTERMA8GA1UELQwIMTI1MjEzMzcxHzAdBgNVBCoM
+FkdVSUxMRVJNTyBCUkFOIFZBTExFSk8xJjAkBgkqhkiG9w0BCQEWF2dlcmVuY2lhM0BpbmZpbGUu
+Y29tLmd0MRQwEgYDVQQDDAtJTkZJTEUgUy5BLjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoC
+ggEBAK9I8pyUyEeEii1XBRei28usnYvvPnLfSlf6M5DqPvI4rdmAzbtl9mdz8aanij0+QRO95kUW
+g215vG00+rwHWYE7+mz/JsT8AySnD6YVErW5c02eo9FVywurCTRTWQXzK1cRw20bf4kxZxzKaKOM
+MZCFAAlbVRXNbQHo4cCybphWM/9pvB1komxaw7U+VxrTmPnn1eH/n8bZqwrb2dQH21LquMpa2XUw
+DQXzAjILqXtCiS8XNchQQs8Bbo3gEHUiF1ympOuXm3S6JhBlAeQLhLr7D46ZOTiPkrjuya41MJ1k
+AgMU230VyslPDzPWAYPcV5TFq/fxJ82N4fAkPPB7lkECAwEAAaOCA6wwggOoMEAGCCsGAQUFBwEB
+BDQwMjAwBggrBgEFBQcwAYYkaHR0cDovL29jc3AucmVhY2hjb3JlLmNvbS9PQ1NQUFJJU01BMIIB
+UgYDVR0RBIIBSTCCAUWBJ1ByZXN0YWRvciBkZSBTZXJ2aWNpb3MgZGUgQ2VydGlmaWNhY2k/boFb
+IGF1dG9yaXphZG8gc2VnP24gcmVzb2x1Y2k/biBOby4gUFNDLTAxLTIwMTQgZW1pdGlkYSBwb3Ig
+ZWwgUlBTQyBkZWwgTWluaXN0ZXJpbyBkZSBFY29ub20/YYFXIGRlIGFjdWVyZG8gYSBsYSBMZXkg
+cGFyYSBlbCByZWNvbm9jaW1pZW50byBkZSBsYXMgY29tdW5pY2FjaW9uZXMgeSBmaXJtYXMgZWxl
+Y3RyP25pY2FzgUsgRGVjcmV0byA0Ny0yMDA4IGRlbCBDb25ncmVzbyBkZSBsYSBSZXA/YmxpY2Eg
+ZGUgR3VhdGVtYWxhIHkgc3UgcmVnbGFtZW50by6BF2dlcmVuY2lhM0BpbmZpbGUuY29tLmd0MFAG
+A1UdHwRJMEcwRaBDoEGGP2h0dHBzOi8vY2EuYWR2YW50YWdlLXNlY3VyaXR5LmNvbS9hY3ByaXNt
+YTAxL2NybC9wcmlzbWEyX2d0LmNybDCCAWcGA1UdIwSCAV4wggFagBQWdf6ZNR0f1d2vT+ArnRvw
+u4xKGqGCATekggEzMIIBLzEmMCQGA1UEAxYdUmVnaXN0cm8gRGlnaXRhbCBQcmlzbWEsIFMuQS4x
+KjAoBgkqhkiG9w0BCQEWG3NlcnZpY2lvYWxjbGllbnRlQHByaXNtYS5ndDEmMCQGA1UEChYdUmVn
+aXN0cm8gRGlnaXRhbCBQcmlzbWEsIFMuQS4xEjAQBgNVBAsTCUd1YXRlbWFsYTERMA8GA1UELRMI
+NTkzOTg0ODUxRTBDBgNVBAkWPEF2ZW5pZGEgUmVmb3JtYSAzLTQ4IFpvbmEgOSBFZGlmLiBBbmVs
+IDV0byBuaXZlbCBPZmljaW5hIDUwMzEOMAwGA1UEERMFMDEwMDkxEjAQBgNVBAcTCUd1YXRlbWFs
+YTESMBAGA1UECBMJR3VhdGVtYWxhMQswCQYDVQQGEwJHVIIHQUNHVDJJMTARBglghkgBhvhCAQEE
+BAMCAIAwCwYDVR0PBAQDAgGgMBIGA1UdEwEB/wQIMAYBAQACAQAwHQYDVR0lBBYwFAYIKwYBBQUH
+AwQGCCsGAQUFBwMCMA0GCSqGSIb3DQEBCwUAA4ICAQBlpAuxETjDoeWIEUUbI7u02/wH/pyLNDOf
+i5ts9pWJuttYsIQn7BSRyxlvHIZAzknofllgkVJJebR5yPqSt2eUnq+C7r7iFfmxbzX35azpp1Bh
+MMVyg0qfd5AJAZu6xpNQaP26fVzGh3hMkE/BT4ODTTEskZc/QgUi4rSPOUmHYdmIN+M759Bw3aPV
+/GYr0Sx3fC3T/GuFM0B4mV2PagTAnWeDXGHCuYl8NOWDCbEajDaNu9/LeDTP8c7xwzmlsUb9s2OQ
+8JoCArgRJ/oaf83c29kkkJUb8K2oskzivfPih6ZBiQMpmxHtkI8/rBMWu+41dVcpdlbJLWLkw8Dw
+lR/THP27wq9pNEFaJ3946emsReNGim7hEn0kvoD4Iw+uv36WWHhxYaE8EWGHoY/iqafX1XjIBxtE
+JxqGfVW2Ea9kd488aWM6a2aigQjHKw6i4jLSua4LKnDMkuBM2sJQ4SOOgdbXBYh/N1/aLKDBX+L9
+PX2wQrStkLVidrtx+vGoB4heYonwYyeJSW/fshHC4Ab8M3UP338Hc010XNVKmz4r98j6LYNO/HSP
+0J4DsU4fnsSMPkzL92Z1KPZMS/+d8nSP5tsh69g0ri6r1qOnmHYBc1cvAEgtbVf06mSuK4QPdRu6
+oBd1kmZpnT+8E8S0KNu42vMXPuAVYSKsglZEqJZmYQ==
+</ds:X509Certificate>
+</ds:X509Data>
+</ds:KeyInfo>
+<ds:Object><xades:QualifyingProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" xmlns:xades141="http://uri.etsi.org/01903/v1.4.1#" Target="#xmldsig-cd9682cf-62f0-4749-889e-30de0317983d"><xades:SignedProperties Id="xmldsig-cd9682cf-62f0-4749-889e-30de0317983d-signedprops"><xades:SignedSignatureProperties><xades:SigningTime>2025-05-18T17:21:44.147-06:00</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" /><ds:DigestValue>rJoY2GmteCNlC8iq09nyoJmmkerIeUqWoCvtO+fGj+Y=</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName>C=GT,ST=Guatemala,L=Guatemala,2.5.4.17=#13053031303039,STREET=Avenida Reforma 3-48 Zona 9 Edif. Anel 5to nivel Oficina 503,2.5.4.45=#13083539333938343835,OU=Guatemala,O=Registro Digital Prisma\, S.A.,1.2.840.113549.1.9.1=#161b736572766963696f616c636c69656e746540707269736d612e6774,CN=Registro Digital Prisma\, S.A.</ds:X509IssuerName><ds:X509SerialNumber>20197860511122673671832862744</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate></xades:SignedSignatureProperties></xades:SignedProperties></xades:QualifyingProperties></ds:Object>
+</ds:Signature></dte:GTDocumento>

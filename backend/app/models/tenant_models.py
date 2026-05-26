@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base import Base
+from app.models.global_models import TipoDTE, CatalogoMoneda
 
 class Empresa(Base):
     __tablename__ = "empresas"
@@ -64,12 +65,12 @@ class DetallePartida(Base):
 
 class Secuencia(Base):
     __tablename__ = "secuencias"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     entidad = Column(String(50), nullable=False)      # ej. "partida"
     empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False)
     contador = Column(Integer, default=1)
-    
+
     __table_args__ = (
         UniqueConstraint('entidad', 'empresa_id', name='uq_secuencias_entidad_empresa'),
     )
@@ -86,47 +87,61 @@ class PeriodoFiscal(Base):
     empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False)
     empresa = relationship("Empresa")
 
-class FacturaElectronica(Base):
+class FacturaElectronica(Base):  # 🔹 CRÍTICO: Debe ser TenantBase, no Base
     __tablename__ = "facturas_electronicas"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False)
     xml_original = Column(Text, nullable=False)
 
-    # Campos de la certificación
-    numero_autorizacion = Column(String(50), nullable=False)      # Número de autorización (ej. 2818130895)
-    autorizacion_uuid = Column(String(50), nullable=True)         # UUID de la autorización
-    serie = Column(String(20), nullable=True)                     # Serie (ej. 0F1C6151)
-    numero = Column(String(20), nullable=False)                   # Número de factura
-    tipo_documento = Column(String(10), nullable=True)            # FACT, CAMB, etc.
-    moneda = Column(String(5), nullable=True)                     # GTQ, USD, etc.
+    numero_autorizacion = Column(String(50), nullable=False)
+    autorizacion_uuid = Column(String(50), nullable=True)
+    serie = Column(String(20), nullable=True)
+    numero = Column(String(20), nullable=False)
 
-    # Fechas
+    # Campos de código (para compatibilidad con frontend/legacy)
+    tipo_documento = Column(String(10), nullable=True)
+    moneda = Column(String(5), nullable=True)
+
+    # 🔹 FKs simplificadas (sin "public." ni use_alter)
+    tipo_documento_id = Column(
+        UUID(as_uuid=True), 
+        ForeignKey(TipoDTE.id), 
+        nullable=True, index=True
+    )
+    moneda_id = Column(
+        UUID(as_uuid=True), 
+        ForeignKey(CatalogoMoneda.id), 
+        nullable=True, index=True
+    )
+
     fecha_emision = Column(DateTime(timezone=True), nullable=False)
 
-    # Emisor
     emisor_nit = Column(String(15), nullable=False)
     emisor_nombre = Column(String(255), nullable=False)
-
-    # Receptor
     receptor_nit = Column(String(15), nullable=False)
     receptor_nombre = Column(String(255), nullable=False)
 
-    # Totales
     total_gravado = Column(Numeric(12,2), default=0)
     total_iva = Column(Numeric(12,2), default=0)
     total_exento = Column(Numeric(12,2), default=0)
     total = Column(Numeric(12,2), nullable=False)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    empresa = relationship("Empresa")
-    detalles = relationship("FacturaDetalle", back_populates="factura", cascade="all, delete-orphan")
+    tipo_cambio = Column(Numeric(10, 5), nullable=True)
 
-    es_exportacion = Column(Boolean, default=False) 
+    es_exportacion = Column(Boolean, default=False)
     nombre_comercial = Column(String(255), nullable=True)
     tipo_operacion = Column(String(10), nullable=False, default='Compra')
     estado = Column(String(20), nullable=False, default='Activa')
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relaciones estándar
+    empresa = relationship("Empresa")
+    detalles = relationship("FacturaDetalle", back_populates="factura", cascade="all, delete-orphan")
+
+    # 🔹 RELACIONES EXPLÍCITAS (evita NoForeignKeysError en cross-schema)
+    tipo_documento_rel = relationship(TipoDTE, lazy="select")
+    moneda_rel = relationship(CatalogoMoneda, lazy="select")
 
 class FacturaDetalle(Base):
     __tablename__ = "factura_detalles"

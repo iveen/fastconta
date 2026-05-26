@@ -42,4 +42,31 @@ class RegistrationAttempt(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     ip_address = Column(String(45), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class TipoDTE(Base):
+    __tablename__ = "tipos_dte"
+    __table_args__ = {'schema': 'public'}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    codigo = Column(String(10), unique=True, nullable=False, index=True)
+    descripcion = Column(String(100), nullable=False)
+    requiere_complemento = Column(Boolean, default=False, nullable=False)
+    es_factura = Column(Boolean, default=True, nullable=False)
+    activo = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+class CatalogoMoneda(Base):
+    __tablename__ = "catalogo_monedas"
+    __table_args__ = {'schema': 'public'}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    codigo_banguat = Column(String(5), unique=True, nullable=False, index=True)
+    codigo_iso = Column(String(3), unique=True, nullable=False, index=True)
+    nombre = Column(String(50), nullable=False)
+    simbolo = Column(String(5), nullable=True)
+    decimales = Column(Integer, default=2, nullable=False)
+    activo = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     

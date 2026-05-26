@@ -22,3 +22,6 @@ email-validator==2.1.0
 # Reportería
 openpyxl==3.1.2
 reportlab==4.0.0
+
+# HTTP
+requests

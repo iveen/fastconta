@@ -6,161 +6,107 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import selectinload
 from typing import List
 from app.db.session import get_tenant_db
-from app.models.tenant_models import FacturaElectronica, Empresa, FacturaDetalle, CuentaContable, DetallePartida, Partida
+from app.models.tenant_models import FacturaElectronica, FacturaDetalle, CuentaContable, DetallePartida, Partida
+from app.models.global_models import TipoDTE, CatalogoMoneda
 from app.schemas.factura import FacturaOut
 from app.schemas.partida import PartidaOut, DetallePartidaOut
 from app.services.fel_parser import parse_fel_xml
+from app.services.banguat_ws import obtener_tipo_cambio
 from uuid import UUID, UUID as UUIDType
+from decimal import Decimal
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+#------------------------------------
 @router.post("/upload", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def upload_facturas(
-    empresa_id: str = Query(..., description="ID de la empresa"),
-    files: List[UploadFile] = File(..., description="Archivos XML de FEL"),
+    empresa_id: str = Query(...),
+    files: List[UploadFile] = File(...),
     db: AsyncSession = Depends(get_tenant_db)
 ):
     user_info = db.info.get("current_user")
-    schema_name = user_info.get("schema") if user_info else None
+    schema_name = user_info.get("schema") or user_info.get("tenant_schema")
+    if not schema_name and user_info.get("tenant_id"):
+        res = await db.execute(text("SELECT schema_name FROM public.tenants WHERE id = :tid"), {"tid": user_info["tenant_id"]})
+        row = res.fetchone()
+        schema_name = row[0] if row else None
+
     if not schema_name:
-        tenant_id = user_info.get("tenant_id") if user_info else None
-        if not tenant_id:
-            logger.error(f'Token Inválido para {schema_name}')
-            raise HTTPException(status_code=400, detail="Token inválido")
-        tenant_result = await db.execute(
-            text("SELECT schema_name FROM public.tenants WHERE id = :tid"),
-            {"tid": tenant_id}
-        )
-        tenant_row = tenant_result.fetchone()
-        if not tenant_row:
-            logger.error(f"Tenant {schema_name} no encontrado.")
-            raise HTTPException(status_code=400, detail="Tenant no encontrado")
-        schema_name = tenant_row[0]
+        raise HTTPException(400, "Schema no determinado")
 
-    ## async with db.begin():
-    try:
-        await db.execute(text(f"SET search_path TO {schema_name}, public"))
+    await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
+    
+    # Validar empresa
+    emp = await db.execute(text(f"SELECT id, nit FROM empresas WHERE id = :eid"), {"eid": empresa_id})
+    emp_row = emp.fetchone()
+    if not emp_row: raise HTTPException(400, "Empresa no encontrada")
+    empresa_nit = emp_row[1].replace('-', '').strip()
 
-        # Validar empresa
-        emp_row = await db.execute(
-            text(f"SELECT id, nit FROM {schema_name}.empresas WHERE id = :emp_id"),
-            {"emp_id": empresa_id}
-        )
-        empresa = emp_row.fetchone()
-        if not empresa:
-            logger.error(f'Empresa {empresa_id} no encontrada.')
-            raise HTTPException(status_code=400, detail="Empresa no encontrada")
-        empresa_nit = empresa[1].strip() if empresa[1] else ""
+    facturas_creadas = []
+    rechazos = []
 
-        facturas = []
-        log_rechazos = []
-
-        for file in files:
-            if not file.filename.endswith('.xml'):
-                logger.warning(f'{file.filename} No es un archivo XML')
-                log_rechazos.append(f"{file.filename}: No es un archivo XML")
+    for file in files:
+        if not file.filename.endswith('.xml'):
+            rechazos.append(f"{file.filename}: No es XML")
+            continue
+        
+        try:
+            xml_str = (await file.read()).decode('utf-8')
+            datos = await parse_fel_xml(xml_str, db)
+            if not datos: 
+                rechazos.append(f"{file.filename}: Parse fallido")
                 continue
 
-            content = await file.read()
-            logger.debug(f"📄 Archivo recibido: {file.filename}, size={len(content)}B, first_bytes={content[:100]}")
-            xml_str = content.decode('utf-8')
-            datos = parse_fel_xml(xml_str)
-            if not datos:
-                logger.warning(f'{file.filename}: No se pudo procesar')
-                log_rechazos.append(f"{file.filename}: No se pudo parsear")
+            # Duplicado
+            dup = await db.execute(text("SELECT id FROM facturas_electronicas WHERE empresa_id = :e AND serie = :s AND numero_autorizacion = :n"),
+                                   {"e": empresa_id, "s": datos.get('serie'), "n": datos.get('numero_autorizacion')})
+            if dup.fetchone():
+                rechazos.append(f"{file.filename}: Duplicada")
                 continue
 
-            # Verificar duplicado con SQL cualificado
-            existente = await db.execute(
-                text(f"SELECT id FROM {schema_name}.facturas_electronicas WHERE empresa_id = :emp_id AND serie = :serie AND numero_autorizacion = :num"),
-                {"emp_id": empresa_id, "serie": datos.get('serie'), "num": datos.get('numero_autorizacion')}
-            )
-            if existente.fetchone():
-                logger.warning(f"{file.filename}: Factura Duplicada")
-                log_rechazos.append(f"{file.filename}: Factura duplicada")
-                continue
-            
             # Clasificar
-            emisor_nit = datos.get('emisor_nit', '').replace('-', '')
-            receptor_nit = datos.get('receptor_nit', '').replace('-', '')
-            if emisor_nit == empresa_nit:
-                tipo_op = 'Venta'
-            elif receptor_nit == empresa_nit:
-                tipo_op = 'Compra'
-            else:
-                logger.warning(f"{file.filename}: NITs no coinciden con la empresa")
-                log_rechazos.append(f"{file.filename}: NITs no coinciden con la empresa")
-                continue
+            em = datos.get('emisor_nit','').replace('-','')
+            rec = datos.get('receptor_nit','').replace('-','')
+            tipo_op = 'Venta' if em == empresa_nit else ('Compra' if rec == empresa_nit else 'Terceros')
 
-            items_factura = datos.pop('items', [])
+            # Resolver catálogos
+            res_tipo = await db.execute(select(TipoDTE.id).where(TipoDTE.codigo == datos.get('tipo_documento','FACT')))
+            tipo_id = res_tipo.scalar_one_or_none()
+            res_mon = await db.execute(select(CatalogoMoneda.id).where(CatalogoMoneda.codigo_iso == datos.get('moneda','GTQ')))
+            mon_id = res_mon.scalar_one_or_none()
 
+            # Tipo de cambio
+            tc = Decimal("1.00000")
+            if datos.get('moneda') != 'GTQ' and datos.get('fecha_emision'):
+                tc = await obtener_tipo_cambio(datos['fecha_emision'].date(), datos['moneda'], db) or tc
+
+            items = datos.pop('items', [])
             factura = FacturaElectronica(
-                empresa_id=empresa_id,
-                xml_original=xml_str,
-                numero_autorizacion=datos['numero_autorizacion'],
-                autorizacion_uuid=datos.get('autorizacion_uuid'),
-                serie=datos.get('serie'),
-                numero=datos.get('numero'),
-                tipo_documento=datos.get('tipo_documento'),
-                moneda=datos.get('moneda'),
-                fecha_emision=datos['fecha_emision'],
-                emisor_nit=datos['emisor_nit'],
-                emisor_nombre=datos['emisor_nombre'],
-                receptor_nit=datos['receptor_nit'],
-                receptor_nombre=datos['receptor_nombre'],
-                total_gravado=datos['total_gravado'],
-                total_iva=datos['total_iva'],
-                total_exento=datos.get('total_exento', 0),
-                total=datos['total'],
-                es_exportacion=datos.get('es_exportacion', False),
-                nombre_comercial=datos.get('emisor_nombre_comercial'),
-                tipo_operacion=tipo_op,
-                estado='Activa',
+                empresa_id=empresa_id, xml_original=xml_str,
+                numero_autorizacion=datos['numero_autorizacion'], serie=datos.get('serie'), numero=datos.get('numero'),
+                fecha_emision=datos['fecha_emision'], emisor_nit=datos['emisor_nit'], emisor_nombre=datos['emisor_nombre'],
+                receptor_nit=datos['receptor_nit'], receptor_nombre=datos['receptor_nombre'],
+                total_gravado=datos['total_gravado'], total_iva=datos['total_iva'], total_exento=datos.get('total_exento',0), total=datos['total'],
+                tipo_documento_id=tipo_id, moneda_id=mon_id, tipo_cambio=tc,
+                es_exportacion=datos.get('es_exportacion', False), tipo_operacion=tipo_op, estado='Activa',
+                tipo_documento=datos.get('tipo_documento'), moneda=datos.get('moneda')
             )
             db.add(factura)
             await db.flush()
 
-            for item in items_factura:
-                db.add(FacturaDetalle(
-                    factura_id=factura.id,
-                    cantidad=item['cantidad'],
-                    descripcion=item['descripcion'],
-                    precio_unitario=item['precio_unitario'],
-                    total_linea=item['total_linea'],
-                    iva_linea=item.get('iva_linea', 0),
-                ))
+            for it in items:
+                db.add(FacturaDetalle(factura_id=factura.id, **it))
+            facturas_creadas.append(factura)
+        except Exception as e:
+            logger.error(f"Error en {file.filename}: {e}")
+            rechazos.append(f"{file.filename}: {str(e)}")
 
-            facturas.append(factura)
-
-        # Recargar dentro de la transacción para evitar problemas de conexión
-        ids = [f.id for f in facturas]
-        stmt = (select(FacturaElectronica)
-                .where(FacturaElectronica.id.in_(ids))
-                .options(selectinload(FacturaElectronica.detalles)))
-        result = await db.execute(stmt)
-        facturas_cargadas = result.scalars().all()
-        await db.commit()
-
-        return {
-            "cargadas": len(facturas_cargadas),
-            "facturas": [FacturaOut.model_validate(f) for f in facturas_cargadas],
-            "rechazadas": log_rechazos
-        }
-    except Exception as e:
-        # 🔹 Logging detallado SIEMPRE (para desarrollo)
-        import traceback, os
-        error_details = traceback.format_exc()
-        logger.error(f"❌ Error procesando {file.filename}:\n{error_details}")
-        
-        # 🔹 Mostrar error detallado solo si estamos en desarrollo
-        # Usamos variable de entorno estándar o fallback a True
-        is_dev = os.getenv("ENVIRONMENT", "development") == "development"
-        detail = f"{file.filename}: {str(e)}\n\n{error_details}" if is_dev else f"{file.filename}: No se pudo procesar la factura"
-        
-        raise HTTPException(status_code=400, detail=detail)
+    await db.commit()
+    return {"cargadas": len(facturas_creadas), "rechazadas": rechazos}
+#------------------------------------
 
 @router.get("/", response_model=List[FacturaOut])
 async def listar_facturas(

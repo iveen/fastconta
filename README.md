@@ -27,13 +27,14 @@ fastconta/
 │ │ ├── crud/ # Funciones auxiliares (secuencias)
 │ │ ├── db/ # Módulo de base de datos (engine, sesiones)
 │ │ ├── models/ # Modelos SQLAlchemy (globales y de tenant)
-│ │ └── schemas/ # Esquemas Pydantic
+│ │ ├── schemas/ # Esquemas Pydantic
+│ | └── services/ # Servicios (FEL parser, Banguat WS, etc.)
 │ ├── alembic/ # Migraciones globales (tablas public)
 │ ├── alembic_tenant/ # Migraciones de tenant (schemas separados)
 │ ├── db/ # Scripts SQL (creación de tablas por tenant)
 │ ├── manage.py # Comandos de gestión de migraciones
 │ └── requirements.txt
-├── frontend/ # (próximamente) Aplicación Vue 3 + TailwindCSS
+├── frontend/ # Aplicación Vue 3 + TailwindCSS
 └── README.md
 ```
 
@@ -64,6 +65,27 @@ fastconta/
 - Definición de períodos fiscales por empresa.
 - Cierre automático de cuentas de resultado contra **Utilidad del Ejercicio** y traslado a **Utilidades Acumuladas**.
 - Bloqueo de registros en períodos cerrados.
+
+### 📄 Factura Electrónica (FEL) ⭐ **NUEVO**
+- **Carga masiva de XML**: Importación de facturas electrónicas FEL en formato XML.
+- **Parsing inteligente**: Extracción automática de datos emisor, receptor, items, totales y certificaciones.
+- **Tipos de operación**: Soporte para Compras, Ventas y Exportaciones.
+- **Multi-moneda**: Facturación en GTQ y USD con tipo de cambio automático (consulta Banguat).
+- **Validaciones**: 
+  - Detección de duplicados por número de autorización y serie.
+  - Validación de estructura XML FEL (schema SAT Guatemala).
+  - Clasificación automática (Compra/Venta) basada en NIT de la empresa.
+- **Catálogos integrados**:
+  - Tipos de DTE (FACT, FCAM, NCRE, NDEB, CIVA, FESP).
+  - Catálogo de monedas (GTQ, USD).
+- **Visualización completa**:
+  - Listado con filtros por empresa, ordenamiento y búsqueda.
+  - Detalle completo: emisor/receptor, items, totales, IVA, tipo de cambio.
+  - Badges de estado (Activa/Anulada), tipo de operación y ámbito (Local/Exportación).
+- **Acciones disponibles**:
+  - Anulación de facturas (soft delete).
+  - Generación automática de partidas contables desde XML (próximamente).
+  - Validación cruzada con hoja electrónica (en desarrollo).
 
 ### 📈 Reportes financieros
 - **Balance de Comprobación**: sumas y saldos por período y empresa.

@@ -93,6 +93,7 @@ class FacturaElectronica(Base):  # 🔹 CRÍTICO: Debe ser TenantBase, no Base
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False)
     xml_original = Column(Text, nullable=False)
+    xml_filename = Column(String(255), nullable=True)
 
     numero_autorizacion = Column(String(50), nullable=False)
     autorizacion_uuid = Column(String(50), nullable=True)
@@ -133,6 +134,11 @@ class FacturaElectronica(Base):  # 🔹 CRÍTICO: Debe ser TenantBase, no Base
     nombre_comercial = Column(String(255), nullable=True)
     tipo_operacion = Column(String(10), nullable=False, default='Compra')
     estado = Column(String(20), nullable=False, default='Activa')
+    fecha_anulacion = Column(DateTime(timezone=True), nullable=True)  # Nuevo
+
+    validado = Column(Boolean, server_default="false", default=False)
+    fecha_validacion = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relaciones estándar
@@ -142,6 +148,32 @@ class FacturaElectronica(Base):  # 🔹 CRÍTICO: Debe ser TenantBase, no Base
     # 🔹 RELACIONES EXPLÍCITAS (evita NoForeignKeysError en cross-schema)
     tipo_documento_rel = relationship(TipoDTE, lazy="select")
     moneda_rel = relationship(CatalogoMoneda, lazy="select")
+    impuestos_especiales = relationship(
+        "FacturaImpuestoEspecial",
+        back_populates="factura",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
+
+class FacturaImpuestoEspecial(Base):
+    __tablename__ = "facturas_impuestos_especiales"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    factura_id = Column(UUID(as_uuid=True), ForeignKey("facturas_electronicas.id"), nullable=False, index=True)
+    
+    # ✅ NUEVO: Relación con el catálogo global (public)
+    catalogo_id = Column(
+        UUID(as_uuid=True), 
+        ForeignKey("public.catalogo_impuestos_especiales.id"), 
+        nullable=False, 
+        index=True
+    )
+    
+    monto = Column(Numeric(12, 2), nullable=False, server_default="0")
+    
+    # Relación SQLAlchemy
+    factura = relationship("FacturaElectronica", back_populates="impuestos_especiales")
+    catalogo = relationship("CatalogoImpuestoEspecial", lazy="select") # Si quieres acceder a los datos del catálogo
 
 class FacturaDetalle(Base):
     __tablename__ = "factura_detalles"

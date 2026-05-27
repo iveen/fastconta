@@ -22,8 +22,8 @@ def upgrade():
     tenant_schema = os.environ.get("TENANT_SCHEMA", "public")
     op.create_table(
         'factura_detalles',
-        sa.Column('id', UUID(as_uuid=True), primary_key=True, server_default=sa.text('gen_random_uuid()')),
-        sa.Column('factura_id', UUID(as_uuid=True), sa.ForeignKey('facturas_electronicas.id', ondelete='CASCADE'), nullable=False),
+        sa.Column('id', sa.UUID(as_uuid=True), primary_key=True, server_default=sa.text('gen_random_uuid()')),
+        sa.Column('factura_id', sa.UUID(as_uuid=True), sa.ForeignKey('facturas_electronicas.id', ondelete='CASCADE'), nullable=False),
         sa.Column('cantidad', sa.Numeric(12,4), nullable=False),
         sa.Column('descripcion', sa.String(500), nullable=False),
         sa.Column('precio_unitario', sa.Numeric(12,2), nullable=False),

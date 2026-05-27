@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Integer
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Integer, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -69,4 +69,15 @@ class CatalogoMoneda(Base):
     activo = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+class CatalogoImpuestoEspecial(Base):
+    __tablename__ = "catalogo_impuestos_especiales"
+    __table_args__ = {'schema': 'public'}
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    codigo = Column(String(50), unique=True, nullable=False, index=True)  # ej: 'petroleo'
+    nombre = Column(String(100), nullable=False)
+    descripcion = Column(Text, nullable=True)
+    activo = Column(Boolean, default=True)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
     

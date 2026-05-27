@@ -13,7 +13,11 @@ from app.schemas.partida import PartidaOut, DetallePartidaOut
 from app.services.fel_parser import parse_fel_xml
 from app.services.banguat_ws import obtener_tipo_cambio
 from uuid import UUID, UUID as UUIDType
+from openpyxl import load_workbook
+import xlrd
+from io import BytesIO
 from decimal import Decimal
+from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
@@ -92,7 +96,8 @@ async def upload_facturas(
                 total_gravado=datos['total_gravado'], total_iva=datos['total_iva'], total_exento=datos.get('total_exento',0), total=datos['total'],
                 tipo_documento_id=tipo_id, moneda_id=mon_id, tipo_cambio=tc,
                 es_exportacion=datos.get('es_exportacion', False), tipo_operacion=tipo_op, estado='Activa',
-                tipo_documento=datos.get('tipo_documento'), moneda=datos.get('moneda')
+                tipo_documento=datos.get('tipo_documento'), moneda=datos.get('moneda'),
+                xml_filename=file.filename,
             )
             db.add(factura)
             await db.flush()
@@ -106,7 +111,161 @@ async def upload_facturas(
 
     await db.commit()
     return {"cargadas": len(facturas_creadas), "rechazadas": rechazos}
+
 #------------------------------------
+@router.post("/validar-hoja-electronica", status_code=status.HTTP_200_OK)
+async def validar_hoja_electronica(
+    file: UploadFile = File(...),
+    empresa_id: str = Query(...),  # ✅ NUEVO: Declarar query param
+    db: AsyncSession = Depends(get_tenant_db)
+):
+    if not file.filename.lower().endswith(('.xlsx', '.xls')):
+        raise HTTPException(400, "Solo se permiten archivos Excel (.xlsx/.xls)")
+
+    try:
+        content = await file.read()
+
+        SHEET_NAME = "InformacionDTE-FEL"  # ✅ Nombre explícito del worksheet
+        rows = []
+
+        # 🔹 Lectura según formato del archivo
+        if file.filename.endswith('.xls'):
+            # Usar xlrd==1.2.0 para archivos .xls antiguos (binarios)
+            book = xlrd.open_workbook(file_contents=content)
+            
+            # Verificar que la hoja existe
+            if SHEET_NAME not in book.sheet_names():
+                raise HTTPException(400, f"La hoja '{SHEET_NAME}' no existe en el archivo")
+            
+            ws = book.sheet_by_name(SHEET_NAME)
+            
+            # Leer filas saltando encabezado (fila 0)
+            for row_idx in range(1, ws.nrows):
+                row = [ws.cell_value(row_idx, col) for col in range(ws.ncols)]
+                rows.append(row)
+        else:
+            # Usar openpyxl para archivos .xlsx modernos (XML)
+            wb = load_workbook(filename=BytesIO(content), data_only=True, read_only=True)
+            
+            # Verificar que la hoja existe
+            if SHEET_NAME not in wb.sheetnames:
+                wb.close()
+                raise HTTPException(400, f"La hoja '{SHEET_NAME}' no existe en el archivo")
+            
+            ws = wb[SHEET_NAME]
+            rows = list(ws.iter_rows(min_row=2, values_only=True))  # Saltar encabezado
+            wb.close()
+
+        # Mapeo de columnas (índice 0-based según tu Excel)
+        COL_AUTH = 1
+        COL_ANULADO = 20
+        COL_FECHA_ANULADO = 21
+        COLS_IMPUESTOS = {
+            22: 'petroleo', 23: 'turismo_hospedaje', 24: 'turismo_pasajes',
+            25: 'timbre_prensa', 26: 'bomberos', 27: 'tasa_municipal',
+            28: 'bebidas_alcoholicas', 29: 'tabaco', 30: 'cemento',
+            31: 'bebidas_no_alcoholicas', 32: 'tarifa_portuaria'
+        }
+
+        pendientes = []
+        actualizadas = 0
+        impuestos_insertados = 0
+
+        for row in rows:
+            if not row or not row[COL_AUTH]: 
+                continue
+            
+            # 🔹 1. Normalizar el valor del Excel: quitar .xml, espacios y unificar caso
+            auth_raw = str(row[COL_AUTH]).strip()
+            if not auth_raw:
+                continue
+            auth_clean = auth_raw.replace('.xml', '').replace('.XML', '').strip().upper()
+
+            # 🔹 2. Buscar factura en BD usando xml_filename (normalizado)
+            res = await db.execute(
+                text("""
+                    SELECT id, estado 
+                    FROM facturas_electronicas 
+                    WHERE REPLACE(UPPER(xml_filename), '.XML', '') = :auth
+                """),
+                {"auth": auth_clean}
+            )
+            factura_row = res.fetchone()
+
+            if not factura_row:
+                pendientes.append(auth_clean)
+                continue
+            else:
+                await db.execute(
+                    text("""
+                        UPDATE facturas_electronicas 
+                        SET validado = TRUE, fecha_validacion = CURRENT_TIMESTAMP
+                        WHERE id = :id
+                    """),
+                    {"id": factura_row.id}
+    )
+
+            # 1. Actualizar estado de anulación si aplica
+            marca_anulado = str(row[COL_ANULADO]).strip() if row[COL_ANULADO] else "No"
+            
+            # ✅ CORREGIDO: Comparar con estado, no con columna booleana
+            if marca_anulado.lower() == "si" and factura_row.estado != "Anulada":
+                fecha_anul = row[COL_FECHA_ANULADO]
+                if isinstance(fecha_anul, str):
+                    fecha_anul = datetime.fromisoformat(fecha_anul.replace("Z", "+00:00"))
+                
+                await db.execute(
+                    text("""
+                        UPDATE facturas_electronicas 
+                        SET estado = 'Anulada', fecha_anulacion = :fecha
+                        WHERE id = :id
+                    """),
+                    {"fecha": fecha_anul, "id": factura_row.id}
+                )
+                actualizadas += 1
+
+            # 2. Insertar impuestos especiales (solo si monto > 0)
+            for col_idx, tipo in COLS_IMPUESTOS.items():
+                monto_val = row[col_idx]
+                if monto_val and float(monto_val) > 0:
+                    monto_dec = Decimal(str(monto_val))
+                    existente = await db.execute(
+                        text("SELECT id FROM facturas_impuestos_especiales WHERE factura_id = :fid AND tipo_codigo = :tipo"),
+                        {"fid": factura_row.id, "tipo": tipo}
+                    )
+                    if not existente.fetchone():
+                        await db.execute(
+                            text("""
+                                INSERT INTO facturas_impuestos_especiales (id, factura_id, tipo_codigo, monto)
+                                VALUES (gen_random_uuid(), :fid, :tipo, :monto)
+                            """),
+                            {"fid": factura_row.id, "tipo": tipo, "monto": monto_dec}
+                        )
+                        impuestos_insertados += 1
+
+        await db.commit()
+
+        if pendientes:
+            return {
+                "success": False,
+                "mensaje": "Validación rechazada. Faltan cargar los siguientes XML antes de validar:",
+                "pendientes": pendientes,
+                "procesadas": actualizadas,
+                "impuestos_registrados": impuestos_insertados
+            }
+
+        return {
+            "success": True,
+            "mensaje": "Validación exitosa. Estados e impuestos sincronizados.",
+            "anulaciones_actualizadas": actualizadas,
+            "impuestos_registrados": impuestos_insertados
+        }
+
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(500, f"Error procesando hoja electrónica: {str(e)}")
+#--------------------------------------------------------
+
 
 @router.get("/", response_model=List[FacturaOut])
 async def listar_facturas(

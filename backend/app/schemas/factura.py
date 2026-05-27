@@ -14,6 +14,12 @@ class FacturaDetalleOut(BaseModel):
     iva_linea: Decimal
     model_config = ConfigDict(from_attributes=True)
 
+class FacturaImpuestoEspecialOut(BaseModel):
+    id: UUID
+    tipo_codigo: str          # Coincide con 'petroleo', 'turismo_hospedaje', etc.
+    monto: Decimal
+    model_config = ConfigDict(from_attributes=True)
+
 class FacturaOut(BaseModel):
     id: UUID
     empresa_id: UUID
@@ -41,6 +47,14 @@ class FacturaOut(BaseModel):
     es_exportacion: bool = False
     tipo_operacion: Optional[str] = "Venta"
     estado: Optional[str] = 'Activa'
+    
+    # ✅ NUEVOS CAMPOS (Auditoría y Validación)
+    xml_filename: Optional[str] = None
+    validado: bool = False
+    fecha_validacion: Optional[datetime] = None
+    
     created_at: datetime
     detalles: List[FacturaDetalleOut] = []
+    impuestos_especiales: List[FacturaImpuestoEspecialOut] = []
+    
     model_config = ConfigDict(from_attributes=True)

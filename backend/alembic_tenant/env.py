@@ -34,13 +34,23 @@ def include_object(object, name, type_, reflected, compare_to):
         return True
         
     obj_schema = None
+    
+    if type_ == "table" and name == "alembic_version":
+        return False
+
     if type_ == "table":
         obj_schema = getattr(object, 'schema', None)
     elif type_ == "column":
         tbl = getattr(object, 'table', None)
-        obj_schema = getattr(tbl, 'schema', None) if tbl else None
-    else:
-        obj_schema = getattr(object, 'schema', None)
+        # ¡CORRECCIÓN AQUÍ!: Cambiar 'if tbl' por 'if tbl is not None'
+        obj_schema = getattr(tbl, 'schema', None) if tbl is not None else None
+    elif type_ == "index" or type_ == "unique_constraint":
+        tbl = getattr(object, 'table', None)
+        # Asegurar 'is not None' también aquí por seguridad
+        obj_schema = getattr(tbl, 'schema', None) if tbl is not None else None
+    elif type_ == "foreign_key_constraint":
+        tbl = getattr(object, 'table', None)
+        obj_schema = getattr(tbl, 'schema', None) if tbl is not None else None
 
     # Lógica estricta:
     # 1. Si el objeto tiene schema explícito, debe coincidir con el tenant actual.
@@ -69,6 +79,9 @@ def run_migrations_offline():
         context.run_migrations()
 
 def run_migrations_online():
+    # Asegurar que se asigne la URL dinámica antes de levantar el engine
+    config.set_main_option("sqlalchemy.url", settings.SYNC_DATABASE_URL)
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -77,20 +90,7 @@ def run_migrations_online():
     
     tenant_schema = get_tenant_schema()
 
-    # Configurar conexión específica para este tenant
-    @event.listens_for(connectable, "connect")
-    def set_search_path(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        # Usamos comillas dobles seguras por si el nombre tiene espacios o chars raros
-        # Aunque lo ideal es naming convention simple (lowercase snake_case)
-        safe_schema = tenant_schema.replace('"', '""') 
-        cursor.execute(f'SET search_path TO "{safe_schema}", public')
-        cursor.close()
-
     with connectable.connect() as connection:
-        # Verificación extra de seguridad al inicio
-        connection.execute(text(f'SET search_path TO "{tenant_schema}", public'))
-
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
@@ -98,10 +98,14 @@ def run_migrations_online():
             version_table="alembic_version",
             version_table_schema=tenant_schema,
             default_schema=tenant_schema,
-            # Compare type para evitar falsos positivos en tipos de DB
             render_as_batch=True, 
         )
+
         with context.begin_transaction():
+            # SOLUCIÓN: Ejecutar el search_path DENTRO de la transacción controlada por Alembic
+            safe_schema = tenant_schema.replace('"', '""')
+            connection.execute(text(f'SET search_path TO "{safe_schema}", public'))
+            
             context.run_migrations()
 
 if context.is_offline_mode():

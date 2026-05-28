@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+import os
 
 
 # revision identifiers, used by Alembic.
@@ -19,6 +20,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    tenant_schema = os.environ.get("TENANT_SCHEMA", "public")
+    if tenant_schema == 'system':
+        return
     # 1. Agregar las columnas de IDs
     op.add_column('facturas_electronicas', sa.Column('tipo_documento_id', sa.UUID(as_uuid=True), nullable=True))
     op.add_column('facturas_electronicas', sa.Column('moneda_id', sa.UUID(as_uuid=True), nullable=True))
@@ -51,6 +55,9 @@ def upgrade() -> None:
     op.create_index('ix_facturas_electronicas_moneda_id', 'facturas_electronicas', ['moneda_id'], unique=False)
 
 def downgrade() -> None:
+    tenant_schema = os.environ.get("TENANT_SCHEMA", "public")
+    if tenant_schema == 'system':
+        return
     # Eliminar en orden inverso: primero restricciones, luego columnas
     
     op.drop_constraint('fk_facturas_catalogo_monedas', 'facturas_electronicas', type_='foreignkey')

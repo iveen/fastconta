@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+import os
 
 
 # revision identifiers, used by Alembic.
@@ -19,6 +20,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade():
+    tenant_schema = os.environ.get("TENANT_SCHEMA", "public")
+    if tenant_schema == 'system':
+        return
     # Agregar columna (idempotente)
     op.execute("""
         ALTER TABLE facturas_electronicas 
@@ -31,5 +35,8 @@ def upgrade():
     """)
 
 def downgrade():
+    tenant_schema = os.environ.get("TENANT_SCHEMA", "public")
+    if tenant_schema == 'system':
+        return
     op.execute("DROP INDEX IF EXISTS idx_facturas_xml_filename")
     op.execute("ALTER TABLE facturas_electronicas DROP COLUMN IF EXISTS xml_filename")

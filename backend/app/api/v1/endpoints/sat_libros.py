@@ -1,12 +1,12 @@
 # app/api/v1/endpoints/sat_libros.py
 from fastapi import APIRouter, Depends, status, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+from sqlalchemy import text, select
 from uuid import UUID
 
 from app.db.session import get_tenant_db
-from app.models.tenant_models import TipoLibro
 from app.schemas.sat_libros import SatLibroCreate, SatLibroResponse, SatLibroDetailResponse
+from app.models.global_models import TipoLibro
 from app.services.sat_libros_service import (
     procesar_y_generar_libro_sat, 
     obtener_libro_detallado,
@@ -47,7 +47,7 @@ async def generar_libro_iva(
 @router.get("/consultar", response_model=SatLibroDetailResponse)
 async def consultar_libro_iva(
     empresa_id: UUID = Query(...),
-    tipo_libro: TipoLibro = Query(...),
+    tipo_id: UUID = Query(...),
     anio: int = Query(..., ge=2020, le=2100),
     mes: int = Query(..., ge=1, le=12),
     db: AsyncSession = Depends(get_tenant_db)
@@ -56,6 +56,19 @@ async def consultar_libro_iva(
     Retorna la cabecera y el array completo de líneas ('lineas': [...])
     para un mes y año específicos dentro del Tenant.
     """
+
+    # 1. Buscar el TipoLibro por su ID
+    query_tipo = select(TipoLibro).where(TipoLibro.id == tipo_id)
+    result = await db.execute(query_tipo)
+    tipo_libro = result.scalar_one_or_none()
+
+    # 2. Validar si existe
+    if not tipo_libro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"El tipo de libro con ID {tipo_id} no existe."
+        )
+
     libro = await obtener_libro_detallado(
         db=db, 
         empresa_id=empresa_id, 

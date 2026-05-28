@@ -9,7 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-
+import os
 
 # revision identifiers, used by Alembic.
 revision: str = 'e7441e6b3151'
@@ -18,6 +18,9 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade():
+    tenant_schema = os.environ.get("TENANT_SCHEMA", "public")
+    if tenant_schema == 'system':
+        return
     # 1. Añadir columna fecha_anulacion a facturas_electronicas
     op.add_column(
         'facturas_electronicas',
@@ -37,6 +40,9 @@ def upgrade():
     )
 
 def downgrade():
+    tenant_schema = os.environ.get("TENANT_SCHEMA", "public")
+    if tenant_schema == 'system':
+        return
     # 1. Eliminar tabla hija
     op.drop_table('facturas_impuestos_especiales')
     # 2. Eliminar columna

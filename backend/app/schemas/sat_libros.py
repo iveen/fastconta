@@ -4,8 +4,6 @@ from uuid import UUID
 from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional
-# Importamos los enums directamente de tus modelos para garantizar simetría absoluta
-from app.models.tenant_models import TipoLibro, RegimenFiscal, EstadoLibro
 
 class SatLibroLineaBase(BaseModel):
     factura_id: UUID
@@ -30,8 +28,9 @@ class SatLibroLineaResponse(SatLibroLineaBase):
 
 class SatLibroBase(BaseModel):
     empresa_id: UUID
-    tipo_libro: TipoLibro
-    regimen_fiscal: RegimenFiscal
+    tipo_libro_id: UUID
+    regimen_fiscal_id: UUID
+    estado_id: UUID
     anio_periodo: int = Field(..., ge=2020, le=2100)
     mes_periodo: int = Field(..., ge=1, le=12)
 
@@ -40,7 +39,7 @@ class SatLibroCreate(SatLibroBase):
 
 class SatLibroResponse(SatLibroBase):
     id: UUID
-    estado: EstadoLibro
+    estado: UUID
     total_lineas: int
     total_exento: Decimal
     total_base_imponible: Decimal

@@ -9,7 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-
+import os
 
 # revision identifiers, used by Alembic.
 revision: str = 'bdac449affae'
@@ -19,10 +19,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    tenant_schema = os.environ.get("TENANT_SCHEMA", "public")
+    if tenant_schema == 'system':
+        return
     op.add_column(
         'facturas_electronicas', 
         sa.Column('tipo_cambio', sa.Numeric(10, 5), nullable=True)
     )
 
 def downgrade() -> None:
+    tenant_schema = os.environ.get("TENANT_SCHEMA", "public")
+    if tenant_schema == 'system':
+        return
     op.drop_column('facturas_electronicas', 'tipo_cambio')

@@ -75,6 +75,7 @@ def run_tenant_migrations():
                 if "TENANT_SCHEMA" in os.environ:
                     del os.environ["TENANT_SCHEMA"]
             
+            
     except Exception as e:
         print(f"❌ Error general obteniendo tenants: {e}")
     finally:

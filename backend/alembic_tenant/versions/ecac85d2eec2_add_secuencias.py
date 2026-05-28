@@ -22,6 +22,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade():
     tenant_schema = os.environ.get("TENANT_SCHEMA", "public")
+    if tenant_schema == 'system':
+        return
     op.create_table(
         'secuencias',
         sa.Column('id', UUID(as_uuid=True), primary_key=True, server_default=sa.text('gen_random_uuid()')),
@@ -37,5 +39,7 @@ def upgrade():
 
 def downgrade():
     tenant_schema = os.environ.get("TENANT_SCHEMA", "public")
+    if tenant_schema == 'system':
+        return
     op.drop_constraint('fk_secuencias_empresa', 'secuencias', schema=tenant_schema)
     op.drop_table('secuencias', schema=tenant_schema)

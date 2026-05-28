@@ -21,6 +21,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade():
     tenant_schema = os.environ.get("TENANT_SCHEMA", "public")
+    if tenant_schema == 'system':
+        return
     op.execute(f"CREATE SEQUENCE IF NOT EXISTS {tenant_schema}.partidas_numero_seq")
     op.add_column('partidas',
                   sa.Column('numero', sa.Integer(), nullable=False,
@@ -39,6 +41,8 @@ def upgrade():
 
 def downgrade():
     tenant_schema = os.environ.get("TENANT_SCHEMA", "public")
+    if tenant_schema == 'system':
+        return
     op.drop_constraint('fk_partidas_empresa', 'partidas', schema=tenant_schema)
     op.drop_constraint('uq_partidas_numero', 'partidas', schema=tenant_schema)
     op.drop_column('partidas', 'empresa_id', schema=tenant_schema)

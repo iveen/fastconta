@@ -9,7 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-
+import os
 
 # revision identifiers, used by Alembic.
 revision: str = '9122ea0c8c51'
@@ -19,6 +19,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    tenant_schema = os.environ.get("TENANT_SCHEMA", "public")
+    if tenant_schema == 'system':
+        return
     # 1. Limpiamos cualquier dato viejo: Si había registros como 'NORMAL', los migramos a 'GENERAL'
     op.execute("UPDATE sat_libros SET regimen_fiscal = 'GENERAL' WHERE regimen_fiscal = 'NORMAL'")
 
@@ -36,6 +39,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    tenant_schema = os.environ.get("TENANT_SCHEMA", "public")
+    if tenant_schema == 'system':
+        return
     # El camino inverso para rollbacks
     op.execute("UPDATE sat_libros SET regimen_fiscal = 'NORMAL' WHERE regimen_fiscal = 'GENERAL'")
 

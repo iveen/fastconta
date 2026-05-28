@@ -28,6 +28,10 @@ def include_object(object, name, type_, reflected, compare_to):
     # En modo público, rechazamos explícitamente cualquier objeto que tenga un schema asignado
     # que NO sea 'public' o None.
     obj_schema = getattr(object, 'schema', None)
+
+    # Ignorar alembic_version en migraciones, ésto es autogestionado por el mismo alembic
+    if type_ == "table" and name == "alembic_version":
+        return False
     
     if type_ == "table":
         obj_schema = object.schema

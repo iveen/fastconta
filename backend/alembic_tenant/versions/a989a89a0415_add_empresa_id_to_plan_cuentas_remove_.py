@@ -20,6 +20,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade():
     tenant_schema = os.environ.get("TENANT_SCHEMA", "public")
+    if tenant_schema == 'system':
+        return
     op.add_column('plan_cuentas', sa.Column('empresa_id', UUID(as_uuid=True), nullable=False), schema=tenant_schema)
     op.create_foreign_key('fk_plan_cuentas_empresa', 'plan_cuentas', 'empresas',
                           ['empresa_id'], ['id'],
@@ -29,6 +31,8 @@ def upgrade():
 
 def downgrade():
     tenant_schema = os.environ.get("TENANT_SCHEMA", "public")
+    if tenant_schema == 'system':
+        return
     op.add_column('partidas', sa.Column('empresa_id', UUID(as_uuid=True), nullable=True), schema=tenant_schema)
     op.create_foreign_key('fk_partidas_empresa', 'partidas', 'empresas',
                           ['empresa_id'], ['id'],

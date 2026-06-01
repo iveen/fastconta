@@ -1,15 +1,15 @@
 import logging
 from datetime import datetime
-from lxml import etree
-from typing import Optional, Dict
-from app.services.banguat_ws import obtener_tipo_cambio
 from decimal import Decimal
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Dict
 
+from app.services.banguat_ws import obtener_tipo_cambio
+from lxml import etree
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
-async def parse_fel_xml(xml_content: str, db: AsyncSession = None) -> Optional[Dict]:
+async def parse_fel_xml(xml_content: str, db: AsyncSession = None) -> Dict | None:
     try:
         # Parsear XML
         root = etree.fromstring(xml_content.encode('utf-8'))

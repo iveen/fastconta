@@ -1,7 +1,11 @@
-from pydantic import BaseModel, Field
-from uuid import UUID
+
+
 from datetime import datetime
-from typing import Optional, Literal
+from typing import Literal
+from uuid import UUID
+
+from pydantic import BaseModel
+
 
 class CuentaCreate(BaseModel):
     codigo: str
@@ -11,17 +15,17 @@ class CuentaCreate(BaseModel):
     empresa_id: UUID 
     acepta_tercero: bool = False
     nivel: int = 1
-    cuenta_padre_id: Optional[UUID] = None
+    cuenta_padre_id: UUID | None  = None
 
 class CuentaUpdate(BaseModel):
-    nombre: Optional[str] = None
-    tipo: Optional[Literal["activo", "pasivo", "patrimonio", "ingreso", "gasto"]] = None
-    naturaleza: Optional[Literal["deudora", "acreedora"]] = None
+    nombre: str | None = None
+    tipo: Literal["activo", "pasivo", "patrimonio", "ingreso", "gasto"] | None = None
+    naturaleza: Literal["deudora", "acreedora"] | None = None
     empresa_id: UUID = None
-    acepta_tercero: Optional[bool] = None
-    nivel: Optional[int] = None
-    cuenta_padre_id: Optional[UUID] = None
-    activa: Optional[bool] = None
+    acepta_tercero: bool | None = None
+    nivel: int | None = None
+    cuenta_padre_id: UUID | None = None
+    activa: bool | None = None
 
 class CuentaOut(BaseModel):
     id: UUID
@@ -31,6 +35,6 @@ class CuentaOut(BaseModel):
     naturaleza: str
     acepta_tercero: bool
     nivel: int
-    cuenta_padre_id: Optional[UUID]
+    cuenta_padre_id: UUID | None = None
     activa: bool
     created_at: datetime

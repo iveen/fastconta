@@ -8,8 +8,11 @@ from app.core.tenant import create_tenant_schema
 from app.schemas.tenant import TenantCreate, TenantResponse
 from app.core.security import get_password_hash
 from app.dependencies import require_role
+import logging
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 @router.post("/", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)
 async def create_tenant(
@@ -21,6 +24,7 @@ async def create_tenant(
     # 1. Validar unicidad del NIT
     result = await db.execute(select(Tenant).where(Tenant.nit == payload.nit))
     if result.scalar_one_or_none():
+        logger.error(f'Ya existe un tenant con el nit {payload.nit}')
         raise HTTPException(status_code=400, detail="Ya existe un tenant con ese NIT")
 
     # 2. Control anti-abuso por IP (máximo 3 registros en 24h)
@@ -32,6 +36,7 @@ async def create_tenant(
                RegistrationAttempt.created_at >= since)
     )
     if attempts_count >= 3:
+        logger.error(f'Demasiados intentos de registrar tenant {payload.tenant_name}, por favor Intente más tarde.')
         raise HTTPException(status_code=429, detail="Demasiados registros. Intente más tarde.")
 
     # 3. Crear tenant
@@ -65,7 +70,7 @@ async def create_tenant(
     db.add(RegistrationAttempt(ip_address=client_ip))
 
     await db.commit()
-
+    
     return TenantResponse(
         id=new_tenant.id,
         name=new_tenant.name,

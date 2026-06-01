@@ -1,9 +1,21 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Integer, Text
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+
 from app.db.base import Base
+
 
 class Tenant(Base):
     __tablename__ = "tenants"
@@ -16,10 +28,8 @@ class Tenant(Base):
     nit = Column(String(15), unique=True, nullable=False)       # NIT de la firma contable
     schema_name = Column(String(63), unique=True, nullable=False) # Ej: tenant_firma_x
     
-    # 2. Contacto del Responsable (Crucial para notificaciones y soporte)
-    admin_email = Column(String(255), nullable=False) 
-    
     # 3. Configuración Comercial (Planes y Límites)
+    admin_email = Column(String(255), nullable=True)
     plan = Column(String(20), default="freemium", nullable=False)
     max_empresas = Column(Integer, default=5, nullable=False)     # Límite de empresas clientes
     max_usuarios = Column(Integer, default=3, nullable=False)     # Límite de contadores en la firma
@@ -30,21 +40,6 @@ class Tenant(Base):
 
     # Relaciones
     users = relationship("User", back_populates="tenant")
-
-class User(Base):
-    __tablename__ = "users"
-    __table_args__ = {"schema": "public"}
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("public.tenants.id"), nullable=False)
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
-    full_name = Column(String(255), nullable=False)
-    role = Column(String(50), nullable=False)  # admin, contador, auxiliar
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    tenant = relationship("Tenant", back_populates="users")
 
 class RegistrationAttempt(Base):
     __tablename__ = "registration_attempts"
@@ -164,3 +159,58 @@ class ActividadEconomicaSAT(Base):
     seccion = Column(String(255), nullable=True)
     activa = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+# ---- RBAC
+class User(Base):
+    __tablename__ = "users"
+    __table_args__ = {"schema": "public"}
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # ✅ tenant_id ahora es NULLABLE para permitir superadmin sin tenant
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("public.tenants.id"), nullable=True)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=False)
+    
+    # ✅ FK al catálogo de roles en lugar de String plano
+    role_id = Column(UUID(as_uuid=True), ForeignKey("public.roles.id"), nullable=False)
+    
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relaciones
+    tenant = relationship("Tenant", back_populates="users")
+    role = relationship("Role")
+    empresas_asignadas = relationship("UserEmpresa", back_populates="user", cascade="all, delete-orphan")
+
+    tenant = relationship("Tenant", back_populates="users")
+
+class Role(Base):
+    __tablename__ = "roles"
+    __table_args__ = {"schema": "public"}
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    codigo = Column(String(30), unique=True, nullable=False, index=True)  # 'superadmin', 'tenant_manager', 'tenant_member', 'tenant_client'
+    nombre = Column(String(100), nullable=False)
+    descripcion = Column(Text, nullable=True)
+    nivel_acceso = Column(Integer, nullable=False)  # 100=global, 80=tenant_admin, 60=miembro_restringido, 20=cliente_solo_lectura
+
+class UserEmpresa(Base):
+    __tablename__ = "user_empresas"
+    __table_args__ = (
+        UniqueConstraint('user_id', 'tenant_id', 'empresa_id', name='uq_user_empresa_tenant'),
+        {"schema": "public"}
+    )
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("public.tenants.id", ondelete="CASCADE"), nullable=False)
+    
+    # 👇 Sin ForeignKey: validación se hace en capa de aplicación
+    empresa_id = Column(UUID(as_uuid=True), nullable=False)
+    
+    activo = Column(Boolean, default=True, server_default="true")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User")
+    tenant = relationship("Tenant")

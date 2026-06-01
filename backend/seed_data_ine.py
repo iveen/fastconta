@@ -8,16 +8,16 @@ Uso:
 """
 import asyncio
 import sys
-import uuid
 from pathlib import Path
+
 import pandas as pd
 
 # Ajustar el path para poder importar la configuración de la app
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy import text
 from app.config import settings
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 
 async def seed_geografia():

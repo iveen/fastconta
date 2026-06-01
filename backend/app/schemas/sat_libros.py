@@ -1,17 +1,21 @@
 # app/schemas/sat_libros.py
-from pydantic import BaseModel, Field, ConfigDict
-from uuid import UUID
+
+
 from datetime import date, datetime
 from decimal import Decimal
-from typing import List, Optional
+from typing import List
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class SatLibroLineaBase(BaseModel):
     factura_id: UUID
     numero_secuencia: int
     fecha_documento: date
     numero_documento: str = Field(..., max_length=50)
-    nit: Optional[str] = Field(None, max_length=20)
-    razon_social: Optional[str] = Field(None, max_length=255)
+    nit: str | None = Field(None, max_length=20)
+    razon_social: str | None = Field(None, max_length=255)
     es_exento: bool = False
     es_exonerado: bool = False
     base_imponible: Decimal = Decimal("0.00")
@@ -45,8 +49,8 @@ class SatLibroResponse(SatLibroBase):
     total_base_imponible: Decimal
     total_iva: Decimal
     total_monto: Decimal
-    finalizado_por: Optional[UUID] = None
-    finalizado_el: Optional[datetime] = None
+    finalizado_por: UUID | None = None
+    finalizado_el: datetime | None = None
     creado_el: datetime
     model_config = ConfigDict(from_attributes=True)
 

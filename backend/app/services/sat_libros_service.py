@@ -1,19 +1,21 @@
 # app/services/sat_libros_service.py
-from uuid import UUID, uuid4
-from decimal import Decimal
 from datetime import datetime
-from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from sqlalchemy import extract, delete, func
-from typing import Optional
-from sqlalchemy.orm import selectinload
+from decimal import Decimal
+from uuid import UUID, uuid4
 
+from app.models.global_models import EstadoLibro, RegimenFiscal, TipoLibro
 from app.models.tenant_models import (
-    SatLibro, SatLibroLinea, FacturaElectronica, 
-    TipoLibro, RegimenFiscal, EstadoLibro
+    FacturaElectronica,
+    SatLibro,
+    SatLibroLinea,
 )
 from app.schemas.sat_libros import SatLibroCreate
+from fastapi import HTTPException, status
+from sqlalchemy import delete, extract, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
+
 
 async def procesar_y_generar_libro_sat(
     db: AsyncSession, 
@@ -166,7 +168,7 @@ async def obtener_libro_detallado(
     tipo_libro: TipoLibro,
     anio: int,
     mes: int
-) -> Optional[SatLibro]:
+) -> SatLibro | None:
     """
     Busca un libro por sus parámetros de periodo y carga todas sus líneas
     asociadas de forma ordenada para el consumo del Frontend.

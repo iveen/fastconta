@@ -1,5 +1,5 @@
 # FastAPI y servidor ASGI
-fastapi==0.115.0
+fastapi==0.136.3
 uvicorn[standard]==0.30.6
 
 # Base de datos (PostgreSQL asíncrono)
@@ -20,7 +20,9 @@ pydantic==2.8.2
 email-validator==2.1.0
 
 # Reportería
-openpyxl==3.1.2
+pandas==3.0.3
+openpyxl>=3.1.5
+xlrd==2.0.2
 reportlab==4.0.0
 
 # HTTP

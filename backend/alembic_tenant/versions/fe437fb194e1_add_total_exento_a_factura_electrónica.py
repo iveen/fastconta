@@ -5,12 +5,10 @@ Revises: 69d681675d93
 Create Date: 2026-05-27 13:29:11.456424
 
 """
+import os
 from typing import Sequence, Union
 
 from alembic import op
-import sqlalchemy as sa
-import os
-
 
 # revision identifiers, used by Alembic.
 revision: str = 'fe437fb194e1'

@@ -1,6 +1,7 @@
+from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
-from sqlalchemy import MetaData
+
 from app.config import settings
 
 metadata = MetaData(naming_convention={

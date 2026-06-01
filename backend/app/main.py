@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1.router import api_router
-from app.db.base import engine, Base
 import logging
 import time
+
 import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.api.v1.router import api_router
 
 # 1. Configurar el formato global de los logs
 logging.basicConfig(
@@ -51,6 +52,11 @@ app.include_router(api_router, prefix="/api/v1")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+
+@app.on_event("startup")
+async def list_router():
+    for route in app.routes:
+        print(route.path, route.methods)
 '''
 # Evento de inicio para crear tablas (solo desarrollo)
 @app.on_event("startup")

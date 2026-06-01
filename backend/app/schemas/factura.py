@@ -1,8 +1,12 @@
-from pydantic import BaseModel, ConfigDict
-from uuid import UUID
+
+
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional, List
+from typing import List
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict
+
 
 class FacturaDetalleOut(BaseModel):
     id: UUID
@@ -24,16 +28,16 @@ class FacturaOut(BaseModel):
     id: UUID
     empresa_id: UUID
     numero_autorizacion: str
-    autorizacion_uuid: Optional[str] = None
-    serie: Optional[str] = None
+    autorizacion_uuid: str | None = None
+    serie: str | None = None
     numero: str
     fecha_emision: datetime
     
     # Normalizados
-    tipo_documento: Optional[str] = None
-    moneda: Optional[str] = None
-    tipo_documento_desc: Optional[str] = None  
-    moneda_nombre: Optional[str] = None
+    tipo_documento: str | None = None
+    moneda: str | None = None
+    tipo_documento_desc: str | None = None  
+    moneda_nombre: str | None = None
     
     emisor_nit: str
     emisor_nombre: str
@@ -43,15 +47,15 @@ class FacturaOut(BaseModel):
     total_iva: Decimal
     total_exento: Decimal
     total: Decimal
-    tipo_cambio: Optional[Decimal] = None
+    tipo_cambio: Decimal | None = None
     es_exportacion: bool = False
-    tipo_operacion: Optional[str] = "Venta"
-    estado: Optional[str] = 'Activa'
+    tipo_operacion: str | None = "Venta"
+    estado: str | None  = 'Activa'
     
     # ✅ NUEVOS CAMPOS (Auditoría y Validación)
-    xml_filename: Optional[str] = None
+    xml_filename: str | None = None
     validado: bool = False
-    fecha_validacion: Optional[datetime] = None
+    fecha_validacion: datetime | None = None
     
     created_at: datetime
     detalles: List[FacturaDetalleOut] = []

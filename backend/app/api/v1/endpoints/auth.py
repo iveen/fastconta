@@ -1,43 +1,42 @@
 # app/api/v1/endpoints/auth.py
 import asyncio
 import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import text
 
+from app.core.security import (  # Asegúrate de importar tu haseador
+    create_access_token,
+    get_password_hash,
+    verify_password,
+)
 from app.db.session import get_db
-from app.models.global_models import User, Tenant
-from app.schemas.auth import LoginRequest, TokenResponse, SignupRequest, SignupResponse
-from app.core.security import verify_password, create_access_token, get_password_hash  # Asegúrate de importar tu haseador
+from app.models.global_models import Tenant, User
+from app.schemas.auth import LoginRequest, SignupRequest, SignupResponse, TokenResponse
 
 # Importamos la función de migraciones de tu servicio de tenants
-from app.services.tenant_service import ejecutar_migraciones_nuevo_tenant
+from app.services.tenant_setup import cleanup_tenant_schema, initialize_tenant_schema
 
 router = APIRouter()
 
 @router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
 async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
-    """
-    Endpoint asíncrono para registrar un nuevo Tenant (Despacho/Cliente) 
-    junto con su primer usuario Administrador y desplegar su esquema ofuscado.
-    """
-    # 1. Validaciones previas en el esquema public (Email y NIT únicos)
+    # 1. Validaciones únicas en 'public'
     email_check = await db.execute(select(User).where(User.email == request.admin_email))
     if email_check.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="El correo electrónico ya está registrado.")
         
     nit_check = await db.execute(select(Tenant).where(Tenant.nit == request.nit))
     if nit_check.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="El NIT ya está registrado para otro tenant.")
+        raise HTTPException(status_code=400, detail="El NIT ya está registrado.")
 
-    # 2. Preparar IDs y nombres de esquema blindados (Ofuscación por UUID)
     tenant_id = uuid.uuid4()
     schema_seguro = f"t_{tenant_id.hex}"
     user_id = uuid.uuid4()
 
     try:
-        # 3. Crear el registro del Tenant en public
+        # 2. Crear Tenant y Admin en 'public'
         nuevo_tenant = Tenant(
             id=tenant_id,
             name=request.tenant_name,
@@ -48,11 +47,6 @@ async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
         )
         db.add(nuevo_tenant)
 
-        # 4. Crear el esquema físico en la base de datos de forma asíncrona
-        # Al usar variables internas sanitizadas (hex), evitamos inyección SQL
-        await db.execute(text(f'CREATE SCHEMA "{schema_seguro}";'))
-
-        # 5. Crear el usuario administrador asociado a este nuevo tenant
         nuevo_admin = User(
             id=user_id,
             tenant_id=tenant_id,
@@ -63,45 +57,30 @@ async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
             is_active=True
         )
         db.add(nuevo_admin)
-
-        # Confirmamos los cambios en el esquema public y la creación del esquema físico
+        
+        # 3. Commit inicial (registra el tenant antes de migrar)
         await db.commit()
+
+        # 4. Crear esquema físico y migrar (Bloqueante -> Thread separado)
+        await asyncio.to_thread(initialize_tenant_schema, schema_seguro, "alembic_tenant.ini")
 
     except Exception as e:
         await db.rollback()
-        # Fallback de seguridad: si falló algo antes de Alembic, nos aseguramos de no dejar esquemas huérfanos
+        # Limpieza de seguridad: elimina schema huérfano si falla Alembic
         try:
-            await db.execute(text(f'DROP SCHEMA IF EXISTS "{schema_seguro}" CASCADE;'))
-            await db.commit()
+            await asyncio.to_thread(cleanup_tenant_schema, schema_seguro)
         except Exception:
             pass
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error crítico al inicializar las entidades del tenant: {str(e)}"
-        )
-
-    # 6. Ejecutar las migraciones de Alembic sobre el nuevo esquema
-    # Como los comandos de Alembic son síncronos y bloqueantes, los ejecutamos en un hilo separado
-    # para mantener la naturaleza no bloqueante de FastAPI.
-    try:
-        await asyncio.to_thread(ejecutar_migraciones_nuevo_tenant, schema_seguro)
-    except Exception as e:
-        # Si Alembic truena, hacemos rollback drástico: eliminamos el tenant y el usuario para evitar entornos corruptos
-        async with db.begin():
-            await db.execute(text(f'DROP SCHEMA IF EXISTS "{schema_seguro}" CASCADE;'))
-            await db.execute(text(f'DELETE FROM public.users WHERE id = :id'), {"id": user_id})
-            await db.execute(text(f'DELETE FROM public.tenants WHERE id = :id'), {"id": tenant_id})
-            await db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"El entorno del tenant se creó pero las tablas fallaron en inicializarse: {str(e)}"
+            detail=f"Error al inicializar el entorno del tenant: {str(e)}"
         )
 
     return SignupResponse(
         tenant_id=tenant_id,
         schema_name=schema_seguro,
         admin_user_id=user_id,
-        message="Entorno multi-tenant e inicialización de administrador creados con éxito."
+        message="Entorno multi-tenant e inicialización creados con éxito."
     )
 
 

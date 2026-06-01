@@ -1,13 +1,13 @@
 # app/services/banguat_ws.py
 import logging
-import requests
-from datetime import date
-from typing import Optional
-from decimal import Decimal, InvalidOperation
 import xml.etree.ElementTree as ET
+from datetime import date
+from decimal import Decimal
+
+import requests
+from app.models.global_models import CatalogoMoneda
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.global_models import CatalogoMoneda
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ BANGUAT_WS_URL = "https://www.banguat.gob.gt/variables/ws/TipoCambio.asmx"
 BANGUAT_NS = "http://www.banguat.gob.gt/variables/ws/"
 _cache: dict[tuple[str, str], Decimal] = {}
 
-async def obtener_tipo_cambio(fecha: date, moneda_iso: str, db: AsyncSession) -> Optional[Decimal]:
+async def obtener_tipo_cambio(fecha: date, moneda_iso: str, db: AsyncSession) -> Decimal | None:
     """
     Consulta tipo de cambio venta al WS de Banguat.
     Busca el codigo_banguat dinámicamente desde la BD.
@@ -28,7 +28,7 @@ async def obtener_tipo_cambio(fecha: date, moneda_iso: str, db: AsyncSession) ->
     result = await db.execute(
         select(CatalogoMoneda.codigo_banguat).where(
             CatalogoMoneda.codigo_iso == moneda_iso.upper(),
-            CatalogoMoneda.activo == True
+            CatalogoMoneda.activo is True
         )
     )
     codigo_banguat = result.scalar_one_or_none()

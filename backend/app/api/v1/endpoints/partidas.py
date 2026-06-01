@@ -1,15 +1,29 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-from app.db.session import get_tenant_db
-from app.models.tenant_models import Partida, DetallePartida, CuentaContable, \
-    Empresa, PeriodoFiscal
-from app.schemas.partida import PartidaCreate, PartidaOut, DetallePartidaOut, LineaLibroDiario
-from uuid import UUID
-from typing import Optional
-from app.crud.secuencias import get_next_poliza
+
+
 from datetime import date
+from typing import List
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.crud.secuencias import get_next_poliza
+from app.db.session import get_tenant_db
+from app.models.tenant_models import (
+    CuentaContable,
+    DetallePartida,
+    Empresa,
+    Partida,
+    PeriodoFiscal,
+)
+from app.schemas.partida import (
+    DetallePartidaOut,
+    LineaLibroDiario,
+    PartidaCreate,
+    PartidaOut,
+)
 
 router = APIRouter()
 
@@ -120,9 +134,9 @@ async def crear_partida(payload: PartidaCreate, db: AsyncSession = Depends(get_t
         detalles=detalles_out
     )
 
-@router.get("/", response_model=list[PartidaOut])
+@router.get("/", response_model=List[PartidaOut])
 async def listar_partidas(
-    empresa_id: Optional[UUID] = Query(None, description="Filtrar partidas por empresa"),
+    empresa_id: UUID | None = Query(None, description="Filtrar partidas por empresa"),
     db: AsyncSession = Depends(get_tenant_db)
 ):
     # Validar que la empresa existe si se proporciona el ID
@@ -174,7 +188,7 @@ async def listar_partidas(
         ))
     return resp
 
-@router.get("/libro-diario", response_model=list[LineaLibroDiario])
+@router.get("/libro-diario", response_model=List[LineaLibroDiario])
 async def libro_diario(
     empresa_id: UUID = Query(..., description="ID de la empresa"),
     fecha_inicio: date = Query(..., description="Fecha inicial (inclusive)"),

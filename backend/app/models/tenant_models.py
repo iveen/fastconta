@@ -1,28 +1,45 @@
 # app/models/tenant_models.py
 import uuid
-from sqlalchemy import Column, String, Text, DateTime, Boolean, Integer, Numeric, Enum as SAEnum, \
-    Date, ForeignKey, UniqueConstraint, Sequence
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.sql import func, text
-from sqlalchemy.orm import relationship, Mapped, mapped_column
-from app.db.base import Base
-import sqlalchemy as sa
+from datetime import datetime
 from decimal import Decimal
-from enum import Enum
-from typing import Optional, List
-from app.models.global_models import (
-    TipoDTE, CatalogoMoneda, 
-    TipoLibro, RegimenFiscal, EstadoLibro, TipoDomicilio, TipoPersona, Departamento, Municipio,
-    ActividadEconomicaSAT
-)
-from datetime import date, datetime
 
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    Sequence,
+    SmallInteger,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func, text
+
+from app.db.base import Base
+from app.models.global_models import (
+    CatalogoMoneda,
+    EstadoLibro,
+    RegimenFiscal,
+    TipoDTE,
+    TipoPersona,
+)
 
 
 class Empresa(Base):
     __tablename__ = "empresas"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    # Aislamiento por Tenant
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("public.tenants.id"), nullable=False, index=True)
 
     # Identificación Legal y Tributaria
     nombre = Column(String(255), nullable=False)
@@ -46,9 +63,10 @@ class Empresa(Base):
     is_active = Column(Boolean, default=True)
 
     # Relaciones (Estructura de Normalización)
-    regimen_fiscal = relationship("RegimenFiscal", foreign_keys=[regimen_fiscal_id])
-    tipo_persona = relationship("TipoPersona", foreign_keys=[tipo_persona_id])
+    regimen_fiscal = relationship(RegimenFiscal, foreign_keys=[regimen_fiscal_id])
+    tipo_persona = relationship(TipoPersona, foreign_keys=[tipo_persona_id])
     actividad_economica = relationship("ActividadEconomicaSAT", foreign_keys=[actividad_economica_id])
+    
 
     # Relaciones 1-a-Muchos 
     representantes = relationship(
@@ -61,6 +79,7 @@ class Empresa(Base):
         back_populates="empresa",
         cascade="all, delete-orphan"
     )
+    tenant = relationship("Tenant", back_populates="empresas") # Añade back_populates en Tenant si deseas
 
     @property
     def domicilio_fiscal(self):
@@ -83,7 +102,7 @@ class Domicilio(Base):
     zona = Column(String(10))
     codigo_postal = Column(String(10))
     
-    # Relaciones
+    # Relacionesse
     tipo_domicilio = relationship("TipoDomicilio")
     departamento = relationship("Departamento")
     municipio = relationship("Municipio") # Podrás acceder a municipio.departamento.nombre
@@ -284,108 +303,78 @@ class FacturaDetalle(Base):
 # ------------------- Libros SAT
 class SatLibro(Base):
     __tablename__ = "sat_libros"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        sa.UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4,
-        server_default=sa.text("gen_random_uuid()"),
-    )
     
-    empresa_id: Mapped[uuid.UUID] = mapped_column(
-        sa.ForeignKey("empresas.id", ondelete="RESTRICT"), 
-        nullable=False
-    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()"))
+    empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id", ondelete="RESTRICT"), nullable=False)
     
+    # FKs a catálogos globales (public)
     tipo_libro_id = Column(UUID(as_uuid=True), ForeignKey("public.tipos_libro.id"), nullable=False)
     regimen_fiscal_id = Column(UUID(as_uuid=True), ForeignKey("public.regimenes_fiscales.id"), nullable=False)
     estado_id = Column(UUID(as_uuid=True), ForeignKey("public.estados_libro.id"), nullable=False)
     
-    anio_periodo: Mapped[int] = mapped_column(sa.SmallInteger, nullable=False)
-    mes_periodo: Mapped[int] = mapped_column(sa.SmallInteger, nullable=False)
+    # Periodo
+    anio_periodo = Column(SmallInteger, nullable=False)
+    mes_periodo = Column(SmallInteger, nullable=False)
     
-    total_lineas: Mapped[int] = mapped_column(sa.Integer, default=0, server_default="0")
-    total_exento: Mapped[Decimal] = mapped_column(sa.Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
-    total_base_imponible: Mapped[Decimal] = mapped_column(sa.Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
-    total_iva: Mapped[Decimal] = mapped_column(sa.Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
-    total_monto: Mapped[Decimal] = mapped_column(sa.Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
+    # Totales
+    total_lineas = Column(Integer, default=0, server_default="0")
+    total_exento = Column(Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
+    total_base_imponible = Column(Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
+    total_iva = Column(Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
+    total_monto = Column(Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
     
-    finalizado_por: Mapped[Optional[uuid.UUID]] = mapped_column(sa.UUID(as_uuid=True), nullable=True)
-    finalizado_el: Mapped[Optional[datetime]] = mapped_column(sa.DateTime(timezone=True), nullable=True)
-    creado_el: Mapped[datetime] = mapped_column(
-        sa.DateTime(timezone=True), 
-        default=datetime.utcnow, 
-        server_default=sa.func.now()
-    )
-
-    # Relación uno a muchos con las líneas del libro
-    lineas: Mapped[List["SatLibroLinea"]] = relationship(
-        back_populates="libro", 
-        cascade="all, delete-orphan"
-    )
-
+    # Auditoría
+    finalizado_por = Column(UUID(as_uuid=True), nullable=True)  
+    finalizado_el = Column(DateTime(timezone=True), nullable=True)
+    creado_el = Column(DateTime(timezone=True), default=datetime.utcnow, server_default=func.now())
+    
+    # Relaciones
     tipo_libro = relationship("TipoLibro", foreign_keys=[tipo_libro_id])
     regimen = relationship("RegimenFiscal", foreign_keys=[regimen_fiscal_id])
-    estado = relationship("EstadoLibro", foreign_keys=[estado_id])
-
-    # Restricciones de tabla e Índices en español
+    estado = relationship(EstadoLibro, foreign_keys=[estado_id])
+    lineas = relationship(
+        "SatLibroLinea",
+        back_populates="libro",
+        cascade="all, delete-orphan"
+    )
+    
+    # Restricciones e índices
     __table_args__ = (
-        sa.CheckConstraint("mes_periodo BETWEEN 1 AND 12", name="chk_sat_libros_mes_periodo"),
-        
-        sa.UniqueConstraint(
-            "empresa_id", 
-            "tipo_libro_id", 
-            "regimen_fiscal_id",  
-            "anio_periodo", 
-            "mes_periodo", 
-            name="uq_sat_libros_periodo"
-        ),
-        sa.Index("idx_sat_libros_empresa_periodo", "empresa_id", "anio_periodo", "mes_periodo"),
+        CheckConstraint("mes_periodo BETWEEN 1 AND 12", name="chk_sat_libros_mes_periodo"),
+        UniqueConstraint("empresa_id", "tipo_libro_id", "regimen_fiscal_id", "anio_periodo", "mes_periodo", name="uq_sat_libros_periodo"),
+        Index("idx_sat_libros_empresa_periodo", "empresa_id", "anio_periodo", "mes_periodo"),
     )
 
 
 class SatLibroLinea(Base):
     __tablename__ = "sat_libros_lineas"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        sa.UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4,
-        server_default=sa.text("gen_random_uuid()"),
-    )
-    libro_id: Mapped[uuid.UUID] = mapped_column(
-        sa.ForeignKey("sat_libros.id", ondelete="CASCADE"), 
-        nullable=False
-    )
-    factura_id: Mapped[uuid.UUID] = mapped_column(sa.UUID(as_uuid=True), nullable=False)
     
-    numero_secuencia: Mapped[int] = mapped_column(sa.Integer, nullable=False)
-    fecha_documento: Mapped[date] = mapped_column(sa.Date, nullable=False)
-    numero_documento: Mapped[str] = mapped_column(sa.String(50), nullable=False)
-    nit: Mapped[Optional[str]] = mapped_column(sa.String(20), nullable=True)
-    razon_social: Mapped[Optional[str]] = mapped_column(sa.String(255), nullable=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()"))
+    libro_id = Column(UUID(as_uuid=True), ForeignKey("sat_libros.id", ondelete="CASCADE"), nullable=False)
+    factura_id = Column(UUID(as_uuid=True), nullable=False)
     
-    es_exento: Mapped[bool] = mapped_column(sa.Boolean, default=False, server_default="false")
-    es_exonerado: Mapped[bool] = mapped_column(sa.Boolean, default=False, server_default="false")
+    numero_secuencia = Column(Integer, nullable=False)
+    fecha_documento = Column(Date, nullable=False)
+    numero_documento = Column(String(50), nullable=False)
+    nit = Column(String(20), nullable=True)
+    razon_social = Column(String(255), nullable=True)
     
-    base_imponible: Mapped[Decimal] = mapped_column(sa.Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
-    monto_exento: Mapped[Decimal] = mapped_column(
-        sa.Numeric(15, 2), 
-        default=Decimal("0.00"), 
-        server_default="0.00"
-    )
-    monto_iva: Mapped[Decimal] = mapped_column(sa.Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
-    monto_total: Mapped[Decimal] = mapped_column(sa.Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
+    es_exento = Column(Boolean, default=False, server_default="false")
+    es_exonerado = Column(Boolean, default=False, server_default="false")
     
-    # Columnas específicas del Régimen Normal de la SAT
-    credito_fiscal: Mapped[Decimal] = mapped_column(sa.Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
-    debito_fiscal: Mapped[Decimal] = mapped_column(sa.Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
-
-    # Relación inversa hacia el encabezado del libro
-    libro: Mapped["SatLibro"] = relationship(back_populates="lineas")
-
-    # Restricciones de tabla e Índices en español
+    base_imponible = Column(Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
+    monto_exento = Column(Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
+    monto_iva = Column(Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
+    monto_total = Column(Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
+    
+    # Régimen Normal SAT
+    credito_fiscal = Column(Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
+    debito_fiscal = Column(Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
+    
+    # Relación inversa
+    libro = relationship("SatLibro", back_populates="lineas")
+    
     __table_args__ = (
-        sa.UniqueConstraint("libro_id", "numero_secuencia", name="uq_sat_libros_lineas_secuencia"),
-        sa.Index("idx_sat_libros_lineas_libro", "libro_id"),
+        UniqueConstraint("libro_id", "numero_secuencia", name="uq_sat_libros_lineas_secuencia"),
+        Index("idx_sat_libros_lineas_libro", "libro_id"),
     )

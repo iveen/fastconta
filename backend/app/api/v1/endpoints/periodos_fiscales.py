@@ -1,12 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from uuid import UUID
+
+
 from datetime import date
-from typing import Optional, List
-from app.db.session import get_tenant_db
-from app.models.tenant_models import PeriodoFiscal, Empresa
+from typing import List
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.session import get_tenant_db
+from app.models.tenant_models import Empresa, PeriodoFiscal
 
 router = APIRouter()
 
@@ -31,7 +35,7 @@ class PeriodoFiscalOut(BaseModel):
 # ---------- Endpoints ----------
 @router.get("/", response_model=List[PeriodoFiscalOut])
 async def listar_periodos(
-    empresa_id: Optional[UUID] = Query(None, description="Filtrar por empresa"),
+    empresa_id: UUID | None = Query(None, description="Filtrar por empresa"),
     db: AsyncSession = Depends(get_tenant_db)
 ):
     stmt = select(PeriodoFiscal).order_by(PeriodoFiscal.fecha_inicio.desc())

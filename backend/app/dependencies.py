@@ -1,7 +1,8 @@
-from fastapi import Depends, HTTPException, status
-from app.db.session import get_tenant_db, oauth2_scheme
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Depends, HTTPException
+
 from app.core.security import decode_access_token
+from app.db.session import oauth2_scheme
+
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     payload = decode_access_token(token)

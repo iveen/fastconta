@@ -1,30 +1,39 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, case
-from typing import Optional, List
+
+
 from datetime import date
 from decimal import Decimal
+from typing import List
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from sqlalchemy import case, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_tenant_db
-from app.models.tenant_models import CuentaContable, DetallePartida, Partida, Empresa
-from app.schemas.balances import BalanceComprobacionResponse, FilaBalance, EstadoResultadosResponse
-from uuid import UUID
-from pydantic import BaseModel
-from fastapi.responses import StreamingResponse
-from app.services.reportes_export import (
-    generar_balance_comprobacion_excel, generar_balance_comprobacion_pdf,
-    generar_estado_resultados_excel, generar_estado_resultados_pdf,
-    generar_balance_general_excel, generar_balance_general_pdf
+from app.models.tenant_models import CuentaContable, DetallePartida, Empresa, Partida
+from app.schemas.balances import (
+    BalanceComprobacionResponse,
+    EstadoResultadosResponse,
+    FilaBalance,
 )
-import io
+from app.services.reportes_export import (
+    generar_balance_comprobacion_excel,
+    generar_balance_comprobacion_pdf,
+    generar_balance_general_excel,
+    generar_balance_general_pdf,
+    generar_estado_resultados_excel,
+    generar_estado_resultados_pdf,
+)
 
 router = APIRouter()
 
 @router.get("/comprobacion", response_model=BalanceComprobacionResponse)
 async def balance_comprobacion(
     empresa_id: UUID = Query(..., description="ID de la empresa para filtrar el balance"),
-    fecha_inicio: Optional[date] = Query(None, description="Fecha inicial (inclusive)"),
-    fecha_fin: Optional[date] = Query(None, description="Fecha final (inclusive)"),
+    fecha_inicio: date | None = Query(None, description="Fecha inicial (inclusive)"),
+    fecha_fin: date | None = Query(None, description="Fecha final (inclusive)"),
     db: AsyncSession = Depends(get_tenant_db)
 ):
     # Validar que la empresa existe

@@ -1,14 +1,18 @@
 # app/schemas/balances.py
-from pydantic import BaseModel
-from uuid import UUID
-from datetime import date, datetime
+
+
+from datetime import date
 from decimal import Decimal
-from typing import Optional, List
+from typing import List
+from uuid import UUID
+
+from pydantic import BaseModel
+
 
 class MovimientoCuenta(BaseModel):
     fecha: date
     partida_id: UUID
-    numero_poliza: Optional[str] = None  # <-- nuevo
+    numero_poliza: str | None = None  
     descripcion_partida: str
     tipo_movimiento: str
     monto: Decimal
@@ -32,8 +36,8 @@ class FilaBalance(BaseModel):
     saldo: Decimal
 
 class BalanceComprobacionResponse(BaseModel):
-    fecha_inicio: Optional[date] = None
-    fecha_fin: Optional[date] = None
+    fecha_inicio: date | None  = None
+    fecha_fin: date | None = None
     filas: List[FilaBalance]
 
 class EstadoResultadosResponse(BaseModel):

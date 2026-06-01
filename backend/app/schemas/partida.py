@@ -1,8 +1,11 @@
-from pydantic import BaseModel, Field, field_validator
-from uuid import UUID
+
+
 from datetime import date, datetime
-from typing import List, Optional, Literal
 from decimal import Decimal
+from typing import List, Literal
+from uuid import UUID
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class DetallePartidaCreate(BaseModel):
@@ -14,7 +17,7 @@ class DetallePartidaCreate(BaseModel):
 class PartidaCreate(BaseModel):
     fecha: date
     descripcion: str
-    numero_poliza: Optional[str] = None
+    numero_poliza: str | None = None
     detalles: List[DetallePartidaCreate]
 
     @field_validator('detalles')
@@ -41,16 +44,16 @@ class DetallePartidaOut(BaseModel):
 class PartidaOut(BaseModel):
     id: UUID
     numero: int
-    numero_poliza: Optional[str] = None
+    numero_poliza: str | None = None
     fecha: date
     descripcion: str
-    empresa_nombre: Optional[str] = ""
+    empresa_nombre: str | None = ""
     created_at: datetime
     detalles: List[DetallePartidaOut]
 
 class LineaLibroDiario(BaseModel):
     partida_id: UUID
-    numero_poliza: Optional[str]
+    numero_poliza: str | None = None
     fecha: date
     descripcion: str
     cuenta_id: UUID

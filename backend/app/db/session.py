@@ -2,20 +2,31 @@
 
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text                        # <-- Añadir import
+from sqlalchemy import text                
 from app.db.base import AsyncSessionLocal
 from app.core.security import decode_access_token
 from fastapi.security import OAuth2PasswordBearer
 from app.core.tenant import tenant_schema_exists
+from typing import AsyncGenerator
 import logging
 
 logger = logging.getLogger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
-async def get_db() -> AsyncSession:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         yield session
+
+async def get_public_db() -> AsyncGenerator[AsyncSession, None]:
+    """Sesión para acceder exclusivamente al esquema public."""
+    async with AsyncSessionLocal() as session:
+        # Forzar search_path a public para evitar fugas a schemas de tenant
+        await session.execute(text("SET search_path TO public"))
+        try:
+            yield session
+        finally:
+            await session.close()
 
 async def get_tenant_db(
     token: str = Depends(oauth2_scheme),

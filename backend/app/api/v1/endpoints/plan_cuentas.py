@@ -1,19 +1,27 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, case
-from typing import Optional
+
+
+from datetime import date
 from decimal import Decimal
-from datetime import date, datetime
-from sqlalchemy.orm import selectinload
-from app.db.session import get_tenant_db
-from app.models.tenant_models import CuentaContable, Partida, DetallePartida, Empresa
-from app.schemas.plan_cuentas import CuentaCreate, CuentaUpdate, CuentaOut
-from app.schemas.balances import LibroMayorResponse, MovimientoCuenta, BalanceComprobacionResponse, FilaBalance
+from typing import List
 from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import case, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.session import get_tenant_db
+from app.models.tenant_models import CuentaContable, DetallePartida, Empresa, Partida
+from app.schemas.balances import (
+    BalanceComprobacionResponse,
+    FilaBalance,
+    LibroMayorResponse,
+    MovimientoCuenta,
+)
+from app.schemas.plan_cuentas import CuentaCreate, CuentaOut, CuentaUpdate
 
 router = APIRouter()
 
-@router.get("/", response_model=list[CuentaOut])
+@router.get("/", response_model=List[CuentaOut])
 async def list_cuentas(
     empresa_id: UUID = Query(None, description="Filtrar por empresa"),
     db: AsyncSession = Depends(get_tenant_db)
@@ -140,8 +148,8 @@ async def libro_mayor_cuenta(
 
 @router.get("/comprobacion", response_model=BalanceComprobacionResponse)
 async def balance_comprobacion(
-    fecha_inicio: Optional[date] = Query(None, description="Fecha inicial (inclusive)"),
-    fecha_fin: Optional[date] = Query(None, description="Fecha final (inclusive)"),
+    fecha_inicio: date | None = Query(None, description="Fecha inicial (inclusive)"),
+    fecha_fin: date | None = Query(None, description="Fecha final (inclusive)"),
     db: AsyncSession = Depends(get_tenant_db)
 ):
     # Obtener todas las cuentas activas

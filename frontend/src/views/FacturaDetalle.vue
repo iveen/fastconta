@@ -51,6 +51,12 @@
             >
               {{ factura.es_exportacion ? 'Exportación' : 'Local' }}
             </span>
+            <span v-if="factura.validado" class="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 border border-green-200" :title="`Validada: ${formFechaValidacion(factura.fecha_validacion)}`">
+              ✅ Validada
+            </span>
+            <span v-else class="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200" title="Pendiente de validación">
+              ❌ Pendiente
+            </span>
           </div>
         </div>
 
@@ -162,6 +168,7 @@
 
       <!-- Acciones -->
       <div class="flex flex-wrap gap-3 justify-end pt-2">
+        <!-- Se elimina botón de Anular, ya que la operación de anulación se realiza al validar facturas con excel
         <button
           v-if="factura.estado === 'Activa'"
           @click="anularFactura"
@@ -170,7 +177,7 @@
         >
           {{ accionCargando && accionActual === 'anular' ? 'Anulando...' : 'Anular Factura' }}
         </button>
-        
+        -->
         <button
           v-if="factura.estado === 'Activa'"
           @click="generarPartida"
@@ -291,6 +298,7 @@ const cargarFactura = async () => {
   }
 }
 
+
 // ⚡ Acciones
 const anularFactura = async () => {
   if (!confirm('¿Confirmas la anulación de esta factura?')) return
@@ -306,6 +314,10 @@ const anularFactura = async () => {
     accionActual.value = '' 
   }
 }
+
+const formFechaValidacion = (d) => d 
+  ? new Date(d).toLocaleString('es-GT', { dateStyle: 'short', timeStyle: 'short' }) 
+  : ''
 
 const volverAlListado = () => {
   router.push({ 

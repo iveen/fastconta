@@ -1,17 +1,17 @@
-# app/schemas/tenant.py
-from pydantic import BaseModel, EmailStr, field_validator
 from datetime import datetime
 from uuid import UUID
-from typing import Optional
+
+from pydantic import BaseModel, EmailStr, field_validator
+
 from app.services.validation_service import validar_nit_guatemala
 
 
 class TenantCreate(BaseModel):
     tenant_name: str
-    admin_email: EmailStr
-    admin_password: str
+    admin_email: str
+    admin_password: EmailStr
     nit: str
-    plan: Optional[str] = "freemium"
+    plan: str | None = "freemium"
 
     @field_validator('nit')
     @classmethod
@@ -25,9 +25,8 @@ class TenantCreate(BaseModel):
             )
         return v.replace(" ", "").replace("-", "").upper()
 
-
 class TenantResponse(BaseModel):
-    """Esquema de respuesta segura (nunca devuelve contraseñas ni datos sensibles)."""
+    """Esquema de respuesta segura (nunca devuelve contraseñas)."""
     id: UUID
     name: str
     nit: str
@@ -37,10 +36,9 @@ class TenantResponse(BaseModel):
     max_usuarios: int
     is_active: bool
     created_at: datetime
-    admin_email: Optional[EmailStr] = None
-
-    model_config = {"from_attributes": True}  # Compatibilidad con SQLAlchemy
-
+    admin_email: EmailStr | None = None  
+    
+    model_config = {"from_attributes": True} 
 
 class TenantStatusUpdate(BaseModel):
     """Para activar/suspender un tenant."""

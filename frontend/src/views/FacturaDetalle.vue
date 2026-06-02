@@ -205,9 +205,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/services/api'
+import { useAuthStore } from '@/stores/auth' 
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 const factura = ref(null)
 const cargando = ref(true)
@@ -270,10 +272,10 @@ const formatoTipoCambio = (valor, moneda) => {
 }
 
 // 📥 Carga de datos
+// En cargarFactura:
 const cargarFactura = async () => {
   cargando.value = true
   error.value = ''
-
   const facturaId = route.params.factura_id
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -284,9 +286,12 @@ const cargarFactura = async () => {
   }
 
   try {
-    const resp = await api.get(`/facturas/${facturaId}`)
+    const params = {}
+    if (authStore.isSuperAdmin && route.query.tenant) {
+      params.tenant_id = route.query.tenant
+    }
+    const resp = await api.get(`/facturas/${facturaId}`, { params })
     factura.value = resp.data
-
     if (!factura.value?.id) {
       error.value = 'La factura no tiene datos válidos'
       factura.value = null
@@ -298,6 +303,26 @@ const cargarFactura = async () => {
   }
 }
 
+// En generarPartida:
+const generarPartida = async () => {
+  if (!confirm('¿Generar la partida contable automática?')) return
+  accionCargando.value = true
+  accionActual.value = 'partida'
+  try {
+    const empresaId = route.query.empresa || factura.value?.empresa_id
+    const params = { empresa_id: empresaId }
+    if (authStore.isSuperAdmin && route.query.tenant) {
+      params.tenant_id = route.query.tenant
+    }
+    await api.post(`/facturas/${route.params.factura_id}/generar-partida`, null, { params })
+    alert('✅ Partida generada exitosamente.')
+  } catch (err) {
+    error.value = err.response?.data?.detail || 'Error al generar partida'
+  } finally {
+    accionCargando.value = false
+    accionActual.value = ''
+  }
+}
 
 // ⚡ Acciones
 const anularFactura = async () => {
@@ -324,24 +349,6 @@ const volverAlListado = () => {
     path: '/dashboard/facturas', 
     query: { empresa: factura.value?.empresa_id } 
   })
-}
-
-const generarPartida = async () => {
-  if (!confirm('¿Generar la partida contable automática?')) return
-  accionCargando.value = true
-  accionActual.value = 'partida'
-  try {
-    const empresaId = route.query.empresa || factura.value?.empresa_id
-    await api.post(`/facturas/${route.params.factura_id}/generar-partida`, null, {
-      params: { empresa_id: empresaId }
-    })
-    alert('✅ Partida generada exitosamente.')
-  } catch (err) {
-    error.value = err.response?.data?.detail || 'Error al generar partida'
-  } finally {
-    accionCargando.value = false
-    accionActual.value = ''
-  }
 }
 
 onMounted(() => {

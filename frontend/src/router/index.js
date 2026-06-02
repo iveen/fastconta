@@ -11,6 +11,7 @@ import PeriodosFiscales from '@/views/PeriodosFiscales.vue'
 import LibroMayor from '@/views/LibroMayor.vue'
 import Facturas from '@/views/Facturas.vue'
 import FacturaDetalle from '@/views/FacturaDetalle.vue'
+import Usuarios from '@/views/Usuarios.vue'
 
 const routes = [
   { path: '/', redirect: '/login' },
@@ -31,6 +32,7 @@ const routes = [
       { path: 'reportes/libro-mayor/:cuenta_id', name: 'LibroMayor', component: LibroMayor },
       { path: 'facturas', name: 'Facturas', component: Facturas },
       { path: 'facturas/:factura_id', name: 'FacturaDetalle', component: FacturaDetalle, 'props':true },
+      { path: 'usuarios', name: 'Usuarios', component: Usuarios}
     ]
   }
 ]

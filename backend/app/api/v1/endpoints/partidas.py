@@ -1,16 +1,16 @@
-
-
+# app/api/v1/endpoints/partidas.py
 from datetime import date
 from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.security import DataScope, get_data_scope
 from app.crud.secuencias import get_next_poliza
-from app.db.session import get_tenant_db
+from app.db.session import get_public_db, get_tenant_db
 from app.models.tenant_models import (
     CuentaContable,
     DetallePartida,
@@ -27,8 +27,48 @@ from app.schemas.partida import (
 
 router = APIRouter()
 
+# ==========================================
+# Helper: Configurar search_path según rol
+# ==========================================
+async def _set_schema_for_query(db: AsyncSession, scope: DataScope, tenant_id: str | None = None):
+    """Configura el search_path correcto según el rol del usuario."""
+    schema_name = None
+    
+    if scope.role_code == "superadmin":
+        if not tenant_id:
+            raise HTTPException(400, detail="Superadmin debe especificar un tenant_id")
+        res = await db.execute(
+            text("SELECT schema_name FROM public.tenants WHERE id = :tid"), 
+            {"tid": tenant_id}
+        )
+        row = res.first()
+        if not row:
+            raise HTTPException(404, detail="Tenant no encontrado")
+        schema_name = row[0]
+    else:
+        res = await db.execute(
+            text("SELECT schema_name FROM public.tenants WHERE id = :tid"), 
+            {"tid": str(scope.tenant_id)}
+        )
+        row = res.first()
+        if not row:
+            raise HTTPException(404, detail="Tenant no encontrado")
+        schema_name = row[0]
+
+    if not schema_name.replace("_", "").isalnum():
+        raise HTTPException(500, detail="Schema con formato inválido")
+
+    await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
+    return schema_name
+
+# ==========================================
+# 1. Crear partida (usa get_tenant_db para usuarios normales)
+# ==========================================
 @router.post("/", response_model=PartidaOut, status_code=status.HTTP_201_CREATED)
-async def crear_partida(payload: PartidaCreate, db: AsyncSession = Depends(get_tenant_db)):
+async def crear_partida(
+    payload: PartidaCreate, 
+    db: AsyncSession = Depends(get_tenant_db)
+):
     # Validar cuentas
     ids_cuentas = {d.cuenta_id for d in payload.detalles}
     result_cuentas = await db.execute(select(CuentaContable).where(CuentaContable.id.in_(ids_cuentas)))
@@ -36,19 +76,15 @@ async def crear_partida(payload: PartidaCreate, db: AsyncSession = Depends(get_t
     if len(cuentas) != len(ids_cuentas):
         raise HTTPException(status_code=400, detail="Una o más cuentas no existen")
     
-    # --- Validación de Cuentas Activas y No Duplicadas
     for cuenta in cuentas.values():
         if not cuenta.activa:
             raise HTTPException(status_code=400, detail=f"La cuenta {cuenta.codigo} está inactiva")
-    
-    # Verificar duplicados en los detalles
+
     codigos_cuentas = [cuentas[d.cuenta_id].codigo for d in payload.detalles]
     if len(codigos_cuentas) != len(set(codigos_cuentas)):
         raise HTTPException(status_code=400, detail="No se permite usar la misma cuenta más de una vez en una partida")
 
-    # --- Validación de período fiscal ---
     fecha_partida = payload.fecha
-    # Buscar un periodo que contenga la fecha
     result_periodo = await db.execute(
         select(PeriodoFiscal).where(
             PeriodoFiscal.fecha_inicio <= fecha_partida,
@@ -61,26 +97,22 @@ async def crear_partida(payload: PartidaCreate, db: AsyncSession = Depends(get_t
     if periodo.cerrado:
         raise HTTPException(status_code=400, detail=f"El período fiscal '{periodo.nombre}' está cerrado")
 
-    # Validar que todas las cuentas son de la misma empresa
     empresa_ids = {c.empresa_id for c in cuentas.values()}
     if len(empresa_ids) > 1:
         raise HTTPException(status_code=400, detail="Todas las cuentas deben pertenecer a la misma empresa")
     empresa_id = next(iter(empresa_ids))
 
-    # Generar numero_poliza automático si no se proporciona
     numero_poliza = payload.numero_poliza
-
-    # Validar unicidad de numero_poliza si se proporciona
     if not numero_poliza:
         schema_name = db.info["current_user"]["schema"]
         numero_poliza = await get_next_poliza(db, empresa_id, schema_name)
     else:
         existente = await db.execute(
-        select(Partida).where(Partida.numero_poliza == numero_poliza, Partida.empresa_id == empresa_id))
+            select(Partida).where(Partida.numero_poliza == numero_poliza, Partida.empresa_id == empresa_id)
+        )
         if existente.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="El número de póliza ya existe para esta empresa")
 
-    # Crear partida (sin empresa_id)
     partida = Partida(
         fecha=payload.fecha,
         descripcion=payload.descripcion,
@@ -99,14 +131,12 @@ async def crear_partida(payload: PartidaCreate, db: AsyncSession = Depends(get_t
         ))
     await db.commit()
 
-    # Recuperar con detalles, cuentas y empresa
     stmt = (select(Partida)
             .where(Partida.id == partida.id)
             .options(selectinload(Partida.detalles).selectinload(DetallePartida.cuenta).selectinload(CuentaContable.empresa)))
     result = await db.execute(stmt)
     partida = result.scalar_one()
 
-    # Obtener nombre de empresa desde la primera cuenta
     empresa_nombre = ""
     if partida.detalles:
         cuenta = partida.detalles[0].cuenta
@@ -134,38 +164,39 @@ async def crear_partida(payload: PartidaCreate, db: AsyncSession = Depends(get_t
         detalles=detalles_out
     )
 
+# ==========================================
+# 2. Listar partidas (con filtro para superadmin)
+# ==========================================
 @router.get("/", response_model=List[PartidaOut])
 async def listar_partidas(
     empresa_id: UUID | None = Query(None, description="Filtrar partidas por empresa"),
-    db: AsyncSession = Depends(get_tenant_db)
+    tenant_id: str | None = Query(None, description="ID del tenant (requerido para superadmin)"),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
-    # Validar que la empresa existe si se proporciona el ID
+    await _set_schema_for_query(db, scope, tenant_id)
+    
     if empresa_id:
         result_emp = await db.execute(select(Empresa).where(Empresa.id == empresa_id))
         if not result_emp.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="Empresa no encontrada")
-
-    # Construir consulta base con precarga de relaciones (incluida la empresa directa)
+    
     stmt = (select(Partida)
             .options(selectinload(Partida.detalles)
                      .selectinload(DetallePartida.cuenta)
                      .selectinload(CuentaContable.empresa),
-                     selectinload(Partida.empresa))  # ← precargar la empresa directa
+                     selectinload(Partida.empresa))
             .order_by(Partida.fecha.desc()))
 
-    # Aplicar filtro por empresa directamente sobre Partida.empresa_id
     if empresa_id:
         stmt = stmt.where(Partida.empresa_id == empresa_id)
 
     result = await db.execute(stmt)
     partidas = result.scalars().all()
 
-    # Construir respuesta
     resp = []
     for p in partidas:
-        # Ahora podemos obtener el nombre de empresa directamente
         empresa_nombre = p.empresa.nombre if p.empresa else ""
-
         detalles_out = [
             DetallePartidaOut(
                 id=d.id,
@@ -188,20 +219,24 @@ async def listar_partidas(
         ))
     return resp
 
+# ==========================================
+# 3. Libro Diario
+# ==========================================
 @router.get("/libro-diario", response_model=List[LineaLibroDiario])
 async def libro_diario(
     empresa_id: UUID = Query(..., description="ID de la empresa"),
     fecha_inicio: date = Query(..., description="Fecha inicial (inclusive)"),
     fecha_fin: date = Query(..., description="Fecha final (inclusive)"),
-    db: AsyncSession = Depends(get_tenant_db)
+    tenant_id: str | None= Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
-    # Validar empresa
+    await _set_schema_for_query(db, scope, tenant_id)
+    
     result_emp = await db.execute(select(Empresa).where(Empresa.id == empresa_id))
     if not result_emp.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Empresa no encontrada")
-
-    # Construir consulta: obtener todas las líneas de detalle de partidas
-    # cuyas cuentas pertenezcan a la empresa y las fechas estén en el rango
+    
     stmt = (
         select(Partida, DetallePartida, CuentaContable)
         .join(DetallePartida, Partida.id == DetallePartida.partida_id)
@@ -233,8 +268,18 @@ async def libro_diario(
 
     return lineas
 
+# ==========================================
+# 4. Obtener partida por ID
+# ==========================================
 @router.get("/{partida_id}", response_model=PartidaOut)
-async def get_partida(partida_id: str, db: AsyncSession = Depends(get_tenant_db)):
+async def get_partida(
+    partida_id: str,
+    tenant_id: str | None = Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
+):
+    await _set_schema_for_query(db, scope, tenant_id)
+    
     stmt = (select(Partida)
             .where(Partida.id == partida_id)
             .options(selectinload(Partida.detalles).selectinload(DetallePartida.cuenta).selectinload(CuentaContable.empresa)))
@@ -242,7 +287,7 @@ async def get_partida(partida_id: str, db: AsyncSession = Depends(get_tenant_db)
     partida = result.scalar_one_or_none()
     if not partida:
         raise HTTPException(status_code=404, detail="Partida no encontrada")
-
+    
     detalles_out = [
         DetallePartidaOut(
             id=d.id,

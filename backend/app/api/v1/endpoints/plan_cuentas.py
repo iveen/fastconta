@@ -1,15 +1,15 @@
-
-
+# app/api/v1/endpoints/plan_cuentas.py
 from datetime import date
 from decimal import Decimal
 from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import get_tenant_db
+from app.core.security import DataScope, get_data_scope
+from app.db.session import get_public_db, get_tenant_db
 from app.models.tenant_models import CuentaContable, DetallePartida, Empresa, Partida
 from app.schemas.balances import (
     BalanceComprobacionResponse,
@@ -21,64 +21,136 @@ from app.schemas.plan_cuentas import CuentaCreate, CuentaOut, CuentaUpdate
 
 router = APIRouter()
 
+# ==========================================
+# Helper: Configurar search_path según rol
+# ==========================================
+async def _set_schema_for_query(db: AsyncSession, scope: DataScope, tenant_id: str | None = None):
+    """Configura el search_path correcto según el rol del usuario."""
+    schema_name = None
+    
+    if scope.role_code == "superadmin":
+        if not tenant_id:
+            raise HTTPException(400, detail="Superadmin debe especificar un tenant_id")
+        res = await db.execute(
+            text("SELECT schema_name FROM public.tenants WHERE id = :tid"), 
+            {"tid": tenant_id}
+        )
+        row = res.first()
+        if not row:
+            raise HTTPException(404, detail="Tenant no encontrado")
+        schema_name = row[0]
+    else:
+        res = await db.execute(
+            text("SELECT schema_name FROM public.tenants WHERE id = :tid"), 
+            {"tid": str(scope.tenant_id)}
+        )
+        row = res.first()
+        if not row:
+            raise HTTPException(404, detail="Tenant no encontrado")
+        schema_name = row[0]
+
+    if not schema_name.replace("_", "").isalnum():
+        raise HTTPException(500, detail="Schema con formato inválido")
+
+    await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
+    return schema_name
+
+# ==========================================
+# 1. Listar cuentas (con filtro para superadmin)
+# ==========================================
 @router.get("/", response_model=List[CuentaOut])
 async def list_cuentas(
     empresa_id: UUID = Query(None, description="Filtrar por empresa"),
-    db: AsyncSession = Depends(get_tenant_db)
+    tenant_id: str | None = Query(None, description="ID del tenant (requerido para superadmin)"),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
+    await _set_schema_for_query(db, scope, tenant_id)
+    
     stmt = select(CuentaContable).order_by(CuentaContable.codigo)
     if empresa_id:
         stmt = stmt.where(CuentaContable.empresa_id == empresa_id)
+    
     result = await db.execute(stmt)
     return result.scalars().all()
 
+# ==========================================
+# 2. Obtener cuenta por ID
+# ==========================================
 @router.get("/{cuenta_id}", response_model=CuentaOut)
-async def get_cuenta(cuenta_id: str, db: AsyncSession = Depends(get_tenant_db)):
+async def get_cuenta(
+    cuenta_id: str,
+    tenant_id: str | None = Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
+):
+    await _set_schema_for_query(db, scope, tenant_id)
+    
     result = await db.execute(select(CuentaContable).where(CuentaContable.id == cuenta_id))
     cuenta = result.scalar_one_or_none()
     if not cuenta:
         raise HTTPException(status_code=404, detail="Cuenta no encontrada")
     return cuenta
 
+# ==========================================
+# 3. Crear cuenta (usa get_tenant_db para usuarios normales)
+# ==========================================
 @router.post("/", response_model=CuentaOut, status_code=status.HTTP_201_CREATED)
-async def create_cuenta(payload: CuentaCreate, db: AsyncSession = Depends(get_tenant_db)):
-    # Verificar unicidad de código
+async def create_cuenta(
+    payload: CuentaCreate, 
+    db: AsyncSession = Depends(get_tenant_db)
+):
     empresa_res = await db.execute(select(Empresa).where(Empresa.id == payload.empresa_id))
     if not empresa_res.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Empresa no encontrada")
+    
     existe = await db.execute(select(CuentaContable).where(CuentaContable.codigo == payload.codigo))
     if existe.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="El código de cuenta ya existe")
+    
     cuenta = CuentaContable(**payload.dict())
     db.add(cuenta)
     await db.commit()
     await db.refresh(cuenta)
     return cuenta
 
+# ==========================================
+# 4. Actualizar cuenta
+# ==========================================
 @router.put("/{cuenta_id}", response_model=CuentaOut)
-async def update_cuenta(cuenta_id: str, payload: CuentaUpdate, db: AsyncSession = Depends(get_tenant_db)):
+async def update_cuenta(
+    cuenta_id: str, 
+    payload: CuentaUpdate, 
+    db: AsyncSession = Depends(get_tenant_db)
+):
     result = await db.execute(select(CuentaContable).where(CuentaContable.id == cuenta_id))
     cuenta = result.scalar_one_or_none()
     if not cuenta:
         raise HTTPException(status_code=404, detail="Cuenta no encontrada")
+    
     update_data = payload.dict(exclude_unset=True)
-
-    # Si se cambia empresa_id, validar que la nueva empresa exista
     if "empresa_id" in update_data:
         new_emp_id = update_data["empresa_id"]
-        if new_emp_id != cuenta.empresa_id:  # solo validar si cambió
+        if new_emp_id != cuenta.empresa_id:
             result_emp = await db.execute(select(Empresa).where(Empresa.id == new_emp_id))
             if not result_emp.scalar_one_or_none():
                 raise HTTPException(status_code=400, detail="Nueva empresa no encontrada")
 
     for field, value in update_data.items():
         setattr(cuenta, field, value)
+    
     await db.commit()
     await db.refresh(cuenta)
     return cuenta
 
+# ==========================================
+# 5. Eliminar cuenta
+# ==========================================
 @router.delete("/{cuenta_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_cuenta(cuenta_id: str, db: AsyncSession = Depends(get_tenant_db)):
+async def delete_cuenta(
+    cuenta_id: str, 
+    db: AsyncSession = Depends(get_tenant_db)
+):
     result = await db.execute(select(CuentaContable).where(CuentaContable.id == cuenta_id))
     cuenta = result.scalar_one_or_none()
     if not cuenta:
@@ -87,20 +159,25 @@ async def delete_cuenta(cuenta_id: str, db: AsyncSession = Depends(get_tenant_db
     await db.commit()
     return None
 
+# ==========================================
+# 6. Libro Mayor de cuenta
+# ==========================================
 @router.get("/{cuenta_id}/movimientos", response_model=LibroMayorResponse)
 async def libro_mayor_cuenta(
     cuenta_id: str,
     fecha_inicio: date = Query(..., description="Fecha inicial del período"),
     fecha_fin: date = Query(..., description="Fecha final del período"),
-    db: AsyncSession = Depends(get_tenant_db)
+    tenant_id: str | None = Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
-    # Obtener la cuenta
+    await _set_schema_for_query(db, scope, tenant_id)
+    
     result = await db.execute(select(CuentaContable).where(CuentaContable.id == cuenta_id))
     cuenta = result.scalar_one_or_none()
     if not cuenta:
         raise HTTPException(status_code=404, detail="Cuenta no encontrada")
-
-    # Construir query de movimientos
+    
     stmt = (select(DetallePartida, Partida)
             .join(Partida, DetallePartida.partida_id == Partida.id)
             .where(
@@ -131,7 +208,7 @@ async def libro_mayor_cuenta(
         movimientos.append(MovimientoCuenta(
             fecha=part.fecha,
             partida_id=part.id,
-            numero_poliza=part.numero_poliza,  # <-- añadido
+            numero_poliza=part.numero_poliza,
             descripcion_partida=part.descripcion,
             tipo_movimiento=det.tipo_movimiento,
             monto=monto
@@ -146,23 +223,28 @@ async def libro_mayor_cuenta(
         saldo_actual=saldo
     )
 
+# ==========================================
+# 7. Balance de Comprobación
+# ==========================================
 @router.get("/comprobacion", response_model=BalanceComprobacionResponse)
 async def balance_comprobacion(
-    fecha_inicio: date | None = Query(None, description="Fecha inicial (inclusive)"),
-    fecha_fin: date | None = Query(None, description="Fecha final (inclusive)"),
-    db: AsyncSession = Depends(get_tenant_db)
+    fecha_inicio: date | None = Query(None),
+    fecha_fin: date | None = Query(None),
+    tenant_id: str | None = Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
-    # Obtener todas las cuentas activas
+    await _set_schema_for_query(db, scope, tenant_id)
+    
     result = await db.execute(
         select(CuentaContable)
-        .where(CuentaContable.activa == True)
+        .where(CuentaContable.activa.is_(True))
         .order_by(CuentaContable.codigo)
     )
     cuentas = result.scalars().all()
-
+    
     filas = []
     for cuenta in cuentas:
-        # Construir subconsulta de sumas de débito y crédito
         stmt = (
             select(
                 func.coalesce(func.sum(
@@ -190,7 +272,6 @@ async def balance_comprobacion(
         result = await db.execute(stmt)
         sum_debe, sum_haber = result.one()
 
-        # Calcular saldo según naturaleza
         if cuenta.naturaleza == 'deudora':
             saldo = sum_debe - sum_haber
         else:

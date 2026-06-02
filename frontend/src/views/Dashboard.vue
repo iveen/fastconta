@@ -30,6 +30,13 @@
         <router-link to="/dashboard/sat-libros" class="block py-2 px-3 rounded hover:bg-gray-700 transition">
           📋 Libros IVA (SAT)
         </router-link>
+        <router-link 
+          v-if="authStore.canManageUsers" 
+          to="/dashboard/usuarios" 
+          class="block py-2 px-3 rounded hover:bg-gray-700 transition"
+        >
+          👥 Usuarios
+        </router-link>
       </nav>
       <div class="p-4 border-t border-gray-700 text-sm text-gray-400">
         {{ authStore.user?.tenant_name }}

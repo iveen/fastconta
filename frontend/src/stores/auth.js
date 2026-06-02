@@ -1,10 +1,16 @@
+// src/stores/auth.js
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue' // 👈 CRÍTICO: agregar 'computed' aquí
 import api from '@/services/api'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('token') || '')
   const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
+
+  // 👇 Propiedades computadas para los roles
+  const isSuperAdmin = computed(() => user.value?.role === 'superadmin')
+  const isTenantManager = computed(() => user.value?.role === 'tenant_manager')
+  const canManageUsers = computed(() => isSuperAdmin.value || isTenantManager.value)
 
   async function login(email, password) {
     const response = await api.post('/auth/login', { email, password })
@@ -26,5 +32,14 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('user')
   }
 
-  return { token, user, login, logout }
+  // 👈 Exportar las nuevas propiedades computadas
+  return { 
+    token, 
+    user, 
+    login, 
+    logout,
+    isSuperAdmin,
+    isTenantManager,
+    canManageUsers 
+  }
 })

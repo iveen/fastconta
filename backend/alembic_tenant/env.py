@@ -1,10 +1,13 @@
 # alembic_tenant/env.py
 import os
 import sys
-from pathlib import Path
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool, event, text
+from pathlib import Path
+
 from alembic import context
+from app.config import settings
+from app.db.base import Base
+from sqlalchemy import engine_from_config, pool, text
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 if str(BASE_DIR) not in sys.path:
@@ -14,11 +17,10 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-from app.config import settings
+
 config.set_main_option("sqlalchemy.url", settings.SYNC_DATABASE_URL)
 
 # Importar SOLO modelos de tenant
-from app.db.base import Base
 from app.models.tenant_models import Empresa, CuentaContable, Partida, DetallePartida, Secuencia, PeriodoFiscal, FacturaElectronica, FacturaDetalle  # noqa
 
 target_metadata = Base.metadata

@@ -3,11 +3,13 @@ import asyncio
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
+from app.core.jwt_utils import create_access_token
 from app.core.security import (  # Asegúrate de importar tu haseador
-    create_access_token,
     get_password_hash,
     verify_password,
 )
@@ -86,8 +88,13 @@ async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
-    # ... Tu código de login actual se mantiene exactamente igual ...
-    result = await db.execute(select(User).where(User.email == request.email))
+    await db.execute(text("SET LOCAL search_path TO public")) # Forzar uso de Esquema Públic para Login
+    stmt = (
+        select(User)
+        .options(selectinload(User.role))   # 👈 Carga la relación role de forma eager
+        .where(User.email == request.email)
+    )
+    result = await db.execute(statement=stmt)
     user = result.scalar_one_or_none()
     if not user or not verify_password(request.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales incorrectas")
@@ -95,9 +102,11 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Usuario inactivo")
 
+    role_code = user.role.codigo if user.role else "tenant_member"
+
     token_data = {
         "sub": str(user.id),
-        "role": user.role,
+        "role": role_code,
         "email": user.email
     }
 
@@ -119,5 +128,5 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     return TokenResponse(
         access_token=access_token,
         tenant_name=tenant_name,
-        role=user.role
+        role=role_code
     )

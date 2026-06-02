@@ -1,3 +1,4 @@
+# app/db/base.py
 from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -12,9 +13,19 @@ metadata = MetaData(naming_convention={
     "pk": "pk_%(table_name)s"
 })
 
-engine = create_async_engine(settings.DATABASE_URL, echo=False)
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,  # 👈 Vital para reconexión automática
+    pool_size=10,
+    max_overflow=20
+)
+
 AsyncSessionLocal = sessionmaker(
-    engine, class_=AsyncSession, expire_on_commit=False
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autoflush=False
 )
 
 Base = declarative_base(metadata=metadata)

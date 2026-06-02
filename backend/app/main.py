@@ -57,6 +57,7 @@ if __name__ == "__main__":
 async def list_router():
     for route in app.routes:
         print(route.path, route.methods)
+
 '''
 # Evento de inicio para crear tablas (solo desarrollo)
 @app.on_event("startup")

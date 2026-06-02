@@ -1,119 +1,128 @@
-from datetime import datetime, timedelta
+# app/core/security.py
+from dataclasses import dataclass, field
+from typing import Optional, Set
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+from jose import JWTError
 from passlib.context import CryptContext
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.config import settings
+from app.core.jwt_utils import decode_access_token
+from app.db.session import get_db
+from app.models.global_models import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
-
-# Configuración de autenticación
-SECRET_KEY = settings.SECRET_KEY
-ALGORITHM = settings.ALGORITHM
-ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
-
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
-
-def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (
-        expires_delta
-        if expires_delta
-        else timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-
-def decode_access_token(token: str) -> dict | None:
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
-    except JWTError:
-        return None
-
-
 def get_password_hash(password: str) -> str:
-    print(f"Password length: {len(password)} bytes: {len(password.encode())}")
     if len(password.encode()) > 72:
         raise ValueError("Password demasiado larga para bcrypt")
     return pwd_context.hash(password)
 
-
-# ==========================================
-# DEPENDENCIAS DE AUTENTICACIÓN
-# ==========================================
-
-
-async def get_current_active_user(
-    token: str = Depends(oauth2_scheme), db: AsyncSession = Depends()
-) -> dict:
-    """Valida JWT y retorna usuario activo. Base para todas las rutas protegidas."""
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
+) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Credenciales inválidas o expiradas",
         headers={"WWW-Authenticate": "Bearer"},
     )
-
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
+        payload = decode_access_token(token)
+        if not payload or not payload.get("sub"):
             raise credentials_exception
+        user_id = payload["sub"]
     except JWTError:
         raise credentials_exception
 
-    result = await db.execute(
-        text(
-            "SELECT id, email, full_name, role, tenant_id, is_active FROM public.users WHERE id = :uid"
-        ),
-        {"uid": user_id},
-    )
-    user = result.mappings().first()
+    stmt = select(User).where(User.id == user_id).options(selectinload(User.tenant))
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
 
-    if not user or not user["is_active"]:
+    if not user or not user.is_active:
         raise credentials_exception
+    return user
 
-    return dict(user)
+@dataclass
+class DataScope:
+    user: User
+    role_code: str
+    nivel_acceso: int
+    tenant_id: Optional[UUID] = None
+    tenant_schema: Optional[str] = None
+    empresa_ids: Optional[Set[UUID]] = field(default=None)
+    is_read_only: bool = False
 
+async def get_data_scope(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> DataScope:
+    # 🔹 Extraer role_code de forma tolerante: puede ser string, objeto Role, o None
+    role_value = getattr(current_user, 'role', 'tenant_member')
+    is_read_only = False
+    
+    if role_value is None:
+        role_code = 'tenant_member'
+    elif isinstance(role_value, str):
+        role_code = role_value.lower()
+    elif hasattr(role_value, 'codigo'):  # Objeto Role con atributo 'codigo'
+        role_code = str(role_value.codigo).lower()
+    elif hasattr(role_value, 'name'):  # Objeto Role con atributo 'name'
+        role_code = str(role_value.name).lower()
+    elif hasattr(role_value, 'role'):  # Anidación extraña
+        role_code = str(role_value.role).lower()
+    else:
+        # Fallback: convertir a string y limpiar representación de objeto
+        role_str = str(role_value).lower()
+        if 'object at 0x' in role_str:
+            role_code = 'tenant_member'  # Fallback seguro
+        else:
+            role_code = role_str
+    
+    # Mapeo de niveles de acceso
+    ROLE_LEVELS = {
+        "superadmin": (100, False), "admin": (80, False), "tenant_manager": (80, False),
+        "tenant_member": (60, False), "contador": (60, False), "auxiliar": (40, False),
+        "tenant_client": (20, True), "cliente": (20, True),
+    }
+    nivel_acceso, is_read_only = ROLE_LEVELS.get(role_code, (0, True))
+    
+    scope = DataScope(
+        user=current_user,
+        role_code=role_code,
+        nivel_acceso=nivel_acceso,
+        is_read_only=is_read_only
+    )
 
-async def get_current_superadmin(
-    current_user: dict = Depends(get_current_active_user),
-    db: AsyncSession = Depends(),
-) -> dict:
-    """
-    Envuelve get_current_active_user y valida que el rol sea 'superadmin'.
-    Úsala en endpoints que solo el dueño de la plataforma debe acceder.
-    """
-    if current_user["role"] != "superadmin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acceso denegado. Se requieren permisos de Superadministrador.",
-        )
-    return current_user
+    if role_code == "superadmin":
+        return scope
 
+    if not current_user.tenant:
+        raise HTTPException(403, "Usuario sin tenant asociado")
 
-# core/dependencies.py
-async def get_current_tenant_user(
-    current_user: dict = Depends(get_current_active_user),
-    db: AsyncSession = Depends(),
-):
-    """Valida que el usuario tenga tenant_id y configura search_path."""
-    if not current_user.get("tenant_id"):
-        raise HTTPException(403, "Acceso denegado: usuario sin tenant asociado")
+    scope.tenant_id = current_user.tenant.id
+    scope.tenant_schema = current_user.tenant.schema_name
+    await db.execute(text(f"SET LOCAL search_path TO {scope.tenant_schema}, public"))
+    scope.empresa_ids = None
+    return scope
 
-    # Configurar search_path para este request
-    schema = current_user.get("schema")  # Viene del token
-    if schema:
-        await db.execute(text(f"SET search_path TO {schema}, public"))
+def require_role(*allowed_roles: str):
+    def checker(scope: DataScope = Depends(get_data_scope)):
+        if scope.role_code not in [r.lower() for r in allowed_roles]:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, f"Acceso denegado. Roles permitidos: {', '.join(allowed_roles)}")
+        return scope
+    return checker
 
-    return current_user
+def require_write_access(scope: DataScope = Depends(get_data_scope)):
+    if scope.is_read_only:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Acceso denegado: tu rol es de solo visualización.")
+    return scope
+

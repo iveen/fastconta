@@ -40,6 +40,7 @@ class Tenant(Base):
 
     # Relaciones
     users = relationship("User", back_populates="tenant")
+    empresas = relationship("Empresa", back_populates="tenant", cascade="all, delete-orphan") 
 
 class RegistrationAttempt(Base):
     __tablename__ = "registration_attempts"
@@ -180,7 +181,7 @@ class User(Base):
 
     # Relaciones
     tenant = relationship("Tenant", back_populates="users")
-    role = relationship("Role")
+    role = relationship("Role", lazy="selectin")
     empresas_asignadas = relationship("UserEmpresa", back_populates="user", cascade="all, delete-orphan")
 
     tenant = relationship("Tenant", back_populates="users")

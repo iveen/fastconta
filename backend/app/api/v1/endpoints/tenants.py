@@ -1,18 +1,46 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from datetime import datetime, timedelta
-from app.db.session import get_db
-from app.models.global_models import Tenant, User, RegistrationAttempt
-from app.core.tenant import create_tenant_schema
-from app.schemas.tenant import TenantCreate, TenantResponse
-from app.core.security import get_password_hash
-from app.dependencies import require_role
 import logging
+from datetime import datetime, timedelta
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.security import DataScope, get_data_scope, get_password_hash
+from app.core.tenant import create_tenant_schema
+from app.db.session import get_db, get_public_db
+from app.dependencies import require_role
+from app.models.global_models import RegistrationAttempt, Tenant, User
+from app.schemas.tenant import TenantCreate, TenantResponse
 
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
+
+@router.get("/", dependencies=[Depends(require_role("superadmin"))])
+async def list_tenants(
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
+):
+    if scope.role_code != "superadmin":
+        raise HTTPException(status_code=403, detail="Acceso denegado")
+
+    stmt = select(Tenant).order_by(Tenant.created_at.desc())
+    result = await db.execute(stmt)
+    tenants = result.scalars().all()
+
+    return [
+        {
+            "id": str(t.id),
+            "name": t.name,
+            "nit": t.nit,
+            "schema_name": t.schema_name,
+            "plan": t.plan,
+            "is_active": t.is_active,
+            "max_empresas": t.max_empresas,
+            "created_at": t.created_at.isoformat() if t.created_at else None
+        }
+        for t in tenants
+    ]
 
 @router.post("/", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)
 async def create_tenant(

@@ -1,5 +1,4 @@
-
-
+# app/api/v1/endpoints/balances.py
 from datetime import date
 from decimal import Decimal
 from typing import List
@@ -8,10 +7,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import get_tenant_db
+from app.core.security import DataScope, get_data_scope
+from app.db.session import get_public_db
 from app.models.tenant_models import CuentaContable, DetallePartida, Empresa, Partida
 from app.schemas.balances import (
     BalanceComprobacionResponse,
@@ -29,18 +29,59 @@ from app.services.reportes_export import (
 
 router = APIRouter()
 
+# ==========================================
+# Helper: Configurar search_path según rol
+# ==========================================
+async def _set_schema_for_query(db: AsyncSession, scope: DataScope, tenant_id: str | None = None):
+    """Configura el search_path correcto según el rol del usuario."""
+    schema_name = None
+    
+    if scope.role_code == "superadmin":
+        if not tenant_id:
+            raise HTTPException(400, detail="Superadmin debe especificar un tenant_id")
+        res = await db.execute(
+            text("SELECT schema_name FROM public.tenants WHERE id = :tid"), 
+            {"tid": tenant_id}
+        )
+        row = res.first()
+        if not row:
+            raise HTTPException(404, detail="Tenant no encontrado")
+        schema_name = row[0]
+    else:
+        res = await db.execute(
+            text("SELECT schema_name FROM public.tenants WHERE id = :tid"), 
+            {"tid": str(scope.tenant_id)}
+        )
+        row = res.first()
+        if not row:
+            raise HTTPException(404, detail="Tenant no encontrado")
+        schema_name = row[0]
+
+    if not schema_name.replace("_", "").isalnum():
+        raise HTTPException(500, detail="Schema con formato inválido")
+
+    await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
+    return schema_name
+
+# ==========================================
+# 1. Balance de Comprobación
+# ==========================================
 @router.get("/comprobacion", response_model=BalanceComprobacionResponse)
 async def balance_comprobacion(
     empresa_id: UUID = Query(..., description="ID de la empresa para filtrar el balance"),
     fecha_inicio: date | None = Query(None, description="Fecha inicial (inclusive)"),
     fecha_fin: date | None = Query(None, description="Fecha final (inclusive)"),
-    db: AsyncSession = Depends(get_tenant_db)
+    tenant_id: str | None = Query(None, description="ID del tenant (requerido para superadmin)"),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
+    await _set_schema_for_query(db, scope, tenant_id)
+    
     # Validar que la empresa existe
     result_emp = await db.execute(select(Empresa).where(Empresa.id == empresa_id))
     if not result_emp.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Empresa no encontrada")
-
+    
     # Obtener solo las cuentas activas de esa empresa
     result = await db.execute(
         select(CuentaContable)
@@ -51,7 +92,6 @@ async def balance_comprobacion(
 
     filas = []
     for cuenta in cuentas:
-        # Calcular sumas de débito y crédito para esta cuenta
         stmt = (select(
                     func.coalesce(func.sum(
                         case((DetallePartida.tipo_movimiento == 'debe', DetallePartida.monto), else_=0)
@@ -70,7 +110,6 @@ async def balance_comprobacion(
         result_sum = await db.execute(stmt)
         sum_debe, sum_haber = result_sum.one()
 
-        # Calcular saldo según naturaleza
         if cuenta.naturaleza == 'deudora':
             saldo = sum_debe - sum_haber
         else:
@@ -93,20 +132,25 @@ async def balance_comprobacion(
         filas=filas
     )
 
+# ==========================================
+# 2. Estado de Resultados
+# ==========================================
 @router.get("/estado-resultados", response_model=EstadoResultadosResponse)
 async def estado_resultados(
     empresa_id: UUID = Query(..., description="ID de la empresa"),
     fecha_inicio: date = Query(..., description="Fecha de inicio del período"),
     fecha_fin: date = Query(..., description="Fecha de fin del período"),
-    db: AsyncSession = Depends(get_tenant_db)
+    tenant_id: str | None = Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
-    # Validar que la empresa existe
+    await _set_schema_for_query(db, scope, tenant_id)
+    
     result_emp = await db.execute(select(Empresa).where(Empresa.id == empresa_id))
     empresa = result_emp.scalar_one_or_none()
     if not empresa:
         raise HTTPException(status_code=400, detail="Empresa no encontrada")
-
-    # Obtener cuentas de tipo ingreso y gasto de la empresa
+    
     result = await db.execute(
         select(CuentaContable)
         .where(
@@ -124,7 +168,6 @@ async def estado_resultados(
     total_gastos = Decimal('0.00')
 
     for cuenta in cuentas:
-        # Calcular sumas de débito y crédito para esta cuenta en el período
         stmt = (select(
                     func.coalesce(func.sum(
                         case((DetallePartida.tipo_movimiento == 'debe', DetallePartida.monto), else_=0)
@@ -143,10 +186,9 @@ async def estado_resultados(
         result_sum = await db.execute(stmt)
         sum_debe, sum_haber = result_sum.one()
 
-        # Calcular saldo según naturaleza
         if cuenta.naturaleza == 'deudora':
             saldo = sum_debe - sum_haber
-        else:  # acreedora
+        else:
             saldo = sum_haber - sum_debe
 
         fila = FilaBalance(
@@ -162,11 +204,9 @@ async def estado_resultados(
 
         if cuenta.tipo == 'ingreso':
             ingresos.append(fila)
-            # Los ingresos normalmente tienen saldo acreedor (positivo)
             total_ingresos += saldo if saldo > 0 else Decimal('0.00')
-        else:  # gasto
+        else:
             gastos.append(fila)
-            # Los gastos normalmente tienen saldo deudor (positivo)
             total_gastos += saldo if saldo > 0 else Decimal('0.00')
 
     utilidad_neta = total_ingresos - total_gastos
@@ -183,6 +223,9 @@ async def estado_resultados(
         utilidad_neta=utilidad_neta
     )
 
+# ==========================================
+# 3. Balance General
+# ==========================================
 class BalanceGeneralResponse(BaseModel):
     empresa_id: UUID
     empresa_nombre: str
@@ -199,15 +242,17 @@ class BalanceGeneralResponse(BaseModel):
 async def balance_general(
     empresa_id: UUID = Query(..., description="ID de la empresa"),
     fecha: date = Query(..., description="Fecha de corte del balance"),
-    db: AsyncSession = Depends(get_tenant_db)
+    tenant_id: str | None = Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
-    # Validar empresa
+    await _set_schema_for_query(db, scope, tenant_id)
+    
     result_emp = await db.execute(select(Empresa).where(Empresa.id == empresa_id))
     empresa = result_emp.scalar_one_or_none()
     if not empresa:
         raise HTTPException(status_code=400, detail="Empresa no encontrada")
-
-    # Obtener todas las cuentas de balance (activo, pasivo, patrimonio)
+    
     result = await db.execute(
         select(CuentaContable)
         .where(
@@ -227,7 +272,6 @@ async def balance_general(
     total_patrimonio = Decimal('0.00')
 
     for cuenta in cuentas:
-        # Calcular saldo hasta la fecha de corte
         stmt = (select(
                     func.coalesce(func.sum(
                         case((DetallePartida.tipo_movimiento == 'debe', DetallePartida.monto), else_=0)
@@ -271,7 +315,7 @@ async def balance_general(
             patrimonio.append(fila)
             total_patrimonio += saldo
 
-    # Calcular utilidad del ejercicio (ingresos - gastos) desde inicio hasta la fecha
+    # Calcular utilidad del ejercicio
     stmt_ingresos = (select(func.coalesce(func.sum(DetallePartida.monto), 0))
                      .select_from(DetallePartida)
                      .join(Partida, DetallePartida.partida_id == Partida.id)
@@ -314,16 +358,19 @@ async def balance_general(
         utilidad_ejercicio=utilidad_ejercicio
     )
 
-# ---------- EXCEL ----------
+# ==========================================
+# EXPORTACIONES EXCEL
+# ==========================================
 @router.get("/comprobacion/excel")
 async def balance_comprobacion_excel(
     empresa_id: UUID = Query(...),
     fecha_inicio: date = Query(...),
     fecha_fin: date = Query(...),
-    db: AsyncSession = Depends(get_tenant_db)
+    tenant_id: str | None = Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
-    # Obtener los mismos datos que el endpoint JSON
-    datos = await balance_comprobacion(empresa_id, fecha_inicio, fecha_fin, db)
+    datos = await balance_comprobacion(empresa_id, fecha_inicio, fecha_fin, tenant_id, scope, db)
     excel = generar_balance_comprobacion_excel(datos.dict())
     return StreamingResponse(
         excel,
@@ -336,9 +383,11 @@ async def estado_resultados_excel(
     empresa_id: UUID = Query(...),
     fecha_inicio: date = Query(...),
     fecha_fin: date = Query(...),
-    db: AsyncSession = Depends(get_tenant_db)
+    tenant_id: str | None = Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
-    datos = await estado_resultados(empresa_id, fecha_inicio, fecha_fin, db)
+    datos = await estado_resultados(empresa_id, fecha_inicio, fecha_fin, tenant_id, scope, db)
     excel = generar_estado_resultados_excel(datos.dict())
     return StreamingResponse(
         excel,
@@ -350,9 +399,11 @@ async def estado_resultados_excel(
 async def balance_general_excel(
     empresa_id: UUID = Query(...),
     fecha: date = Query(...),
-    db: AsyncSession = Depends(get_tenant_db)
+    tenant_id: str | None = Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
-    datos = await balance_general(empresa_id, fecha, db)
+    datos = await balance_general(empresa_id, fecha, tenant_id, scope, db)
     excel = generar_balance_general_excel(datos.dict())
     return StreamingResponse(
         excel,
@@ -360,15 +411,19 @@ async def balance_general_excel(
         headers={"Content-Disposition": "attachment; filename=balance_general.xlsx"}
     )
 
-# ---------- PDF ----------
+# ==========================================
+# EXPORTACIONES PDF
+# ==========================================
 @router.get("/comprobacion/pdf")
 async def balance_comprobacion_pdf(
     empresa_id: UUID = Query(...),
     fecha_inicio: date = Query(...),
     fecha_fin: date = Query(...),
-    db: AsyncSession = Depends(get_tenant_db)
+    tenant_id: str | None = Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
-    datos = await balance_comprobacion(empresa_id, fecha_inicio, fecha_fin, db)
+    datos = await balance_comprobacion(empresa_id, fecha_inicio, fecha_fin, tenant_id, scope, db)
     pdf = generar_balance_comprobacion_pdf(datos.dict())
     return StreamingResponse(
         pdf,
@@ -381,9 +436,11 @@ async def estado_resultados_pdf(
     empresa_id: UUID = Query(...),
     fecha_inicio: date = Query(...),
     fecha_fin: date = Query(...),
-    db: AsyncSession = Depends(get_tenant_db)
+    tenant_id: str | None = Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
-    datos = await estado_resultados(empresa_id, fecha_inicio, fecha_fin, db)
+    datos = await estado_resultados(empresa_id, fecha_inicio, fecha_fin, tenant_id, scope, db)
     pdf = generar_estado_resultados_pdf(datos.dict())
     return StreamingResponse(
         pdf,
@@ -395,9 +452,11 @@ async def estado_resultados_pdf(
 async def balance_general_pdf(
     empresa_id: UUID = Query(...),
     fecha: date = Query(...),
-    db: AsyncSession = Depends(get_tenant_db)
+    tenant_id: str | None = Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
-    datos = await balance_general(empresa_id, fecha, db)
+    datos = await balance_general(empresa_id, fecha, tenant_id, scope, db)
     pdf = generar_balance_general_pdf(datos.dict())
     return StreamingResponse(
         pdf,

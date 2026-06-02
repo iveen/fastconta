@@ -23,8 +23,12 @@ async def list_tenants(
 ):
     if scope.role_code != "superadmin":
         raise HTTPException(status_code=403, detail="Acceso denegado")
-
-    stmt = select(Tenant).order_by(Tenant.created_at.desc())
+    
+    # 🔹 Filtrar el tenant "Sistema" (schema_name = 'sistema' o 'system')
+    stmt = select(Tenant).where(
+        Tenant.schema_name.notin_(['sistema', 'system', 'public'])
+    ).order_by(Tenant.created_at.desc())
+    
     result = await db.execute(stmt)
     tenants = result.scalars().all()
 

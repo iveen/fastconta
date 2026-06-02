@@ -52,13 +52,13 @@ app.include_router(api_router, prefix="/api/v1")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
-
+'''
 @app.on_event("startup")
 async def list_router():
     for route in app.routes:
         print(route.path, route.methods)
 
-'''
+
 # Evento de inicio para crear tablas (solo desarrollo)
 @app.on_event("startup")
 async def startup_event():

@@ -8,6 +8,7 @@ import Reportes from '@/views/Reportes.vue'
 import Cierre from '@/views/Cierre.vue'
 import PartidaDetalle from '@/views/PartidaDetalle.vue'
 import PeriodosFiscales from '@/views/PeriodosFiscales.vue'
+import SatLibros from '@/views/SatLibros.vue'
 import LibroMayor from '@/views/LibroMayor.vue'
 import Facturas from '@/views/Facturas.vue'
 import FacturaDetalle from '@/views/FacturaDetalle.vue'
@@ -32,6 +33,7 @@ const routes = [
       { path: 'reportes/libro-mayor/:cuenta_id', name: 'LibroMayor', component: LibroMayor },
       { path: 'facturas', name: 'Facturas', component: Facturas },
       { path: 'facturas/:factura_id', name: 'FacturaDetalle', component: FacturaDetalle, 'props':true },
+      { path: 'sat-libros', name: "SAT Libros", component: SatLibros},
       { path: 'usuarios', name: 'Usuarios', component: Usuarios}
     ]
   }

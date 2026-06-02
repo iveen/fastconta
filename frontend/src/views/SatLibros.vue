@@ -1,13 +1,12 @@
+<!-- src/views/SatLibros.vue -->
 <template>
   <div class="min-h-screen bg-gray-50 p-6">
     <div class="max-w-7xl mx-auto space-y-6">
-      
       <div class="flex justify-between items-center">
         <div>
           <h1 class="text-2xl font-bold text-gray-800">Libros de IVA (SAT)</h1>
           <p class="text-sm text-gray-500">Generación y consulta de reportes impositivos mensuales</p>
         </div>
-        
         <div v-if="libro" class="flex items-center gap-2">
           <span :class="statusBadgeClass(libro.estado)" class="px-3 py-1 rounded-full text-xs font-semibold uppercase">
             {{ libro.estado }}
@@ -15,8 +14,22 @@
         </div>
       </div>
 
+      <!-- 🔹 SELECTOR DE TENANT (Solo Superadmin) -->
+      <div v-if="authStore.isSuperAdmin" class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <label class="block text-sm font-semibold text-blue-800 mb-1">🏢 Seleccionar Firma (Tenant)</label>
+        <select 
+          v-model="selectedTenantId" 
+          @change="handleTenantChange" 
+          class="w-full md:w-1/2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2 border bg-white"
+        >
+          <option value="">-- Seleccione una firma --</option>
+          <option v-for="t in tenants" :key="t.id" :value="t.id">
+            {{ t.name }} ({{ t.nit }})
+          </option>
+        </select>
+      </div>
+
       <div class="bg-white p-4 rounded-xl shadow-xs border border-gray-100 flex flex-wrap gap-4 items-end">
-        
         <div class="flex flex-col gap-1 w-64">
           <label class="text-xs font-semibold text-gray-600 uppercase">Empresa <span class="text-red-500">*</span></label>
           <select v-model="filters.empresa_id" @change="limpiarLibro" class="border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full">
@@ -86,7 +99,6 @@
       </div>
 
       <div v-else-if="libro" class="space-y-6 animate-fade-in">
-        
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-xs">
             <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Documentos</p>
@@ -141,21 +153,21 @@
               </thead>
               <tbody class="divide-y divide-gray-100 text-sm text-gray-700">
                 <tr v-for="linea in libro.lineas" :key="linea.id" class="hover:bg-gray-50/70 transition">
-                    <td class="p-3 text-center text-gray-400 font-medium">{{ linea.numero_secuencia }}</td>
-                    <td class="p-3 whitespace-nowrap">{{ formatDate(linea.fecha_documento) }}</td>
-                    <td class="p-3 font-mono text-xs text-gray-600">{{ linea.numero_documento }}</td>
-                    <td class="p-3 font-medium text-gray-900">{{ linea.nit || 'C/F' }}</td>
-                    <td class="p-3 max-w-xs truncate" :title="linea.razon_social">{{ linea.razon_social || 'Consumidor Final' }}</td>
-                    <td class="p-3 text-right font-medium text-green-600">Q {{ formatMonto(linea.monto_exento) }}</td>
-                    <td class="p-3 text-right">Q {{ formatMonto(linea.base_imponible) }}</td>
-                    <td class="p-3 text-right text-gray-500">Q {{ formatMonto(linea.monto_iva) }}</td>
-                    <td class="p-3 text-right font-medium text-blue-600">
-                        Q {{ filters.tipo_libro === 'compras' ? formatMonto(linea.credito_fiscal) : formatMonto(linea.debito_fiscal) }}
-                    </td>
-                    <td class="p-3 text-right font-semibold text-gray-900">Q {{ formatMonto(linea.monto_total) }}</td>
+                  <td class="p-3 text-center text-gray-400 font-medium">{{ linea.numero_secuencia }}</td>
+                  <td class="p-3 whitespace-nowrap">{{ formatDate(linea.fecha_documento) }}</td>
+                  <td class="p-3 font-mono text-xs text-gray-600">{{ linea.numero_documento }}</td>
+                  <td class="p-3 font-medium text-gray-900">{{ linea.nit || 'C/F' }}</td>
+                  <td class="p-3 max-w-xs truncate" :title="linea.razon_social">{{ linea.razon_social || 'Consumidor Final' }}</td>
+                  <td class="p-3 text-right font-medium text-green-600">Q {{ formatMonto(linea.monto_exento) }}</td>
+                  <td class="p-3 text-right">Q {{ formatMonto(linea.base_imponible) }}</td>
+                  <td class="p-3 text-right text-gray-500">Q {{ formatMonto(linea.monto_iva) }}</td>
+                  <td class="p-3 text-right font-medium text-blue-600">
+                    Q {{ filters.tipo_libro === 'compras' ? formatMonto(linea.credito_fiscal) : formatMonto(linea.debito_fiscal) }}
+                  </td>
+                  <td class="p-3 text-right font-semibold text-gray-900">Q {{ formatMonto(linea.monto_total) }}</td>
                 </tr>
                 <tr v-if="libro.lineas.length === 0">
-                  <td colspan="9" class="p-8 text-center text-gray-400">
+                  <td colspan="10" class="p-8 text-center text-gray-400">
                     No existen líneas detalladas registradas en este libro.
                   </td>
                 </tr>
@@ -163,44 +175,39 @@
             </table>
           </div>
         </div>
-
       </div>
-
     </div>
   </div>
 </template>
 
 <script setup>
-// ➕ Añadimos onMounted y watch para replicar el ciclo de Facturas.vue
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import api from '@/services/api' 
+import api from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
-const meses = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-]
+const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
-// 💼 Lista reactiva para almacenar las empresas reales del backend
+const tenants = ref([])
+const selectedTenantId = ref('')
 const empresas = ref([])
 
-// Filtros iniciales (Ajustados a Mayo 2025 por defecto para tu test)
 const filters = reactive({
   empresa_id: route.query.empresa || '',
   tipo_libro: 'compras',
   regimen_fiscal: 'general',
-  anio: 2025, // 🎯 Ajustado a 2025 para apuntar a tus datos directo
-  mes: 5     // 🎯 Mayo
+  anio: 2025,
+  mes: 5
 })
 
 const cargando = ref(false)
 const procesandoAccion = ref(false)
 const libroNoExiste = ref(false)
 const libro = ref(null)
-
 const statusMsg = ref('')
 const statusType = ref('success')
 
@@ -210,13 +217,26 @@ const limpiarLibro = () => {
   statusMsg.value = ''
 }
 
-// 🏢 CARGA REAL DE EMPRESAS DESDE EL ENDPOINT EXISTENTE
-const cargarEmpresas = async () => {
+const fetchTenants = async () => {
+  if (!authStore.isSuperAdmin) return
   try {
-    const { data } = await api.get('/empresas/')
+    const res = await api.get('/tenants/')
+    tenants.value = res.data.filter(t => !['sistema', 'system', 'public'].includes(t.schema_name))
+  } catch (err) {
+    console.error('Error cargando tenants:', err)
+  }
+}
+
+const cargarEmpresas = async () => {
+  if (authStore.isSuperAdmin && !selectedTenantId.value) {
+    empresas.value = []
+    return
+  }
+  try {
+    const params = authStore.isSuperAdmin ? { tenant_id: selectedTenantId.value } : {}
+    const { data } = await api.get('/empresas/', { params })
     empresas.value = data
-    
-    // Si viene la empresa por el query-string de la URL (heredada de otra pantalla), la seleccionamos
+
     if (route.query.empresa) {
       filters.empresa_id = route.query.empresa
       await consultarLibro()
@@ -228,24 +248,31 @@ const cargarEmpresas = async () => {
   }
 }
 
-// 🔎 ACCIÓN: Consultar el libro (GET)
+const handleTenantChange = () => {
+  filters.empresa_id = ''
+  limpiarLibro()
+  cargarEmpresas()
+}
+
 const consultarLibro = async () => {
   if (!filters.empresa_id) return
-  
+
   cargando.value = true
   libroNoExiste.value = false
   libro.value = null
   statusMsg.value = ''
 
   try {
-    const { data } = await api.get('/sat-libros/consultar', {
-      params: {
-        empresa_id: filters.empresa_id,
-        tipo_libro: filters.tipo_libro,
-        anio: filters.anio,
-        mes: filters.mes
-      }
-    })
+    const params = {
+      empresa_id: filters.empresa_id,
+      tipo_libro: filters.tipo_libro,
+      anio: filters.anio,
+      mes: filters.mes
+    }
+    if (authStore.isSuperAdmin && selectedTenantId.value) {
+      params.tenant_id = selectedTenantId.value
+    }
+    const { data } = await api.get('/sat-libros/consultar', { params })
     libro.value = data
     filters.regimen_fiscal = data.regimen_fiscal
   } catch (err) {
@@ -260,10 +287,9 @@ const consultarLibro = async () => {
   }
 }
 
-// ✨ ACCIÓN: Generar o Recalcular el libro (POST)
 const generarORecalcularLibro = async () => {
   if (!filters.empresa_id) return
-  
+
   procesandoAccion.value = true
   statusMsg.value = ''
 
@@ -275,11 +301,16 @@ const generarORecalcularLibro = async () => {
       anio_periodo: filters.anio,
       mes_periodo: filters.mes
     }
+    
+    const params = {}
+    if (authStore.isSuperAdmin && selectedTenantId.value) {
+      params.tenant_id = selectedTenantId.value
+    }
 
-    await api.post('/sat-libros/generar', payload)
+    await api.post('/sat-libros/generar', payload, { params })
     statusMsg.value = '✅ Libro de IVA generado y totalizado exitosamente.'
     statusType.value = 'success'
-    
+
     await consultarLibro()
   } catch (err) {
     statusMsg.value = `❌ Error al procesar: ${err.response?.data?.detail || err.message}`
@@ -289,7 +320,6 @@ const generarORecalcularLibro = async () => {
   }
 }
 
-// 🔒 ACCIÓN: Cerrar / Finalizar Periodo (PATCH)
 const finalizarLibro = async () => {
   if (!libro.value || !confirm('¿Está seguro de finalizar este periodo? Una vez cerrado no podrá ser recalculado.')) return
 
@@ -297,10 +327,15 @@ const finalizarLibro = async () => {
   statusMsg.value = ''
 
   try {
-    await api.patch(`/sat-libros/${libro.value.id}/finalizar`)
+    const params = {}
+    if (authStore.isSuperAdmin && selectedTenantId.value) {
+      params.tenant_id = selectedTenantId.value
+    }
+    
+    await api.patch(`/sat-libros/${libro.value.id}/finalizar`, null, { params })
     statusMsg.value = `🔒 El periodo ${meses[filters.mes - 1]} se ha congelado con éxito.`
     statusType.value = 'success'
-    
+  
     await consultarLibro()
   } catch (err) {
     statusMsg.value = `❌ Error al finalizar: ${err.response?.data?.detail || err.message}`
@@ -310,15 +345,17 @@ const finalizarLibro = async () => {
   }
 }
 
-// Sincronización transparente de la URL (si cambian de empresa, actualiza el Query Param)
 watch(() => filters.empresa_id, (val) => {
   if (val) router.replace({ query: { ...route.query, empresa: val } })
   else router.replace({ query: { ...route.query, empresa: undefined } })
 })
 
-// 🚀 Disparamos la carga al montar el componente
-onMounted(() => {
-  cargarEmpresas()
+onMounted(async () => {
+  await fetchTenants()
+  if (authStore.isSuperAdmin && tenants.value.length > 0) {
+    selectedTenantId.value = tenants.value[0].id
+  }
+  await cargarEmpresas()
 })
 
 const formatMonto = (valor) => {

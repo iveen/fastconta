@@ -1,68 +1,92 @@
 # app/api/v1/endpoints/sat_libros.py
-from fastapi import APIRouter, Depends, status, Query, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text, select
 from uuid import UUID
 
-from app.db.session import get_tenant_db
-from app.schemas.sat_libros import SatLibroCreate, SatLibroResponse, SatLibroDetailResponse
-from app.models.global_models import TipoLibro
-from app.services.sat_libros_service import (
-    procesar_y_generar_libro_sat, 
-    obtener_libro_detallado,
-    finalizar_libro_sat
-)
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.security import DataScope, get_data_scope
+from app.db.session import get_public_db
+from app.models.global_models import TipoLibro
+from app.schemas.sat_libros import (
+    SatLibroCreate,
+    SatLibroDetailResponse,
+    SatLibroResponse,
+)
+from app.services.sat_libros_service import (
+    finalizar_libro_sat,
+    obtener_libro_detallado,
+    procesar_y_generar_libro_sat,
+)
 
 router = APIRouter()
 
-@router.post("/generar", response_model=SatLibroResponse, status_code=status.HTTP_201_CREATED)
-async def generar_libro_iva(
-    payload: SatLibroCreate, 
-    db: AsyncSession = Depends(get_tenant_db)
-):
-    """
-    Calcula, limpia (idempotencia) y puebla el libro de IVA desde las facturas FEL.
-    """
-    user_info = db.info.get("current_user")
+# ==========================================
+# Helper: Configurar search_path según rol
+# ==========================================
+async def _set_schema_for_query(db: AsyncSession, scope: DataScope, tenant_id: str | None = None):
+    """Configura el search_path correcto según el rol del usuario."""
+    schema_name = None
     
-    schema_name = user_info.get("schema") or user_info.get("tenant_schema")
-    if not schema_name and user_info.get("tenant_id"):
+    if scope.role_code == "superadmin":
+        if not tenant_id:
+            raise HTTPException(400, detail="Superadmin debe especificar un tenant_id")
         res = await db.execute(
             text("SELECT schema_name FROM public.tenants WHERE id = :tid"), 
-            {"tid": user_info["tenant_id"]}
+            {"tid": tenant_id}
         )
-        row = res.fetchone()
-        schema_name = row[0] if row else None
+        row = res.first()
+        if not row:
+            raise HTTPException(404, detail="Tenant no encontrado")
+        schema_name = row[0]
+    else:
+        res = await db.execute(
+            text("SELECT schema_name FROM public.tenants WHERE id = :tid"), 
+            {"tid": str(scope.tenant_id)}
+        )
+        row = res.first()
+        if not row:
+            raise HTTPException(404, detail="Tenant no encontrado")
+        schema_name = row[0]
 
-    if not schema_name:
-        raise HTTPException(400, "Schema no determinado")
+    if not schema_name.replace("_", "").isalnum():
+        raise HTTPException(500, detail="Schema con formato inválido")
 
-    # Establecer la ruta de búsqueda de PostgreSQL para el Tenant actual
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
+    return schema_name
 
+# ==========================================
+# 1. Generar Libro IVA
+# ==========================================
+@router.post("/generar", response_model=SatLibroResponse, status_code=status.HTTP_201_CREATED)
+async def generar_libro_iva(
+    payload: SatLibroCreate,
+    tenant_id: str | None = Query(None, description="ID del tenant (requerido para superadmin)"),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
+):
+    await _set_schema_for_query(db, scope, tenant_id)
     return await procesar_y_generar_libro_sat(db=db, payload=payload)
 
-
+# ==========================================
+# 2. Consultar Libro IVA
+# ==========================================
 @router.get("/consultar", response_model=SatLibroDetailResponse)
 async def consultar_libro_iva(
     empresa_id: UUID = Query(...),
     tipo_id: UUID = Query(...),
     anio: int = Query(..., ge=2020, le=2100),
     mes: int = Query(..., ge=1, le=12),
-    db: AsyncSession = Depends(get_tenant_db)
+    tenant_id: str | None = Query(None, description="ID del tenant (requerido para superadmin)"),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
-    """
-    Retorna la cabecera y el array completo de líneas ('lineas': [...])
-    para un mes y año específicos dentro del Tenant.
-    """
-
-    # 1. Buscar el TipoLibro por su ID
+    await _set_schema_for_query(db, scope, tenant_id)
+    
     query_tipo = select(TipoLibro).where(TipoLibro.id == tipo_id)
     result = await db.execute(query_tipo)
     tipo_libro = result.scalar_one_or_none()
 
-    # 2. Validar si existe
     if not tipo_libro:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -76,7 +100,7 @@ async def consultar_libro_iva(
         anio=anio, 
         mes=mes
     )
-    
+
     if not libro:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -85,19 +109,20 @@ async def consultar_libro_iva(
         
     return libro
 
-
+# ==========================================
+# 3. Finalizar Libro IVA
+# ==========================================
 @router.patch("/{libro_id}/finalizar", response_model=SatLibroResponse)
 async def cerrar_libro_iva(
     libro_id: UUID,
-    db: AsyncSession = Depends(get_tenant_db), # 👈 Única dependencia necesaria
+    tenant_id: str | None = Query(None, description="ID del tenant (requerido para superadmin)"),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
-    """
-    Congela el libro pasándolo a estado 'finalizado'. Bloquea recálculos futuros.
-    """
-    # 🕵️‍♂️ Extraemos el ID del usuario contador directamente de la sesión tal como en tu arquitectura
-    user_info = db.info.get("current_user") or {}
-    usuario_id = user_info.get("sub") # O el campo donde guardes el ID (ej: "id", "user_id")
+    await _set_schema_for_query(db, scope, tenant_id)
     
+    user_info = db.info.get("current_user") or {}
+    usuario_id = user_info.get("sub")
     if not usuario_id:
         raise HTTPException(status_code=401, detail="Usuario no autenticado en la sesión.")
 

@@ -1,26 +1,70 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, case, and_
-from uuid import UUID
-from datetime import date
+# app/api/v1/endpoints/cierre.py
 from decimal import Decimal
+from uuid import UUID
 
-from app.db.session import get_tenant_db
-from app.models.tenant_models import (
-    CuentaContable, DetallePartida, Partida, PeriodoFiscal
-)
-from app.schemas.partida import PartidaOut, PartidaCreate, DetallePartidaCreate
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import case, func, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.security import DataScope, get_data_scope
 from app.crud.secuencias import get_next_poliza
+from app.db.session import get_public_db
+from app.models.tenant_models import (
+    CuentaContable,
+    DetallePartida,
+    Partida,
+    PeriodoFiscal,
+)
 
 router = APIRouter()
 
+# ==========================================
+# Helper: Configurar search_path según rol
+# ==========================================
+async def _set_schema_for_query(db: AsyncSession, scope: DataScope, tenant_id: str | None = None):
+    """Configura el search_path correcto según el rol del usuario."""
+    schema_name = None
+    
+    if scope.role_code == "superadmin":
+        if not tenant_id:
+            raise HTTPException(400, detail="Superadmin debe especificar un tenant_id")
+        res = await db.execute(
+            text("SELECT schema_name FROM public.tenants WHERE id = :tid"), 
+            {"tid": tenant_id}
+        )
+        row = res.first()
+        if not row:
+            raise HTTPException(404, detail="Tenant no encontrado")
+        schema_name = row[0]
+    else:
+        res = await db.execute(
+            text("SELECT schema_name FROM public.tenants WHERE id = :tid"), 
+            {"tid": str(scope.tenant_id)}
+        )
+        row = res.first()
+        if not row:
+            raise HTTPException(404, detail="Tenant no encontrado")
+        schema_name = row[0]
 
+    if not schema_name.replace("_", "").isalnum():
+        raise HTTPException(500, detail="Schema con formato inválido")
+
+    await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
+    return schema_name
+
+# ==========================================
+# 1. Ejecutar Cierre Anual
+# ==========================================
 @router.post("/cierre-anual", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def cierre_anual(
     empresa_id: UUID = Query(..., description="ID de la empresa"),
     periodo_id: UUID = Query(..., description="ID del período fiscal a cerrar"),
-    db: AsyncSession = Depends(get_tenant_db)
+    tenant_id: str | None = Query(None, description="ID del tenant (requerido para superadmin)"),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
+    await _set_schema_for_query(db, scope, tenant_id)
+    
     # 1. Validar período
     result = await db.execute(
         select(PeriodoFiscal).where(
@@ -63,7 +107,6 @@ async def cierre_anual(
     total_utilidad = Decimal('0.00')
 
     for cuenta in cuentas_resultado:
-        # Sumar movimientos de la cuenta en el período
         stmt = (select(
                     func.coalesce(func.sum(
                         case((DetallePartida.tipo_movimiento == 'debe', DetallePartida.monto), else_=0)
@@ -82,24 +125,20 @@ async def cierre_anual(
         result_sum = await db.execute(stmt)
         sum_debe, sum_haber = result_sum.one()
 
-        # Calcular saldo según naturaleza
         if cuenta.naturaleza == 'deudora':
             saldo = sum_debe - sum_haber
-        else:  # acreedora
+        else:
             saldo = sum_haber - sum_debe
 
         if saldo == 0:
-            continue  # No hay movimientos para esta cuenta
+            continue
 
-        # Para cerrar la cuenta, el movimiento debe ser opuesto a su saldo
         if saldo > 0:
-            # Cuenta con saldo positivo: se cancela con un crédito si es deudora, débito si es acreedora
             if cuenta.naturaleza == 'deudora':
-                tipo_cierre = 'haber'  # Cancelar saldo deudor con crédito
+                tipo_cierre = 'haber'
             else:
-                tipo_cierre = 'debe'   # Cancelar saldo acreedor con débito
+                tipo_cierre = 'debe'
         else:
-            # Saldo negativo (raro pero posible)
             saldo = abs(saldo)
             if cuenta.naturaleza == 'deudora':
                 tipo_cierre = 'debe'
@@ -112,13 +151,12 @@ async def cierre_anual(
             'monto': saldo
         })
 
-        # Acumular para la utilidad (ingresos suman, gastos restan)
         if cuenta.tipo == 'ingreso':
             if cuenta.naturaleza == 'acreedora':
                 total_utilidad += (sum_haber - sum_debe)
             else:
                 total_utilidad += (sum_debe - sum_haber)
-        else:  # gasto
+        else:
             if cuenta.naturaleza == 'deudora':
                 total_utilidad -= (sum_debe - sum_haber)
             else:
@@ -126,11 +164,10 @@ async def cierre_anual(
 
     # 5. Crear partida de cierre de resultados
     if detalles_cierre:
-        # Agregar el movimiento a la cuenta de cierre (Utilidad del Ejercicio)
         if total_utilidad > 0:
-            tipo_cierre_utilidad = 'haber'  # Utilidad abona a la cuenta de patrimonio
+            tipo_cierre_utilidad = 'haber'
         else:
-            tipo_cierre_utilidad = 'debe'   # Pérdida carga a la cuenta de patrimonio
+            tipo_cierre_utilidad = 'debe'
             total_utilidad = abs(total_utilidad)
 
         detalles_cierre.append({
@@ -139,7 +176,6 @@ async def cierre_anual(
             'monto': total_utilidad
         })
 
-        # Generar número de póliza automático
         numero_poliza = await get_next_poliza(db, empresa_id)
 
         partida_cierre = Partida(
@@ -161,9 +197,7 @@ async def cierre_anual(
         await db.commit()
 
     # 6. Segunda etapa: Cierre de "Utilidad del Ejercicio" contra "Utilidades Acumuladas"
-    #    Solo si total_utilidad != 0
     if total_utilidad != 0:
-        # Obtener cuenta de Utilidades Acumuladas (código 3.3.1)
         result_acum = await db.execute(
             select(CuentaContable).where(
                 CuentaContable.empresa_id == empresa_id,
@@ -174,10 +208,7 @@ async def cierre_anual(
         if not cuenta_acumulada:
             raise HTTPException(status_code=400, detail="No existe la cuenta 3.3.1 (Utilidades/Pérdidas Acumuladas)")
 
-        # El movimiento es inverso al que se hizo en la cuenta 3.4
         tipo_cierre_acum = 'debe' if tipo_cierre_utilidad == 'haber' else 'haber'
-
-        # Generar número de póliza
         numero_poliza_acum = await get_next_poliza(db, empresa_id)
 
         partida_acum = Partida(

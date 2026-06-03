@@ -31,6 +31,9 @@
         <router-link to="/dashboard/sat-libros" class="block py-2 px-3 rounded hover:bg-gray-700 transition">
           📋 Libros IVA (SAT)
         </router-link>
+        <router-link to="/dashboard/activos-fijos" class="block py-2 px-3 rounded hover:bg-gray-700 transition">
+           🏗️ Activos Fijos
+        </router-link>
         <router-link 
           v-if="authStore.canManageUsers" 
           to="/dashboard/usuarios" 
@@ -124,6 +127,7 @@
         <router-view />
       </main>
     </div>
+    <ToastContainer />
   </div>
 </template>
 
@@ -131,6 +135,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
+import ToastContainer from './ToastContainer.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()

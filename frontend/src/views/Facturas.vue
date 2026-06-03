@@ -70,7 +70,7 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
               <tr v-for="f in sortedFacturas" :key="f.id" :class="['hover:bg-gray-50 transition', f.estado === 'Anulada' ? 'bg-red-50' : '']">
-                <td class="px-4 py-3 text-sm text-gray-600">{{ formatDate(f.fecha_emision) }}</td>
+                <td class="px-4 py-3 text-sm text-gray-600">{{ formatDateGT(f.fecha_emision) }}</td>
                 <td class="px-4 py-3 text-sm"><span :class="getTipoDTEClass(f.tipo_documento)" class="px-2 py-1 rounded text-xs font-semibold">{{ f.tipo_documento || 'FACT' }}</span></td>
                 <td class="px-4 py-3 text-sm">
                   <router-link :to="{ name: 'FacturaDetalle', params: { factura_id: f.id }, query: { empresa: selectedEmpresaId, tenant: selectedTenantId } }" class="text-blue-600 hover:text-blue-800 font-mono font-semibold">
@@ -121,6 +121,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
+import { formatDateGT, formatDateTimeGT } from '@/utils/dates'
 
 const route = useRoute()
 const router = useRouter()

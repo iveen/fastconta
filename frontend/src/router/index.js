@@ -13,6 +13,8 @@ import LibroMayor from '@/views/LibroMayor.vue'
 import Facturas from '@/views/Facturas.vue'
 import FacturaDetalle from '@/views/FacturaDetalle.vue'
 import Usuarios from '@/views/Usuarios.vue'
+import ActivoFijoList from '@/views/ActivoFijoList.vue'
+import ActivoFijoForm from '@/views/ActivoFijoForm.vue'
 
 const routes = [
   { path: '/', redirect: '/login' },
@@ -32,9 +34,12 @@ const routes = [
       { path: 'periodos-fiscales', name: 'PeriodosFiscales', component: PeriodosFiscales},
       { path: 'reportes/libro-mayor/:cuenta_id', name: 'LibroMayor', component: LibroMayor },
       { path: 'facturas', name: 'Facturas', component: Facturas },
-      { path: 'facturas/:factura_id', name: 'FacturaDetalle', component: FacturaDetalle, 'props':true },
+      { path: 'facturas/:factura_id', name: 'FacturaDetalle', component: FacturaDetalle, 'props': true },
       { path: 'sat-libros', name: "SAT Libros", component: SatLibros},
-      { path: 'usuarios', name: 'Usuarios', component: Usuarios}
+      { path: 'usuarios', name: 'Usuarios', component: Usuarios},
+      { path: 'activos-fijos', name:"Activos Fijos", component: ActivoFijoList, meta: { requiresAuth: true} },
+      { path: '/dashboard/activos-fijos/nuevo', name: 'ActivosFijosCrear', component: ActivoFijoForm, meta: { requiresAuth: true } },
+      { path: '/dashboard/activos-fijos/editar:id', name: 'ActivosFijosEditar', component: ActivoFijoForm, meta: { requiresAuth: true } }
     ]
   }
 ]

@@ -154,7 +154,7 @@
               <tbody class="divide-y divide-gray-100 text-sm text-gray-700">
                 <tr v-for="linea in libro.lineas" :key="linea.id" class="hover:bg-gray-50/70 transition">
                   <td class="p-3 text-center text-gray-400 font-medium">{{ linea.numero_secuencia }}</td>
-                  <td class="p-3 whitespace-nowrap">{{ formatDate(linea.fecha_documento) }}</td>
+                  <td class="p-3 whitespace-nowrap">{{ formatDateGT(linea.fecha_documento) }}</td>
                   <td class="p-3 font-mono text-xs text-gray-600">{{ linea.numero_documento }}</td>
                   <td class="p-3 font-medium text-gray-900">{{ linea.nit || 'C/F' }}</td>
                   <td class="p-3 max-w-xs truncate" :title="linea.razon_social">{{ linea.razon_social || 'Consumidor Final' }}</td>
@@ -185,6 +185,7 @@ import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
+import { formatDateGT, formatDateTimeGT } from '@/utils/dates'
 
 const route = useRoute()
 const router = useRouter()

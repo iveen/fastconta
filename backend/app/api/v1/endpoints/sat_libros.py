@@ -74,7 +74,7 @@ async def generar_libro_iva(
 @router.get("/consultar", response_model=SatLibroDetailResponse)
 async def consultar_libro_iva(
     empresa_id: UUID = Query(...),
-    tipo_id: UUID = Query(...),
+    tipo_libro: str = Query(..., description="Tipo de libro: 'compras' o 'ventas'"),
     anio: int = Query(..., ge=2020, le=2100),
     mes: int = Query(..., ge=1, le=12),
     tenant_id: str | None = Query(None, description="ID del tenant (requerido para superadmin)"),
@@ -82,21 +82,23 @@ async def consultar_libro_iva(
     db: AsyncSession = Depends(get_public_db)
 ):
     await _set_schema_for_query(db, scope, tenant_id)
-    
-    query_tipo = select(TipoLibro).where(TipoLibro.id == tipo_id)
-    result = await db.execute(query_tipo)
-    tipo_libro = result.scalar_one_or_none()
 
-    if not tipo_libro:
+        # 1. Resolver el código del tipo de libro a su UUID
+    # Asumimos que en tu tabla TipoLibro tienes registros con codigo='compras' y codigo='ventas'
+    query_tipo = select(TipoLibro).where(TipoLibro.codigo == tipo_libro.lower())
+    result = await db.execute(query_tipo)
+    tipo_libro_obj = result.scalar_one_or_none()
+
+    if not tipo_libro_obj:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"El tipo de libro con ID {tipo_id} no existe."
+            detail=f"El tipo de libro '{tipo_libro}' no existe. Valores válidos: 'compras', 'ventas'."
         )
-
+    
     libro = await obtener_libro_detallado(
         db=db, 
         empresa_id=empresa_id, 
-        tipo_libro=tipo_libro, 
+        tipo_libro=tipo_libro_obj, 
         anio=anio, 
         mes=mes
     )

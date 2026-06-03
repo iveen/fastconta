@@ -12,6 +12,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     tenant_name: str
     role: str
+    full_name: str
 
 class SignupRequest(BaseModel):
     # Datos del Tenant / Despacho

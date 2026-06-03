@@ -12,11 +12,32 @@ export const useAuthStore = defineStore('auth', () => {
   const isTenantManager = computed(() => user.value?.role === 'tenant_manager')
   const canManageUsers = computed(() => isSuperAdmin.value || isTenantManager.value)
 
+  const roleLabel = computed(() => {
+    const map = {
+      superadmin: 'Super Administrador',
+      tenant_manager: 'Administrador de Firma',
+      tenant_member: 'Miembro de Firma',
+      tenant_client: 'Cliente (Solo Lectura)'
+    }
+    return map[user.value?.role] || user.value?.role || 'Invitado'
+  })
+
+  const initials = computed(() => {
+    const name = user.value?.full_name || user.value?.email || '?'
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase()
+  })
+
   async function login(email, password) {
     const response = await api.post('/auth/login', { email, password })
     token.value = response.data.access_token
     user.value = {
       email: email,
+      full_name: response.data.full_name,
       role: response.data.role,
       tenant_name: response.data.tenant_name
     }
@@ -40,6 +61,8 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     isSuperAdmin,
     isTenantManager,
-    canManageUsers 
+    canManageUsers,
+    roleLabel,
+    initials
   }
 })

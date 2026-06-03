@@ -128,5 +128,6 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     return TokenResponse(
         access_token=access_token,
         tenant_name=tenant_name,
-        role=role_code
+        role=role_code,
+        full_name=user.full_name,
     )

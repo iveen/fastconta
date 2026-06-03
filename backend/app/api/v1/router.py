@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
+    activos_fijos,
     auth,
     balances,
     cierre,
@@ -26,5 +27,6 @@ api_router.include_router(periodos_fiscales.router, prefix="/periodos-fiscales",
 api_router.include_router(facturas.router, prefix="/facturas", tags=["facturas"])
 api_router.include_router(sat_libros.router, prefix="/sat-libros", tags=["Libros SAT"])
 api_router.include_router(users.router)
+api_router.include_router(activos_fijos.router, prefix="/activos-fijos", tags=["Activos Fijos"])
 
 

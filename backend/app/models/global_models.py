@@ -1,11 +1,14 @@
+import enum
 import uuid
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -40,7 +43,7 @@ class Tenant(Base):
 
     # Relaciones
     users = relationship("User", back_populates="tenant")
-    empresas = relationship("Empresa", back_populates="tenant", cascade="all, delete-orphan") 
+    empresas = relationship("Empresa", back_populates="tenant", cascade="all, delete-orphan")
 
 class RegistrationAttempt(Base):
     __tablename__ = "registration_attempts"
@@ -92,8 +95,8 @@ class TipoLibro(Base):
     __tablename__ = "tipos_libro"
     __table_args__ = {"schema": "public"} # <--- Clave
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    codigo = Column(String(50), nullable=True)
-    nombre = Column(String(255), nullable=False)
+    codigo = Column(String(50), nullable=False)
+    nombre = Column(String(255), nullable=False, unique=True)
 
 class RegimenFiscal(Base):
     __tablename__ = "regimenes_fiscales"
@@ -216,3 +219,31 @@ class UserEmpresa(Base):
 
     user = relationship("User")
     tenant = relationship("Tenant")
+
+class EstadoActivoFijoEnum(str, enum.Enum):
+    activo = "activo"
+    totalmente_depreciado = "totalmente_depreciado"
+    dado_baja = "dado_baja"
+    vendido = "vendido"
+
+class CategoriaActivoFijo(Base):
+    __tablename__ = "categorias_activos_fijos"
+    __table_args__ = {"schema": "public"}
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Nombre del tipo de activo (Ej: "Vehiculos", "Equipo de Computo", "Edificios")
+    nombre = Column(String(100), nullable=False, unique=True)
+    
+    # Porcentajes anuales segun limites de la SAT (Decreto 10-2012 y AG 142-2013)
+    # Se almacenan como decimales (Ej: 20.00 para 20%)
+    tasa_minima_anual = Column(Numeric(5, 2), nullable=False, server_default="0.00")
+    tasa_maxima_anual = Column(Numeric(5, 2), nullable=False)
+    vida_util_meses_default = Column(Integer, nullable=False)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    is_active = Column(Boolean, default=True)
+
+    __table_args__ = (
+        CheckConstraint("tasa_maxima_anual >= tasa_minima_anual", name="chk_categoria_tasa_valida"),
+    )

@@ -23,6 +23,7 @@ def upgrade() -> None:
     2. Agrega el campo codigo VARCHAR(50) NOT NULL UNIQUE
     3. Inserta los registros semilla (compras, ventas)
     """
+    
     conn = op.get_bind()
     
     print("🔄 Procesando tabla public.tipos_libro")

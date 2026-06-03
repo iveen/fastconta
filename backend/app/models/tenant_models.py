@@ -26,6 +26,7 @@ from sqlalchemy.sql import func, text
 from app.db.base import Base
 from app.models.global_models import (
     CatalogoMoneda,
+    EstadoActivoFijoEnum,
     EstadoLibro,
     RegimenFiscal,
     TipoDTE,
@@ -79,7 +80,7 @@ class Empresa(Base):
         back_populates="empresa",
         cascade="all, delete-orphan"
     )
-    tenant = relationship("Tenant", back_populates="empresas") # Añade back_populates en Tenant si deseas
+    tenant = relationship("Tenant", back_populates="empresas")
 
     @property
     def domicilio_fiscal(self):
@@ -377,4 +378,99 @@ class SatLibroLinea(Base):
     __table_args__ = (
         UniqueConstraint("libro_id", "numero_secuencia", name="uq_sat_libros_lineas_secuencia"),
         Index("idx_sat_libros_lineas_libro", "libro_id"),
+    )
+
+# ==============================================================================
+# MODULO DE ACTIVOS FIJOS (Tenant Specific)
+# ==============================================================================
+# Asegurate de importar el enum y la categoria desde global_models al inicio de este archivo:
+# from app.models.global_models import EstadoActivoFijoEnum, CategoriaActivoFijo
+
+class ActivoFijo(Base):
+    __tablename__ = "activos_fijos"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False, index=True)
+    
+    # FK al catalogo global (esquema public). 
+    # Nota: Usamos "public." explicitamente para evitar conflictos de esquema en PostgreSQL.
+    categoria_id = Column(UUID(as_uuid=True), ForeignKey("categorias_activos_fijos.id"), nullable=False)
+    
+    # Identificacion
+    codigo_interno = Column(String(50), nullable=False) # Ej: VEH-001, COMP-045
+    descripcion = Column(String(255), nullable=False)
+    
+    # Valores y Fechas
+    fecha_adquisicion = Column(Date, nullable=False)
+    valor_costo = Column(Numeric(15, 2), nullable=False) # Valor de factura + impuestos no recuperables + instalacion
+    valor_residual = Column(Numeric(15, 2), nullable=False, server_default="0.00") # Valor de desecho
+    
+    # Configuracion de depreciacion especifica para este activo
+    tasa_depreciacion_anual_aplicada = Column(Numeric(5, 2), nullable=False)
+    vida_util_meses_aplicada = Column(Integer, nullable=False)
+    
+    # Cuentas contables del tenant (Plan de Cuentas)
+    # Si son NULL, el sistema debera usar las sugeridas por la categoria (a nivel de logica de negocio)
+    cuenta_gasto_id = Column(UUID(as_uuid=True), ForeignKey("plan_cuentas.id"), nullable=True)
+    cuenta_depreciacion_acumulada_id = Column(UUID(as_uuid=True), ForeignKey("plan_cuentas.id"), nullable=True)
+    
+    # Estado y Auditoria
+    estado = Column(String(30), nullable=False, default=EstadoActivoFijoEnum.activo.value)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relaciones
+    empresa = relationship("Empresa")
+    # Relacion con el modelo global (usamos primaryjoin si hay ambiguedad de esquema, pero con el string de FK suele bastar)
+    categoria = relationship(
+        "app.models.global_models.CategoriaActivoFijo",
+        foreign_keys="[ActivoFijo.categoria_id]",
+        lazy="select"
+    ) 
+    cuenta_gasto = relationship("CuentaContable", foreign_keys=[cuenta_gasto_id])
+    cuenta_depreciacion_acumulada = relationship("CuentaContable", foreign_keys=[cuenta_depreciacion_acumulada_id])
+    historial_depreciacion = relationship("DepreciacionActivo", back_populates="activo", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        CheckConstraint(
+            "tasa_depreciacion_anual_aplicada >= 0 AND tasa_depreciacion_anual_aplicada <= 100",
+            name="chk_activos_fijos_tasa_valida"
+        ),
+    )
+
+
+class DepreciacionActivo(Base):
+    """
+    Registro historico mes a mes de la depreciacion.
+    Es CRITICO guardarlo para auditorias de la SAT y para no recalcular todo al vuelo.
+    """
+    __tablename__ = "depreciacion_activos"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False, index=True)
+    activo_id = Column(UUID(as_uuid=True), ForeignKey("activos_fijos.id"), nullable=False)
+    
+    # Periodo al que corresponde
+    anio_periodo = Column(SmallInteger, nullable=False)
+    mes_periodo = Column(SmallInteger, nullable=False)
+    
+    # Montos calculados
+    monto_depreciacion_mes = Column(Numeric(15, 2), nullable=False)
+    depreciacion_acumulada_hasta_fecha = Column(Numeric(15, 2), nullable=False)
+    valor_en_libros = Column(Numeric(15, 2), nullable=False) # (valor_costo - depreciacion_acumulada_hasta_fecha)
+    
+    # Vinculo con la contabilidad del tenant
+    partida_id = Column(UUID(as_uuid=True), ForeignKey("partidas.id"), nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relaciones
+    empresa = relationship("Empresa")
+    activo = relationship("ActivoFijo", back_populates="historial_depreciacion")
+    partida = relationship("Partida")
+
+    __table_args__ = (
+        UniqueConstraint("activo_id", "anio_periodo", "mes_periodo", name="uq_depreciacion_activo_periodo"),
+        CheckConstraint("mes_periodo BETWEEN 1 AND 12", name="chk_depreciacion_mes_valido"),
+        Index("idx_depreciacion_activos_empresa_periodo", "empresa_id", "anio_periodo", "mes_periodo"),
     )

@@ -1,0 +1,57 @@
+# docker-compose.yml (en la raiz del proyecto)
+version: '3.8'
+
+services:
+  # Base de datos (opcional para local, en Oracle podrias usar una externa o esta misma)
+  db:
+    image: postgres:15-alpine
+    container_name: fastconta-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: fastconta
+      POSTGRES_USER: fastconta_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-cambiar_en_produccion}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432" # Puerto 5433 para no chocar con tu ERPNext/Wagtail local
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fastconta_user -d fastconta"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Contenedor 1: Backend FastAPI
+  backend:
+    build: 
+      context: ./app/backend
+      dockerfile: Dockerfile
+    container_name: fastconta-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg2://fastconta_user:${DB_PASSWORD:-cambiar_en_produccion}@db:5432/fastconta
+      SECRET_KEY: ${SECRET_KEY:-cambiar_en_produccion}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8001:8001"
+    volumes:
+      # Solo para desarrollo local: hot-reload del codigo
+      - ./app/backend:/app
+
+  # Contenedor 2: Frontend Vue + Nginx
+  frontend:
+    build:
+      context: ./app/frontend
+      dockerfile: Dockerfile
+    container_name: fastconta-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80" # Accede via http://localhost:3000
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

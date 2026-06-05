@@ -98,12 +98,6 @@ class TipoLibro(Base):
     codigo = Column(String(50), nullable=False)
     nombre = Column(String(255), nullable=False, unique=True)
 
-class RegimenFiscal(Base):
-    __tablename__ = "regimenes_fiscales"
-    __table_args__ = {"schema": "public"}
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    nombre = Column(String(100), nullable=False)
-
 class EstadoLibro(Base):
     __tablename__ = "estados_libro"
     __table_args__ = {"schema": "public"}
@@ -234,6 +228,9 @@ class CategoriaActivoFijo(Base):
     
     # Nombre del tipo de activo (Ej: "Vehiculos", "Equipo de Computo", "Edificios")
     nombre = Column(String(100), nullable=False, unique=True)
+
+    # ✅ NUEVO CAMPO: Descripción legal basada en la Ley de ISR / Decreto 10-2012
+    descripcion = Column(Text, nullable=True) 
     
     # Porcentajes anuales segun limites de la SAT (Decreto 10-2012 y AG 142-2013)
     # Se almacenan como decimales (Ej: 20.00 para 20%)
@@ -247,3 +244,88 @@ class CategoriaActivoFijo(Base):
     __table_args__ = (
         CheckConstraint("tasa_maxima_anual >= tasa_minima_anual", name="chk_categoria_tasa_valida"),
     )
+
+#------------------------------------------------------
+# Catálogos Motor Tributario
+#------------------------------------------------------
+
+class RegimenFiscal(Base):
+    __tablename__ = "regimenes_fiscales"
+    __table_args__ = {"schema": "public"}
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    codigo = Column(String(50), unique=True, nullable=False, index=True) # Ej: 'PC_FEL', 'RG_UTILIDADES', 'ROS'
+    nombre = Column(String(100), nullable=False) # Ej: 'Pequeno Contribuyente Electronico (FEL)'
+    descripcion = Column(Text, nullable=True) # Ej: 'Art. 45 Dec. 10-2012. 4% mensual. No genera credito fiscal.'
+    is_active = Column(Boolean, default=True, nullable=False)
+    
+    # Relacion con la tabla puente
+    configuraciones_impuestos = relationship(
+        "RegimenImpuestoConfig", 
+        back_populates="regimen", 
+        cascade="all, delete-orphan"
+    )
+
+
+class CatalogoImpuesto(Base):
+    __tablename__ = "catalogo_impuestos"
+    __table_args__ = {"schema": "public"}
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Identificacion
+    codigo = Column(String(20), unique=True, nullable=False, index=True) # Ej: 'IVA', 'ISR_RG', 'ISR_ROS_1', 'ISO'
+    nombre = Column(String(100), nullable=False) # Ej: 'Impuesto sobre la Renta - Regimen General'
+    descripcion = Column(Text, nullable=False) # Ej: 'Art. 36 Ley 26-92. 25% sobre utilidades netas. Pagos trimestrales.'
+    
+    # Parametros de Calculo (Soporta tramos progresivos)
+    tasa_porcentaje = Column(Numeric(5, 2), nullable=True) # Ej: 25.00, 5.00, 1.00 (NULL si es monto fijo puro)
+    tasa_fija_monto = Column(Numeric(15, 2), nullable=True, server_default='0.00') # Ej: 1500.00 (para ROS > 30k)
+    
+    # Limites del tramo (Para impuestos progresivos como el ROS)
+    limite_inferior = Column(Numeric(15, 2), nullable=True, server_default='0.00') # Ej: 30000.01
+    limite_superior = Column(Numeric(15, 2), nullable=True) # Ej: NULL (infinito)
+    
+    # Frecuencias y Reglas Fiscales
+    frecuencia_pago = Column(String(20), nullable=False) # 'MENSUAL', 'TRIMESTRAL', 'ANUAL'
+    frecuencia_liquidacion = Column(String(20), nullable=False) # 'MENSUAL', 'TRIMESTRAL', 'ANUAL'
+    
+    # Reglas Especiales SAT
+    es_acreditable = Column(Boolean, default=False, nullable=False) # Ej: True para ISO (acreditable contra ISR)
+    requiere_autorizacion_sat = Column(Boolean, default=False, nullable=False) # Ej: True para ROS pago directo
+    
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class RegimenImpuestoConfig(Base):
+    __tablename__ = "regimen_impuesto_config"
+    __table_args__ = (
+        # Un regimen solo puede tener UNA configuracion por tipo de impuesto
+        UniqueConstraint('regimen_id', 'impuesto_id', name='uq_regimen_impuesto_unico'),
+        {"schema": "public"},
+    )
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Llaves foraneas
+    regimen_id = Column(UUID(as_uuid=True), ForeignKey("public.regimenes_fiscales.id"), nullable=False, index=True)
+    impuesto_id = Column(UUID(as_uuid=True), ForeignKey("public.catalogo_impuestos.id"), nullable=False, index=True)
+    
+    # Parametros de calculo ESPECIFICOS para esta combinacion Regimen + Impuesto
+    # (Si son NULL, el sistema puede heredar los valores base del CatalogoImpuesto)
+    tasa_porcentaje = Column(Numeric(5, 2), nullable=True) # Ej: 4.00 para PC FEL, 25.00 para RG
+    tasa_fija_monto = Column(Numeric(15, 2), nullable=True, server_default='0.00') # Ej: 1500.00 para ROS > 30k
+    
+    limite_inferior = Column(Numeric(15, 2), nullable=True, server_default='0.00') # Ej: 30000.01
+    limite_superior = Column(Numeric(15, 2), nullable=True) # Ej: 300000.00 (Limite anual PC)
+    
+    # Banderas de comportamiento fiscal (CRITICAS para la logica de negocio)
+    es_acreditable = Column(Boolean, default=False, nullable=False) # ¿Genera credito fiscal para el comprador? (Falso para PC)
+    es_retencion_definitiva = Column(Boolean, default=False, nullable=False) # ¿El pago es definitivo? (Verdadero para PC)
+    requiere_autorizacion_sat = Column(Boolean, default=False, nullable=False) # Ej: ROS con pago directo
+    
+    # Relaciones
+    regimen = relationship("RegimenFiscal", back_populates="configuraciones_impuestos")
+    impuesto = relationship("CatalogoImpuesto")
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

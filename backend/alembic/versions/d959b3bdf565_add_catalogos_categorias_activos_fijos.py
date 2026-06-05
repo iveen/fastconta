@@ -1,7 +1,7 @@
 """add_modelos_activos_fijos (Raw SQL)
 
-Revision ID: 773aab3dc84c
-Revises: fa5c063af104
+Revision ID: d959b3bdf565
+Revises: c46f6e9c812f
 Create Date: 2026-06-03 12:36:19.239825
 """
 import os
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '773aab3dc84c'
-down_revision: Union[str, None] = 'fa5c063af104'
+revision: str = 'd959b3bdf565'
+down_revision: Union[str, None] = 'c46f6e9c812f'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

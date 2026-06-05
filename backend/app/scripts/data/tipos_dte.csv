@@ -1,0 +1,26 @@
+"id","codigo","descripcion","requiere_complemento","es_factura","activo","created_at","updated_at"
+"005e9648-def2-487b-8d90-92187eccad4d","RDON","Recibo de Donación",False,False,True,"2026-05-25 17:49:34.663035-05",NULL
+"0dc15650-fdfd-471a-9c7c-882f7e17c7f8","FCCA","Factura Cambiaria Contribuyente Agropecuario",False,True,True,"2026-05-25 17:49:34.663035-05",NULL
+"122a101e-cbb6-4f97-b40e-19a09040cf53","NABN","Nota de Abono",True,False,True,"2026-05-25 17:49:34.663035-05",NULL
+"32b86792-a844-41fd-92ac-82867c14f1a5","FAAE","Factura Agropecuario Régimen Electrónico Especial",False,True,True,"2026-05-25 17:49:34.663035-05",NULL
+"39bf2188-f8d7-4cf1-b9c3-aac00e0ed655","FCAM","Factura Cambiaria",False,True,True,"2026-05-25 17:49:34.663035-05",NULL
+"4184bce0-c4e0-49ba-a24a-cb090d3b1de9","FACP","Factura Provisional",False,True,True,"2026-05-25 17:49:34.663035-05",NULL
+"4801f174-852d-4f3f-9b86-bb4901d33eb8","FCAP","Factura Cambiaria Pequeño Contribuyente",False,True,True,"2026-05-25 17:49:34.663035-05",NULL
+"4db0c63f-0447-488f-a6e5-0794125ed7b0","FEPE","Factura Específica",False,True,True,"2026-05-25 17:49:34.663035-05",NULL
+"4fdce325-3728-45c0-8de8-55784e7652ff","NDEB","Nota de Débito",True,False,True,"2026-05-25 17:49:34.663035-05",NULL
+"57b8b650-d4b8-44d8-8181-06acc4fa9e2f","NEV","Nota de Envío",False,False,True,"2026-05-25 17:49:34.663035-05",NULL
+"64dfa2b4-aa8c-494a-9558-72796eedfe11","FESP","Factura Especial",True,True,True,"2026-05-25 17:49:34.663035-05",NULL
+"66460a67-d302-4210-828f-7f8ca3923123","NCRE","Nota de Crédito",True,False,True,"2026-05-25 17:49:34.663035-05",NULL
+"76703d02-7906-4033-a0a0-600eea47f557","CAIS","Constancia de Adquisición de Insumos y Servicios",False,False,True,"2026-05-25 17:49:34.663035-05",NULL
+"9337eb93-d739-4e92-af7f-d203fba0d20c","FCRP","Factura Cambiaria Contribuyente Régimen Primario",False,True,True,"2026-05-25 17:49:34.663035-05",NULL
+"ab55f73c-f48c-4a24-9219-244ca33dc77e","FCAE","Factura Cambiaria Agropecuario Régimen Electrónico Especial",False,True,True,"2026-05-25 17:49:34.663035-05",NULL
+"b7ee9ee1-afb9-4c6a-95f0-6df77e2dd84d","FPEC","Factura Contribuyente Régimen Pecuario",False,True,True,"2026-05-25 17:49:34.663035-05",NULL
+"bdee7ca9-1865-470b-bbb1-820e1d533416","FCPC","Factura Cambiaria Contribuyente Régimen Pecuario",False,True,True,"2026-05-25 17:49:34.663035-05",NULL
+"be277bcb-ad87-4f08-929e-6903b36877a2","FACT","Factura Electrónica",False,True,True,"2026-05-25 17:49:34.663035-05",NULL
+"c6f14694-f7fc-42db-ba3c-6deafc6ad810","RECI","Recibo",False,False,True,"2026-05-25 17:49:34.663035-05",NULL
+"c8da2443-c579-41e0-800a-7fec8d5df389","RANT","Recibo de Anticipo",False,False,True,"2026-05-25 17:49:34.663035-05",NULL
+"cae4ec31-2574-489e-ae72-256f4c4bc174","CIVA","Constancia de Exención de IVA",False,False,True,"2026-05-25 17:49:34.663035-05",NULL
+"dfecc81c-83fd-4da2-893d-adba096a1954","FACA","Factura Contribuyente Agropecuario",False,True,True,"2026-05-25 17:49:34.663035-05",NULL
+"e2ce06de-e6ac-4fc1-ad96-4c1a12203b28","FAPE","Factura Pequeño Contribuyente Régimen Electrónico",False,True,True,"2026-05-25 17:49:34.663035-05",NULL
+"f0298ae0-25b1-4991-aba7-4963d1379ab2","FPEQ","Factura Pequeño Contribuyente",False,True,True,"2026-05-25 17:49:34.663035-05",NULL
+"f16f22a3-0492-412d-901d-81b1f3084a17","FARP","Factura Contribuyente Régimen Primario",False,True,True,"2026-05-25 17:49:34.663035-05",NULL

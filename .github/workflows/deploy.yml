@@ -1,0 +1,43 @@
+# .github/workflows/deploy.yml
+name: CD - Despliegue a Oracle Cloud
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Desplegar a produccion
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
+
+      - name: Desplegar via SSH a Oracle Cloud
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          script: |
+            # 1. Ir al directorio del proyecto (ajusta la ruta si es diferente)
+            cd ~/fastconta || git clone ${{ github.server_url }}/${{ github.repository }} ~/fastconta && cd ~/fastconta
+            
+            # 2. Obtener los ultimos cambios
+            git pull origin main
+            
+            # 3. Copiar archivo .env de produccion (asegurate de tenerlo en el servidor)
+            # cp ~/fastconta-env .env 
+            
+            # 4. Construir y levantar los contenedores (Detiene los anteriores automaticamente)
+            docker compose down
+            docker compose build --no-cache
+            docker compose up -d
+            
+            # 5. Limpiar imagenes viejas para ahorrar espacio en Oracle Free Tier
+            docker image prune -f
+            docker system df
+            
+            # 6. Verificar que todo este corriendo
+            docker compose ps

@@ -1,0 +1,16 @@
+"id","codigo_banguat","codigo_iso","nombre","simbolo","decimales","activo","created_at","updated_at"
+"14bd0ac5-8882-478d-9fd5-da2db0177fa7","03","JPY","Yen","¥",0,True,"2026-05-25 17:49:34.663035-05",NULL
+"25128bc4-2c26-476d-ad21-4322fb9d991e","05","CHF","Franco Suizo","CHF",2,True,"2026-05-25 17:49:34.663035-05",NULL
+"475b3b65-1915-4a86-8a01-4e1f22da4b48","07","CAD","Dólar Canadiense","C$",2,True,"2026-05-25 17:49:34.663035-05",NULL
+"49105589-e659-4cd6-a803-aa463c77a496","09","GBP","Libra Esterlina","£",2,True,"2026-05-25 17:49:34.663035-05",NULL
+"507e8dd4-f227-4355-83c5-4083ab1b2d1c","18","MXN","Peso Mexicano","$",2,True,"2026-05-25 17:49:34.663035-05",NULL
+"6b73a473-3912-42c7-92f9-62b7a9e0cb4c","27","AUD","Dólar Australiano","A$",2,True,"2026-05-25 17:49:34.663035-05",NULL
+"946737dc-dcba-4715-9f63-8988157a0dce","01","GTQ","Quetzal","Q",2,True,"2026-05-25 17:49:34.663035-05",NULL
+"9b878325-aef7-4755-abad-f26a7b1b9f04","15","SEK","Corona Sueca","kr",2,True,"2026-05-25 17:49:34.663035-05",NULL
+"a7bbe539-44b0-4e42-b0c5-882f91128ffc","02","USD","Dólar Estadounidense","$",2,True,"2026-05-25 17:49:34.663035-05",NULL
+"d3595443-db8c-4ab6-869e-c2b495bd9472","20","DKK","Corona Danesa","kr",2,True,"2026-05-25 17:49:34.663035-05",NULL
+"d5469cdb-e68b-4b15-8810-875f5ccb0c46","19","HNL","Lempira","L",2,True,"2026-05-25 17:49:34.663035-05",NULL
+"d72929ff-7ad0-4da9-8115-2fbab2b9a0a1","22","VED","Bolívar Soberano","Bs",2,True,"2026-05-25 17:49:34.663035-05",NULL
+"e18da9d7-3f32-40bd-bf89-adcc7e71ba88","28","EUR","Euro","€",2,True,"2026-05-25 17:49:34.663035-05",NULL
+"e63f01b5-d7fe-4f1d-80a4-07c6e5eaa832","16","CRC","Colón Costarricense","₡",2,True,"2026-05-25 17:49:34.663035-05",NULL
+"fd208ade-6fdb-41d9-8901-99b0bdc4e325","21","NIO","Córdoba Oro","C$",2,True,"2026-05-25 17:49:34.663035-05",NULL

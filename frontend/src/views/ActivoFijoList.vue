@@ -106,19 +106,30 @@
         </div>
       </div>
     </div>
+    <!-- Modal de Procesamiento de Depreciación Mensual -->
+    <ProcesarDepreciacionModal
+      :is-open="modalDepreciacionAbierto"
+      :empresa-id="empresaSeleccionadaId"
+      :nombre-empresa="nombreEmpresaActual"
+      @close="modalDepreciacionAbierto = false"
+      @success="activosStore.fetchActivos(empresaSeleccionadaId)"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useActivosFijosStore } from '@/stores/activosFijos'
 import api from '@/services/api'
+import ProcesarDepreciacionModal from '../components/ActivosFijos/ProcesarDepreciacionModal.vue'
 
+const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const activosStore = useActivosFijosStore()
+const modalDepreciacionAbierto = ref(false)
 
 const tenants = ref([])
 const selectedTenantId = ref('')
@@ -187,6 +198,9 @@ onMounted(async () => {
   await activosStore.fetchCategorias()
   await fetchTenants()
   await cargarEmpresas()
+  if (route.query.empresa_id) {
+    empresaSeleccionadaId.value = route.query.empresa_id
+  }
 })
 
 const formatMoney = (value) => {
@@ -222,7 +236,10 @@ const editarActivo = (id) => router.push({ name: 'ActivosFijosEditar', params: {
 const verProyeccion = (id) => router.push({ name: 'ActivosFijosProyeccion', params: { id }, query: { empresa_id: empresaSeleccionadaId.value } })
 
 const abrirModalDepreciacion = () => {
-  // Aquí iría la lógica para abrir un modal de confirmación de mes/año
-  alert('Funcionalidad de modal de depreciacion mensual (Pendiente de implementar)')
+  if (!empresaSeleccionadaId.value) {
+    alert("Seleccione una empresa primero.")
+    return
+  }
+  modalDepreciacionAbierto.value = true
 }
 </script>

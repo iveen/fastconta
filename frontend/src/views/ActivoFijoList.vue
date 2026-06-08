@@ -124,6 +124,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useActivosFijosStore } from '@/stores/activosFijos'
 import api from '@/services/api'
 import ProcesarDepreciacionModal from '../components/ActivosFijos/ProcesarDepreciacionModal.vue'
+import { toast } from 'vue3-toastify'
 
 const route = useRoute()
 const router = useRouter()
@@ -223,7 +224,7 @@ const getEstadoBadgeClass = (estado) => {
 
 const irACrear = () => {
   if (!empresaSeleccionadaId.value) {
-    alert("Por favor, seleccione una empresa primero.")
+    toast.warning("Por favor, seleccione una empresa primero.")
     return
   }
   router.push({ 
@@ -237,7 +238,7 @@ const verProyeccion = (id) => router.push({ name: 'ActivosFijosProyeccion', para
 
 const abrirModalDepreciacion = () => {
   if (!empresaSeleccionadaId.value) {
-    alert("Seleccione una empresa primero.")
+    toast.warning("Seleccione una empresa primero.")
     return
   }
   modalDepreciacionAbierto.value = true

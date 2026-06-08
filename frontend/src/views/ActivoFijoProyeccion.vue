@@ -77,8 +77,13 @@
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 text-right font-mono">Q {{ formatMoney(fila.valor_en_libros) }}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-center">
                   <span v-if="fila.valor_en_libros <= store.proyeccion.valor_residual" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-200 text-gray-800">Totalmente Depreciado</span>
-                  <span v-else-if="fila.es_historico" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Historico</span>
-                  <span v-else class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">Proyectado</span>
+                </td>
+                <td class="px-4 py-2 text-xs text-gray-600">
+                  <span v-if="fila.nota" class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full">
+                    {{ fila.nota }}
+                  </span>
+                  <span v-else-if="fila.es_historico" class="text-blue-600">Histórico</span>
+                  <span v-else class="text-gray-400">Proyectado</span>
                 </td>
               </tr>
             </tbody>

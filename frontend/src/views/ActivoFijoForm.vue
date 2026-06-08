@@ -151,6 +151,7 @@ import { useActivosFijosStore } from '@/stores/activosFijos'
 import { planCuentasService } from '@/services/planCuentasService' // ✅ Sin espacio
 import { activosFijosService } from '@/services/activosFijosService'
 import api from '@/services/api'
+import { toast } from 'vue3-toastify' 
 
 const route = useRoute()
 const router = useRouter()
@@ -243,7 +244,7 @@ onMounted(async () => {
       }
     } catch (err) {
       console.error('Error cargando activo:', err)
-      alert('No se pudo cargar el activo')
+      toast.error('No se pudo cargar el activo')
       router.back()
     }
   }
@@ -265,17 +266,17 @@ const guardarActivo = async () => {
   
   // Validaciones básicas
   if (!form.value.categoria_id) {
-    alert('Debe seleccionar una categoría')
+    toast.warning('Debe seleccionar una categoría')
     return
   }
   if (!form.value.codigo_interno) {
-    alert('El código interno es requerido')
+    toast.warning('El código interno es requerido')
     return
   }
   
   const empresaId = route.query.empresa_id
   if (!empresaId) {
-    alert('Error: No se identificó la empresa.')
+    toast.error('Error: No se identificó la empresa.')
     return
   }
 
@@ -293,12 +294,12 @@ const guardarActivo = async () => {
         route.params.id, 
         form.value
       )
-      alert('Activo actualizado exitosamente')
+      toast.success('Activo actualizado exitosamente')
     } else {
       // 🔹 MODO CREACIÓN: Llamar a crearActivo
       console.log('➕ [DEBUG] Modo creación - Creando nuevo activo')
       response = await activosFijosService.crearActivo(empresaId, form.value)
-      alert('Activo creado exitosamente')
+      toast.success('Activo creado exitosamente')
     }
     
     console.log('✅ [DEBUG] Respuesta del backend:', response.data)
@@ -312,7 +313,7 @@ const guardarActivo = async () => {
   } catch (err) {
     console.error('❌ [DEBUG] Error:', err)
     console.error('❌ [DEBUG] Response data:', err.response?.data)
-    alert('Error: ' + (err.response?.data?.detail || 'No se pudo guardar el activo'))
+    toast.error('Error: ' + (err.response?.data?.detail || 'No se pudo guardar el activo'))
   } finally {
     cargando.value = false
   }

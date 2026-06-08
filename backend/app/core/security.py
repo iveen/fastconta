@@ -126,3 +126,4 @@ def require_write_access(scope: DataScope = Depends(get_data_scope)):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Acceso denegado: tu rol es de solo visualización.")
     return scope
 
+

@@ -15,6 +15,7 @@ import FacturaDetalle from '@/views/FacturaDetalle.vue'
 import Usuarios from '@/views/Usuarios.vue'
 import ActivoFijoList from '@/views/ActivoFijoList.vue'
 import ActivoFijoForm from '@/views/ActivoFijoForm.vue'
+import ActivoFijoProyeccion from '@/views/ActivoFijoProyeccion.vue'
 
 const routes = [
   { path: '/', redirect: '/login' },
@@ -39,7 +40,30 @@ const routes = [
       { path: 'usuarios', name: 'Usuarios', component: Usuarios},
       { path: 'activos-fijos', name:"Activos Fijos", component: ActivoFijoList, meta: { requiresAuth: true} },
       { path: '/dashboard/activos-fijos/nuevo', name: 'ActivosFijosCrear', component: ActivoFijoForm, meta: { requiresAuth: true } },
-      { path: '/dashboard/activos-fijos/editar:id', name: 'ActivosFijosEditar', component: ActivoFijoForm, meta: { requiresAuth: true } }
+      { 
+        path: 'activos-fijos', 
+        name: "Activos Fijos", 
+        component: ActivoFijoList, 
+        meta: { requiresAuth: true } 
+      },
+      { 
+        path: 'activos-fijos/nuevo', 
+        name: 'ActivosFijosCrear', 
+        component: ActivoFijoForm, 
+        meta: { requiresAuth: true } 
+      },
+      { 
+        path: 'activos-fijos/editar/:id', 
+        name: 'ActivosFijosEditar', 
+        component: ActivoFijoForm, 
+        meta: { requiresAuth: true } 
+      },
+      { 
+        path: 'activos-fijos/:id/proyeccion', 
+        name: 'ActivosFijosProyeccion', 
+        component: ActivoFijoProyeccion, 
+        meta: { requiresAuth: true } 
+      }
     ]
   }
 ]

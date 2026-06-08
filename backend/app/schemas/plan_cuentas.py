@@ -38,3 +38,13 @@ class CuentaOut(BaseModel):
     cuenta_padre_id: UUID | None = None
     activa: bool
     created_at: datetime
+
+
+class CuentaContableResponse(BaseModel):
+    id: UUID
+    codigo: str
+    nombre: str
+    tipo: str | None = None  # 'activo', 'pasivo', 'patrimonio', 'ingreso', 'gasto'
+    
+    class Config:
+        from_attributes = True

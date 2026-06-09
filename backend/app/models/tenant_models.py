@@ -13,7 +13,6 @@ from sqlalchemy import (
     Index,
     Integer,
     Numeric,
-    Sequence,
     SmallInteger,
     String,
     Text,
@@ -59,6 +58,20 @@ class Empresa(Base):
     tipo_persona_id = Column(UUID, ForeignKey('public.tipos_persona.id'), nullable=True)
     actividad_economica_id = Column(UUID, ForeignKey('public.actividades_economicas_sat.id'), nullable=True)
 
+    cuenta_utilidad_periodo_id = Column(
+        UUID(as_uuid=True), 
+        ForeignKey("plan_cuentas.id"), 
+        nullable=True,
+        comment="Cuenta de Patrimonio donde se registra el resultado del ejercicio actual"
+    )
+
+    cuenta_utilidades_acumuladas_id = Column(
+        UUID(as_uuid=True), 
+        ForeignKey("plan_cuentas.id"), 
+        nullable=True,
+        comment="Cuenta de Patrimonio donde se acumulan los resultados de ejercicios anteriores"
+    )
+
     # Gestión de Fechas y Estado
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_active = Column(Boolean, default=True)
@@ -75,10 +88,23 @@ class Empresa(Base):
         back_populates="empresa", 
         cascade="all, delete-orphan"
     )
+
     domicilios = relationship(
         "Domicilio",
         back_populates="empresa",
         cascade="all, delete-orphan"
+    )
+
+    cuenta_utilidad_periodo = relationship(
+        "CuentaContable", 
+        foreign_keys=[cuenta_utilidad_periodo_id],
+        lazy="select"
+    )
+
+    cuenta_utilidades_acumuladas = relationship(
+        "CuentaContable", 
+        foreign_keys=[cuenta_utilidades_acumuladas_id],
+        lazy="select"
     )
     tenant = relationship("Tenant", back_populates="empresas")
 
@@ -146,18 +172,19 @@ class CuentaContable(Base):
     activa = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False)
-    empresa = relationship("Empresa")
+    empresa = relationship("Empresa", foreign_keys=[empresa_id])
 
 class Partida(Base):
     __tablename__ = "partidas"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    numero = Column(Integer, Sequence('partidas_numero_seq'), unique=True, nullable=False)
+    # numero = Column(Integer, Sequence('partidas_numero_seq'), unique=True, nullable=False)
     numero_poliza = Column(String(50), nullable=True)
     fecha = Column(Date, nullable=False)
     descripcion = Column(Text, nullable=False)
     empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    is_active = Column(Boolean, default=True, nullable=False)
 
     empresa = relationship("Empresa")
     detalles = relationship("DetallePartida", back_populates="partida", cascade="all, delete-orphan")
@@ -170,6 +197,7 @@ class DetallePartida(Base):
     cuenta_id = Column(UUID(as_uuid=True), ForeignKey("plan_cuentas.id"), nullable=False)
     tipo_movimiento = Column(String(10), nullable=False)  # "debe" o "haber"
     monto = Column(Numeric(12, 2), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
 
     # Relaciones
     partida = relationship("Partida", back_populates="detalles")

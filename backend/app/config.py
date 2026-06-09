@@ -1,5 +1,10 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import sys
+from pathlib import Path
+
 from pydantic import ValidationError
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 class Settings(BaseSettings):
     DATABASE_HOST: str

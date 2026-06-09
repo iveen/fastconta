@@ -141,7 +141,7 @@ const ejecutarCierre = async () => {
       params.tenant_id = selectedTenantId.value
     }
     const resp = await api.post('/cierre/cierre-anual', null, { params })
-    exito.value = resp.data.mensaje + '. Utilidad neta: ' + resp.data.utilidad_neta
+    exito.value = resp.data.mensaje + '. Utilidad neta: ' + resp.data.utilidad_neta_periodo
     await cargarPeriodos()
   } catch (err) {
     error.value = err.response?.data?.detail || 'Error al ejecutar el cierre'

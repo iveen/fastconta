@@ -105,6 +105,7 @@
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Inicio</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha Fin</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
@@ -116,6 +117,28 @@
                 <span :class="per.cerrado ? 'text-red-600' : 'text-green-600'">
                   {{ per.cerrado ? 'Cerrado' : 'Abierto' }}
                 </span>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                <button
+                  v-if="per.cerrado && puedeRevertirCierre"
+                  @click="revertirCierre(per.id, per.empresa_id)"
+                  :disabled="cargando"
+                  class="text-orange-600 hover:text-orange-800 font-medium text-xs border border-orange-300 rounded px-3 py-1.5 hover:bg-orange-50 transition disabled:opacity-50 flex items-center gap-1"
+                  title="Revertir cierre (Solo Admin/Superadmin)"
+                >
+                <span>🔄</span> Revertir Cierre
+                </button>
+                
+                <!-- Mensaje para usuarios sin permisos -->
+                <span 
+                  v-else-if="per.cerrado && !puedeRevertirCierre" 
+                  class="text-gray-400 text-xs italic flex items-center gap-1"
+                  title="Solo el Administrador de la Firma o el Superadmin pueden realizar esta acción"
+                >
+                  🔒 Solo Administradores
+                </span>
+                
+                <span v-else class="text-gray-400 text-xs">-</span>
               </td>
             </tr>
           </tbody>
@@ -225,6 +248,63 @@ const crearPeriodo = async () => {
     await cargarPeriodos()
   } catch (err) {
     error.value = err.response?.data?.detail || 'Error al crear período'
+  } finally {
+    cargando.value = false
+  }
+}
+
+const puedeRevertirCierre = computed(() => {
+  // Intentamos varias rutas comunes donde suele guardarse el rol
+  const user = authStore.user || authStore.usuario || {}
+  const role = user.role || user.rol || {}
+  const roleCode = role.codigo || role.code || authStore.roleCode || authStore.rol
+  
+  // Comparamos en minúsculas para evitar problemas de mayúsculas/minúsculas
+  const codigoLimpio = String(role || '').toLowerCase().trim()
+  
+  return codigoLimpio === 'superadmin' || codigoLimpio === 'tenant_manager'
+})
+
+const revertirCierre = async (periodoId, empresaId) => {
+  if (!puedeRevertirCierre.value) {
+    error.value = "⛔ No tienes permisos para revertir un cierre contable."
+    return
+  }
+
+  if (!empresaId) {
+    error.value = "Error: No se pudo identificar la empresa del período."
+    return
+  }
+
+  if (!confirm(`⚠️ ADVERTENCIA: ¿Está seguro de revertir el cierre del período?
+  
+Se creará una nueva póliza de reversión (REV-Año) que contrarrestará los movimientos del cierre original.
+El período quedará abierto para nuevas modificaciones.`)) {
+    return
+  }
+
+  cargando.value = true
+  error.value = ''
+  exito.value = ''
+
+  try {
+    const params = {
+      empresa_id: empresaId,
+      periodo_id: periodoId
+    }
+    if (authStore.isSuperAdmin && selectedTenantId.value) {
+      params.tenant_id = selectedTenantId.value
+    }
+
+    const resp = await api.post('/cierre/revertir-cierre', null, { params })
+
+    exito.value = `✅ ${resp.data.mensaje}\n` +
+                  `📝 Póliza de reversión: ${resp.data.poliza_reversion}\n` +
+                  `🔄 Se contrarrestaron ${resp.data.total_lineas_revertidas} líneas de las pólizas: ${resp.data.partidas_contrarrestadas.join(', ')}`
+    
+    await cargarPeriodos()
+  } catch (err) {
+    error.value = formatFastApiError(err)
   } finally {
     cargando.value = false
   }

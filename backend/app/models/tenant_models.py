@@ -186,6 +186,12 @@ class Partida(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_active = Column(Boolean, default=True, nullable=False)
 
+    # Reversion
+    fue_revertida = Column(Boolean, default=False)
+    partida_reversion_id = Column(UUID(as_uuid=True), ForeignKey("partidas.id"), nullable=True)
+
+    tipo_origen = Column(String(50), default='manual', nullable=False)
+
     empresa = relationship("Empresa")
     detalles = relationship("DetallePartida", back_populates="partida", cascade="all, delete-orphan")
 

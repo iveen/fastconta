@@ -64,6 +64,9 @@ class PartidaOut(BaseModel):
     descripcion: str
     empresa_nombre: str | None = ""
     created_at: datetime
+    is_active: bool = True
+    fue_revertida: bool = False 
+    tipo_origen: str = 'manual'
     detalles: List[DetallePartidaOut]
 
 class LineaLibroDiario(BaseModel):
@@ -76,3 +79,6 @@ class LineaLibroDiario(BaseModel):
     cuenta_nombre: str
     tipo_movimiento: str
     monto: Decimal
+
+class ReversionPayload(BaseModel):
+    fecha_reversion: date | None = None

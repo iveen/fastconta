@@ -2,10 +2,11 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import DataScope, get_data_scope
+from app.core.tenant_utils import set_tenant_search_path
 from app.db.session import get_public_db
 from app.models.global_models import TipoLibro
 from app.schemas.sat_libros import (
@@ -22,40 +23,6 @@ from app.services.sat_libros_service import (
 router = APIRouter()
 
 # ==========================================
-# Helper: Configurar search_path según rol
-# ==========================================
-async def _set_schema_for_query(db: AsyncSession, scope: DataScope, tenant_id: str | None = None):
-    """Configura el search_path correcto según el rol del usuario."""
-    schema_name = None
-    
-    if scope.role_code == "superadmin":
-        if not tenant_id:
-            raise HTTPException(400, detail="Superadmin debe especificar un tenant_id")
-        res = await db.execute(
-            text("SELECT schema_name FROM public.tenants WHERE id = :tid"), 
-            {"tid": tenant_id}
-        )
-        row = res.first()
-        if not row:
-            raise HTTPException(404, detail="Tenant no encontrado")
-        schema_name = row[0]
-    else:
-        res = await db.execute(
-            text("SELECT schema_name FROM public.tenants WHERE id = :tid"), 
-            {"tid": str(scope.tenant_id)}
-        )
-        row = res.first()
-        if not row:
-            raise HTTPException(404, detail="Tenant no encontrado")
-        schema_name = row[0]
-
-    if not schema_name.replace("_", "").isalnum():
-        raise HTTPException(500, detail="Schema con formato inválido")
-
-    await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
-    return schema_name
-
-# ==========================================
 # 1. Generar Libro IVA
 # ==========================================
 @router.post("/generar", response_model=SatLibroResponse, status_code=status.HTTP_201_CREATED)
@@ -65,7 +32,7 @@ async def generar_libro_iva(
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_public_db)
 ):
-    await _set_schema_for_query(db, scope, tenant_id)
+    await set_tenant_search_path(db, scope, tenant_id)
     return await procesar_y_generar_libro_sat(db=db, payload=payload)
 
 # ==========================================
@@ -81,7 +48,7 @@ async def consultar_libro_iva(
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_public_db)
 ):
-    await _set_schema_for_query(db, scope, tenant_id)
+    await set_tenant_search_path(db, scope, tenant_id)
 
         # 1. Resolver el código del tipo de libro a su UUID
     # Asumimos que en tu tabla TipoLibro tienes registros con codigo='compras' y codigo='ventas'
@@ -121,7 +88,7 @@ async def cerrar_libro_iva(
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_public_db)
 ):
-    await _set_schema_for_query(db, scope, tenant_id)
+    await set_tenant_search_path(db, scope, tenant_id)
     
     user_info = db.info.get("current_user") or {}
     usuario_id = user_info.get("sub")

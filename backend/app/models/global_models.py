@@ -237,6 +237,7 @@ class CategoriaActivoFijo(Base):
     tasa_minima_anual = Column(Numeric(5, 2), nullable=False, server_default="0.00")
     tasa_maxima_anual = Column(Numeric(5, 2), nullable=False)
     vida_util_meses_default = Column(Integer, nullable=False)
+    codigo_prefijo = Column(String(10), nullable=False, unique=True, index=True, comment="Prefijo para código interno (ej: VEH, COMP)")
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_active = Column(Boolean, default=True)

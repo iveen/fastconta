@@ -14,6 +14,7 @@ class CategoriaActivoFijoBase(BaseModel):
     tasa_minima_anual: Decimal = Field(..., ge=0, le=100, description="Tasa minima anual permitida")
     tasa_maxima_anual: Decimal = Field(..., ge=0, le=100, description="Tasa maxima anual permitida (limite SAT)")
     vida_util_meses_default: int = Field(..., gt=0, description="Vida util en meses por defecto")
+    codigo_prefijo: str
     is_active: bool = True
 
 class CategoriaActivoFijoCreate(CategoriaActivoFijoBase):
@@ -134,6 +135,9 @@ class TablaDepreciacionProyectadaItem(BaseModel):
     monto_depreciacion_mes: Decimal
     depreciacion_acumulada_hasta_fecha: Decimal
     valor_en_libros: Decimal
+    es_historico: bool
+    nota : str | None = None
+    model_config = ConfigDict(from_attributes=True)
 
 class TablaDepreciacionProyectadaResponse(BaseModel):
     activo_id: UUID

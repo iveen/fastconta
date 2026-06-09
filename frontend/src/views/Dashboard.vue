@@ -2,12 +2,15 @@
 <template>
   <div class="min-h-screen flex bg-gray-50">
     <!-- Sidebar -->
-    <aside class="w-64 bg-gradient-to-b from-blue-900 to-blue-800 text-white flex flex-col shadow-xl" style="background: linear-gradient(180deg, #1e3a8a 0%, #1e40af 100%);">
-      <!-- Logo -->
+    <aside class="w-64 text-white flex flex-col shadow-xl" style="background: linear-gradient(180deg, #1e3a8a 0%, #1e40af 100%);">
+      <!-- Logo combinado -->
       <div class="p-6 border-b border-blue-700">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-500 rounded-lg flex items-center justify-center shadow-md">
+          <div class="relative w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-500 rounded-lg flex items-center justify-center shadow-md flex-shrink-0">
             <BookOpen class="w-6 h-6 text-white" />
+            <div class="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-600 rounded flex items-center justify-center border-2 border-blue-900">
+              <BarChart3 class="w-3 h-3 text-white" />
+            </div>
           </div>
           <div>
             <h1 class="text-xl font-bold leading-tight text-white">FastConta</h1>
@@ -204,9 +207,9 @@ import { useRouter } from 'vue-router'
 import ToastContainer from './ToastContainer.vue'
 import {
   BookOpen,
+  BarChart3,
   Building2,
   FileText,
-  BarChart3,
   Lock,
   Calendar,
   Receipt,

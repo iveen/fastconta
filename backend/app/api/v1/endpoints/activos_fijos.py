@@ -1,11 +1,17 @@
 import uuid
+from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import Integer, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.db.session import (
-    get_db,  # Ajusta esta importación a tu estructura real de dependencias
-)
+from app.core.empresa_utils import verificar_acceso_empresa
+from app.core.security import DataScope, get_data_scope
+from app.core.tenant_utils import set_tenant_search_path
+from app.db.session import get_public_db, get_tenant_db
+from app.models.global_models import CategoriaActivoFijo
+from app.models.tenant_models import ActivoFijo
 from app.schemas.activos_fijos import (
     ActivoFijoCreate,
     ActivoFijoResponse,
@@ -17,163 +23,189 @@ from app.schemas.activos_fijos import (
 )
 from app.services import activos_fijos_service
 
-
-# ==============================================================================
-# DEPENDENCIAS DE SEGURIDAD (Placeholder)
-# ==============================================================================
-# En un entorno real, esta dependencia debe verificar que el usuario autenticado 
-# tenga permiso para acceder a la empresa_id solicitada dentro de su tenant.
-def verificar_acceso_empresa(empresa_id: uuid.UUID, db: Session = Depends(get_db)):
-    # TODO: Implementar lógica real: 
-    # 1. Obtener current_user de la request
-    # 2. Verificar que current_user.tenant_id tenga acceso a esta empresa_id
-    # 3. Si no, lanzar HTTPException(status_code=403, detail="Acceso no autorizado a esta empresa")
-    return empresa_id
-
 # ==============================================================================
 # ROUTER
 # ==============================================================================
 router = APIRouter(prefix="/activos-fijos", tags=["Activos Fijos"])
 
+# ==============================================================================
+# RUTAS ESTÁTICAS (DEBEN IR PRIMERO)
+# ==============================================================================
 
-# -----------------------------------------------------------------------------
-# 1. CATÁLOGOS GLOBALES
-# -----------------------------------------------------------------------------
-@router.get("/categorias", response_model=list[CategoriaActivoFijoResponse])
-def listar_categorias_activos(db: Session = Depends(get_db)):
-    """
-    Obtiene el catalogo global de categorias de activos fijos con sus limites de la SAT.
-    No requiere empresa_id, ya que es un catalogo compartido (esquema public).
-    """
-    # Nota: Esta consulta asume que tienes un metodo en el servicio o la haces directa aqui.
-    # Por simplicidad, la hacemos directa, filtrando solo las activas.
-    from app.models.global_models import CategoriaActivoFijo
-    
-    categorias = db.query(CategoriaActivoFijo).filter(
-        CategoriaActivoFijo.is_active == True
-    ).all()
-    
-    return categorias
-
-
-# -----------------------------------------------------------------------------
-# 2. GESTIÓN DE ACTIVOS FIJOS (CRUD)
-# -----------------------------------------------------------------------------
-@router.get("/", response_model=list[ActivoFijoResponse])
-def listar_activos(
-    empresa_id: uuid.UUID = Depends(verificar_acceso_empresa),
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db)
+@router.get("/categorias", response_model=List[CategoriaActivoFijoResponse])
+async def listar_categorias_activos(
+    db: AsyncSession = Depends(get_public_db)
 ):
-    """Lista los activos fijos registrados para una empresa especifica."""
-    from app.models.tenant_models import ActivoFijo
-    
-    activos = db.query(ActivoFijo).filter(
-        ActivoFijo.empresa_id == empresa_id
-    ).offset(skip).limit(limit).all()
-    
-    return activos
+    """Catálogo global de categorías (schema public)."""
+    stmt = select(CategoriaActivoFijo).where(CategoriaActivoFijo.is_active.is_(True))
+    result = await db.execute(stmt)
+    return result.scalars().all()
 
-
-@router.post("/", response_model=ActivoFijoResponse, status_code=status.HTTP_201_CREATED)
-def crear_activo(
-    data: ActivoFijoCreate,
-    empresa_id: uuid.UUID = Depends(verificar_acceso_empresa),
-    db: Session = Depends(get_db)
+@router.get("/siguiente-codigo")
+async def obtener_siguiente_codigo(
+    empresa_id: uuid.UUID = Query(..., description="ID de la empresa"),
+    categoria_id: uuid.UUID = Query(..., description="ID de la categoría"),
+    tenant_id: str | None = Query(None, description="ID del tenant (para superadmin)"),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_tenant_db)
 ):
-    """
-    Registra un nuevo activo fijo. 
-    Valida automaticamente que la tasa de depreciacion no exceda el limite de la SAT.
-    """
-    # Forzamos que el empresa_id venga del contexto de seguridad, no del body
-    data.empresa_id = empresa_id 
-    return activos_fijos_service.crear_activo_fijo(db=db, empresa_id=empresa_id, data=data)
-
-
-@router.get("/{activo_id}", response_model=ActivoFijoResponse)
-def obtener_activo(
-    activo_id: uuid.UUID,
-    empresa_id: uuid.UUID = Depends(verificar_acceso_empresa),
-    db: Session = Depends(get_db)
-):
-    """Obtiene los detalles de un activo fijo especifico."""
-    from app.models.tenant_models import ActivoFijo
+    """Calcula el siguiente número secuencial basado en el prefijo de la categoría."""
+    # Configurar schema del tenant
+    await set_tenant_search_path(db, scope, tenant_id)
     
-    activo = db.query(ActivoFijo).filter(
-        ActivoFijo.id == activo_id,
-        ActivoFijo.empresa_id == empresa_id # Seguridad: asegura que pertenece a la empresa
-    ).first()
+    # Obtener prefijo desde categoría (public)
+    stmt_cat = select(CategoriaActivoFijo).where(CategoriaActivoFijo.id == categoria_id)
+    result_cat = await db.execute(stmt_cat)
+    cat = result_cat.scalar_one_or_none()
     
-    if not activo:
-        raise HTTPException(status_code=404, detail="Activo fijo no encontrado o no pertenece a esta empresa")
+    if not cat:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+    if not cat.codigo_prefijo:
+        raise HTTPException(status_code=400, detail="La categoría no tiene un prefijo configurado")
+
+    prefijo = cat.codigo_prefijo
+
+    # Buscar máximo número existente
+    stmt_max = select(
+        func.max(func.cast(func.split_part(ActivoFijo.codigo_interno, '-', 2), Integer))
+    ).where(
+        ActivoFijo.empresa_id == empresa_id,
+        ActivoFijo.codigo_interno.like(f"{prefijo}-%")
+    )
     
-    return activo
-
-
-@router.put("/{activo_id}", response_model=ActivoFijoResponse)
-def actualizar_activo(
-    activo_id: uuid.UUID,
-    data: ActivoFijoUpdate,
-    empresa_id: uuid.UUID = Depends(verificar_acceso_empresa),
-    db: Session = Depends(get_db)
-):
-    """Actualiza la informacion de un activo fijo existente."""
-    # Verificar propiedad antes de actualizar
-    activo_existente = db.query(activos_fijos_service.ActivoFijo).filter(
-        activos_fijos_service.ActivoFijo.id == activo_id,
-        activos_fijos_service.ActivoFijo.empresa_id == empresa_id
-    ).first()
+    result_max = await db.execute(stmt_max)
+    max_num = result_max.scalar_one_or_none()
     
-    if not activo_existente:
-        raise HTTPException(status_code=404, detail="Activo fijo no encontrado")
+    siguiente_numero = (max_num or 0) + 1
+    
+    return {"siguiente_numero": siguiente_numero, "prefijo": prefijo}
 
-    return activos_fijos_service.actualizar_activo_fijo(db=db, activo_id=activo_id, data=data)
-
-
-# -----------------------------------------------------------------------------
-# 3. PROCESOS CONTABLES Y REPORTES
-# -----------------------------------------------------------------------------
 @router.post("/depreciacion-mensual", response_model=ProcesarDepreciacionMensualResponse)
-def procesar_cierre_mensual(
+async def procesar_cierre_mensual(
     request: ProcesarDepreciacionMensualRequest,
-    empresa_id: uuid.UUID = Depends(verificar_acceso_empresa),
-    db: Session = Depends(get_db)
+    tenant_id: str | None = Query(None, description="ID del tenant (para superadmin)"),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_tenant_db)
 ):
-    """
-    Ejecuta el calculo de depreciacion de todos los activos de la empresa para un mes/anio dado.
-    Genera una unica partida de diario en estado borrador para revision del contador.
-    """
-    # Validar que la empresa del request coincida con la autorizada
-    if request.empresa_id != empresa_id:
-        raise HTTPException(status_code=403, detail="No autorizado para procesar esta empresa")
-
-    return activos_fijos_service.procesar_depreciacion_mensual(
+    """Procesa la depreciación mensual consolidada."""
+    # Configurar schema del tenant
+    await set_tenant_search_path(db, scope, tenant_id)
+    
+    return await activos_fijos_service.procesar_depreciacion_mensual_async(
         db=db,
         empresa_id=request.empresa_id,
         anio=request.anio_periodo,
         mes=request.mes_periodo
     )
 
+# ==============================================================================
+# RUTAS DINÁMICAS (DEBEN IR AL FINAL)
+# ==============================================================================
+@router.get("/", response_model=List[ActivoFijoResponse])
+async def listar_activos(
+    empresa_id: uuid.UUID = Depends(verificar_acceso_empresa),
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_tenant_db)
+):
+    """Lista los activos fijos de una empresa."""
+    # El schema ya está configurado por verificar_acceso_empresa
+    stmt = select(ActivoFijo).options(
+        selectinload(ActivoFijo.categoria),
+        selectinload(ActivoFijo.cuenta_gasto),
+        selectinload(ActivoFijo.cuenta_depreciacion_acumulada)
+    ).where(
+        ActivoFijo.empresa_id == empresa_id
+    ).offset(skip).limit(limit)
+    
+    result = await db.execute(stmt)
+    return result.scalars().all()
 
-@router.get("/{activo_id}/proyeccion", response_model=TablaDepreciacionProyectadaResponse)
-def obtener_proyeccion_depreciacion(
+@router.get("/{activo_id}", response_model=ActivoFijoResponse)
+async def obtener_activo(
     activo_id: uuid.UUID,
     empresa_id: uuid.UUID = Depends(verificar_acceso_empresa),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_tenant_db)
 ):
-    """
-    Genera la tabla de depreciacion (historico + proyeccion futura) para un activo.
-    Util para que el frontend muestre la tabla completa de vida util del activo.
-    """
-    # Verificar que el activo pertenezca a la empresa autorizada
-    from app.models.tenant_models import ActivoFijo
-    activo = db.query(ActivoFijo).filter(
+    """Obtiene los detalles de un activo fijo específico."""
+    # El schema ya está configurado por verificar_acceso_empresa
+    stmt = select(ActivoFijo).options(
+        selectinload(ActivoFijo.categoria),
+        selectinload(ActivoFijo.cuenta_gasto),
+        selectinload(ActivoFijo.cuenta_depreciacion_acumulada)
+    ).where(
         ActivoFijo.id == activo_id,
         ActivoFijo.empresa_id == empresa_id
-    ).first()
+    )
+    
+    result = await db.execute(stmt)
+    activo = result.scalar_one_or_none()
+    
+    if not activo:
+        raise HTTPException(status_code=404, detail="Activo fijo no encontrado")
+    
+    return activo
+
+@router.post("/", response_model=ActivoFijoResponse, status_code=status.HTTP_201_CREATED)
+async def crear_activo(
+    data: ActivoFijoCreate,
+    empresa_id: uuid.UUID = Depends(verificar_acceso_empresa),  
+    db: AsyncSession = Depends(get_tenant_db)
+):
+    """Registra un nuevo activo fijo."""
+   
+    return await activos_fijos_service.crear_activo_fijo_async(
+        db=db,
+        empresa_id=empresa_id,
+        data=data
+    )
+
+@router.put("/{activo_id}", response_model=ActivoFijoResponse)
+async def actualizar_activo(
+    activo_id: uuid.UUID,
+    data: ActivoFijoUpdate,
+    empresa_id: uuid.UUID = Depends(verificar_acceso_empresa),  
+    db: AsyncSession = Depends(get_tenant_db)
+):
+    # Verificar que el activo exista y pertenezca a la empresa
+    stmt = select(ActivoFijo).where(
+        ActivoFijo.id == activo_id,
+        ActivoFijo.empresa_id == empresa_id
+    )
+    result = await db.execute(stmt)
+    activo_existente = result.scalar_one_or_none()
+    
+    if not activo_existente:
+        raise HTTPException(status_code=404, detail="Activo fijo no encontrado o acceso denegado")
+    
+    return await activos_fijos_service.actualizar_activo_fijo_async(
+        db=db, 
+        activo_id=activo_id, 
+        data=data
+    )
+
+
+@router.get("/{activo_id}/proyeccion", response_model=TablaDepreciacionProyectadaResponse)
+async def obtener_proyeccion_depreciacion(
+    activo_id: uuid.UUID,
+    empresa_id: uuid.UUID = Depends(verificar_acceso_empresa),
+    db: AsyncSession = Depends(get_tenant_db)
+):
+    """Genera la tabla de depreciación (histórico + proyección futura)."""
+    # El schema ya está configurado por verificar_acceso_empresa
+    
+    # Verificar que el activo pertenezca a la empresa
+    stmt = select(ActivoFijo).where(
+        ActivoFijo.id == activo_id,
+        ActivoFijo.empresa_id == empresa_id
+    )
+    result = await db.execute(stmt)
+    activo = result.scalar_one_or_none()
     
     if not activo:
         raise HTTPException(status_code=404, detail="Activo no encontrado o acceso denegado")
-
-    return activos_fijos_service.obtener_proyeccion_depreciacion(db=db, activo_id=activo_id)
+    
+    return await activos_fijos_service.obtener_proyeccion_depreciacion_async(
+        db=db, 
+        activo_id=activo_id
+    )

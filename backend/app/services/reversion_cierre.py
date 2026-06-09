@@ -118,6 +118,7 @@ async def revertir_cierre_anual(
                        f"Contrarresta las pólizas {patron_cierre} y {patron_ajuste}.",
             numero_poliza=patron_reversion,
             empresa_id=empresa_id,
+            tipo_origen='reversion_cierre',
         )
         db.add(partida_rev)
         await db.flush()

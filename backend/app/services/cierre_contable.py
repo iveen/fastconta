@@ -234,7 +234,8 @@ async def ejecutar_cierre_anual(
                 fecha=periodo.fecha_fin,
                 descripcion=f"CIERRE ANUAL: Cancelación de cuentas nominales (Ingresos y Gastos) - Período {periodo.nombre}",
                 numero_poliza=f"CIE-{periodo.nombre}",
-                empresa_id=empresa_id
+                empresa_id=empresa_id,
+                tipo_origen='cierre',
             )
             db.add(partida_cierre)
             await db.flush()

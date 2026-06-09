@@ -1,12 +1,17 @@
 from uuid import UUID
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
 
-async def get_next_poliza(db: AsyncSession, empresa_id: UUID, schema_name: str = "public") -> str:
+from fastapi import HTTPException
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+
+async def get_next_poliza(db: AsyncSession, empresa_id: UUID, schema_name: str = None) -> str:
     """
     Obtiene el siguiente número de póliza para una empresa.
     Si no existe una secuencia, la crea con contador=1.
     """
+    if not schema_name:
+        raise HTTPException(status_code=500, detail="Nombre de esquema inválido")
     # 1. Buscar secuencia existente con SQL cualificado
     result = await db.execute(
         text(f"SELECT id, contador FROM {schema_name}.secuencias WHERE entidad = 'partida' AND empresa_id = :emp_id FOR UPDATE"),

@@ -15,6 +15,10 @@
       </div>
 
       <div v-if="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">{{ error }}</div>
+      <div v-if="successMsg" class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4 flex justify-between items-center">
+        <span>{{ successMsg }}</span>
+        <button @click="successMsg = ''" class="text-sm underline hover:no-underline">Cerrar</button>
+      </div>
 
       <!-- 🔹 SELECTOR DE TENANT (Solo Superadmin) -->
       <div v-if="authStore.isSuperAdmin" class="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -181,6 +185,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
+import { formatFastApiError } from '@/utils/errorHandler' 
 
 const authStore = useAuthStore()
 
@@ -373,7 +378,7 @@ function agregarDetalle() {
 function eliminarDetalle(i) {
   nuevaPartida.value.detalles.splice(i, 1)
 }
-
+/*
 async function crearPartida() {
   if (!empresaFiltroId.value) {
     error.value = 'Debes seleccionar una empresa antes de crear la partida'
@@ -397,6 +402,50 @@ async function crearPartida() {
     await cargarPartidas()
   } catch (err) {
     error.value = err.response?.data?.detail || 'Error al crear partida'
+  } finally {
+    cargando.value = false
+  }
+}
+*/
+
+// Variables de estado que necesitas (si no las tienes ya)
+const successMsg = ref('')
+
+const crearPartida = async () => {
+  cargando.value = true
+  error.value = ''
+  successMsg.value = ''
+  
+  try {
+    // ✅ CORRECCIÓN: Usar nuevaPartida.value en lugar de payloadPartida
+    await api.post('/partidas/', nuevaPartida.value)
+    
+    // Éxito: Mostrar mensaje y recargar
+    successMsg.value = '✅ Partida creada y cuadrada exitosamente.'
+    
+    // Resetear formulario
+    nuevaPartida.value = {
+      fecha: '',
+      descripcion: '',
+      numero_poliza: '',
+      detalles: []
+    }
+    
+    // Cerrar formulario y recargar lista
+    mostrarFormulario.value = false
+    await cargarPartidas()
+    
+    // Limpiar mensaje de éxito después de 3 segundos
+    setTimeout(() => {
+      successMsg.value = ''
+    }, 3000)
+    
+  } catch (err) {
+    // ✅ Traducir el error 422 de Pydantic a texto legible
+    error.value = formatFastApiError(err)
+    
+    // Scroll al error para que el usuario lo vea
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   } finally {
     cargando.value = false
   }

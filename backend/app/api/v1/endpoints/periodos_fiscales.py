@@ -1,38 +1,18 @@
 # app/api/v1/endpoints/periodos_fiscales.py
-from datetime import date
 from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import DataScope, get_data_scope
 from app.db.session import get_public_db, get_tenant_db
 from app.models.tenant_models import Empresa, PeriodoFiscal
+from app.schemas.periodo_fiscal import PeriodoFiscalCreate, PeriodoFiscalOut
 
 router = APIRouter()
 
-# ==========================================
-# Esquemas
-# ==========================================
-class PeriodoFiscalCreate(BaseModel):
-    nombre: str
-    fecha_inicio: date
-    fecha_fin: date
-    empresa_id: UUID
-
-class PeriodoFiscalOut(BaseModel):
-    id: UUID
-    nombre: str
-    fecha_inicio: date
-    fecha_fin: date
-    cerrado: bool
-    empresa_id: UUID
-
-    class Config:
-        from_attributes = True
 
 # ==========================================
 # Helper: Configurar search_path según rol

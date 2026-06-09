@@ -4,14 +4,14 @@ import sys
 from logging.config import fileConfig
 from pathlib import Path
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
 from alembic import context
 from app.config import settings
 from app.db.base import Base
 from sqlalchemy import engine_from_config, pool, text
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-if str(BASE_DIR) not in sys.path:
-    sys.path.insert(0, str(BASE_DIR))
 
 config = context.config
 if config.config_file_name is not None:

@@ -168,11 +168,17 @@ class CuentaContable(Base):
     naturaleza = Column(String(10), nullable=False)
     acepta_tercero = Column(Boolean, default=False)
     nivel = Column(Integer, default=1)
-    cuenta_padre_id = Column(UUID(as_uuid=True), nullable=True)
+    cuenta_padre_id = Column(UUID(as_uuid=True), ForeignKey("plan_cuentas.id"), nullable=True)
     activa = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False)
     empresa = relationship("Empresa", foreign_keys=[empresa_id])
+    cuenta_padre = relationship(
+        "CuentaContable", 
+        remote_side=[id], 
+        foreign_keys=[cuenta_padre_id], 
+        backref="cuentas_hijas"
+    )
 
 class Partida(Base):
     __tablename__ = "partidas"

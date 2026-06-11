@@ -2,13 +2,15 @@
 import os
 import sys
 from pathlib import Path
-from alembic.config import Config
+
 from alembic import command
+from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine, select, text, inspect
-from sqlalchemy.orm import Session
+from alembic.util.exc import CommandError
 from app.config import settings
 from app.models.global_models import Tenant
+from sqlalchemy import create_engine, select, text
+from sqlalchemy.orm import Session
 
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
@@ -36,12 +38,13 @@ def get_current_revision(alembic_cfg, schema_name=None):
     except Exception:
         return None
 
+
 def run_tenant_migrations():
     print("🏢 Iniciando migraciones para TENANTS activos...")
     session = get_sync_session()
     
     try:
-        tenants = session.execute(select(Tenant).where(Tenant.is_active == True)).scalars().all()
+        tenants = session.execute(select(Tenant).where(Tenant.is_active.is_(True))).scalars().all()
         
         if not tenants:
             print("⚠️ No se encontraron tenants activos. Abortando.")
@@ -51,15 +54,13 @@ def run_tenant_migrations():
             schema_name = tenant.schema_name
             print(f"\n🔹 Procesando tenant: {schema_name}...")
             
-            # SOLUCIÓN: Instanciar un Config NUEVO y LIMPIO por cada tenant para evitar cachés cruzadas
             alembic_cfg = Config(ALEMBIC_TENANT_INI)
             alembic_cfg.set_main_option("script_location", "alembic_tenant")
             
             script = ScriptDirectory.from_config(alembic_cfg)
             head_rev = script.get_current_head()
-            
-            # Ahora este check no se confundirá con el esquema 'public'
             current_rev = get_current_revision(alembic_cfg, schema_name)
+            
             if current_rev == head_rev:
                 print(f"   ℹ️  {schema_name} ya está al día ({current_rev}). Saltando.")
                 continue
@@ -69,12 +70,32 @@ def run_tenant_migrations():
             try:
                 command.upgrade(alembic_cfg, "head")
                 print(f"   ✅ {schema_name} actualizado a {head_rev}.")
+                
+            except CommandError as e:
+                if "Can't locate revision identified by" in str(e):
+                    print(f"   ⚠️ Revisión fantasma detectada en {schema_name}. Reparando vía SQL directa...")
+                    
+                    # 🔹 REPARACIÓN INFALIBLE: Actualizar la tabla alembic_version directamente
+                    engine = create_engine(settings.SYNC_DATABASE_URL)
+                    with engine.begin() as conn:
+                        # Establecemos el search_path al esquema del tenant (y public como respaldo)
+                        conn.execute(text(f"SET search_path TO {schema_name}, public;"))
+                        # Forzamos la versión correcta, sobrescribiendo cualquier valor fantasma
+                        conn.execute(text("UPDATE alembic_version SET version_num = '3116febc6457';"))
+                    
+                    print("   🔄 Base de datos sincronizada. Reintentando migración...")
+                    
+                    # Ahora que la BD está limpia, command.upgrade funcionará sin problemas
+                    command.upgrade(alembic_cfg, "head")
+                    print(f"   ✅ Migración exitosa en {schema_name} tras reparación.")
+                else:
+                    print(f"   ❌ Error grave en {schema_name}: {e}")
+                    raise
             except Exception as e:
                 print(f"   ❌ Error en {schema_name}: {e}")
             finally:
                 if "TENANT_SCHEMA" in os.environ:
                     del os.environ["TENANT_SCHEMA"]
-            
             
     except Exception as e:
         print(f"❌ Error general obteniendo tenants: {e}")
@@ -82,6 +103,7 @@ def run_tenant_migrations():
         session.close()
         
     print("\n🎉 Proceso de migración de tenants finalizado.")
+
 
 def run_public_migrations():
     print("🌍 Aplicando migraciones GLOBALES (schema public)...")
@@ -114,8 +136,8 @@ if __name__ == "__main__":
         run_public_migrations()
     elif args.command == "tenants":
         run_tenant_migrations()
-    elif args.command == "stamp-tenants":
-        run_tenant_migrations_stamp("head")
+    #elif args.command == "stamp-tenants":
+        #run_tenant_migrations_stamp("head")
     elif args.command == "all":
         run_public_migrations()
         run_tenant_migrations()

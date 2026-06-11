@@ -1,23 +1,21 @@
 # app/api/v1/endpoints/plan_cuentas.py
-from datetime import date
-from decimal import Decimal
+import uuid
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import case, func, select, text
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
+from sqlalchemy import and_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import DataScope, get_data_scope
-from app.db.session import get_public_db, get_tenant_db
-from app.models.tenant_models import CuentaContable, DetallePartida, Empresa, Partida
-from app.schemas.balances import (
-    BalanceComprobacionResponse,
-    FilaBalance,
-    LibroMayorResponse,
-    MovimientoCuenta,
-)
+from app.db.session import get_public_db
+from app.models.tenant_models import CuentaContable
 from app.schemas.plan_cuentas import CuentaCreate, CuentaOut, CuentaUpdate
+from app.services.plan_cuentas_service import (
+    exportar_plan_cuentas,
+    procesar_importacion_excel,
+)
 
 router = APIRouter()
 
@@ -56,6 +54,15 @@ async def _set_schema_for_query(db: AsyncSession, scope: DataScope, tenant_id: s
     return schema_name
 
 # ==========================================
+# Helper: Obtener el schema actual
+# ==========================================
+async def _get_current_schema(db: AsyncSession) -> str:
+    """Obtiene el schema_name actual configurado en la sesión."""
+    result = await db.execute(text("SELECT current_schema()"))
+    schema = result.scalar()
+    return schema or "public"
+
+# ==========================================
 # 1. Listar cuentas (con filtro para superadmin)
 # ==========================================
 @router.get("/", response_model=List[CuentaOut])
@@ -69,13 +76,126 @@ async def list_cuentas(
     
     stmt = select(CuentaContable).order_by(CuentaContable.codigo)
     if empresa_id:
-        stmt = stmt.where(CuentaContable.empresa_id == empresa_id)
+        stmt = stmt.where(
+            and_(
+                CuentaContable.empresa_id == empresa_id,
+                CuentaContable.activa.is_(True)
+            )
+        )
     
     result = await db.execute(stmt)
     return result.scalars().all()
 
 # ==========================================
-# 2. Obtener cuenta por ID
+# 2. Crear cuenta (SQL Directo)
+# ==========================================
+@router.post("/", response_model=CuentaOut, status_code=201)
+async def create_cuenta(
+    cuenta: CuentaCreate,
+    tenant_id: str | None = Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
+):
+    await _set_schema_for_query(db, scope, tenant_id)
+    schema_name = await _get_current_schema(db)
+    
+    # Validar que no exista el código
+    check_sql = text(f"SELECT id FROM {schema_name}.plan_cuentas WHERE codigo = :codigo AND empresa_id = :empresa_id")
+    result = await db.execute(check_sql, {"codigo": cuenta.codigo, "empresa_id": str(cuenta.empresa_id)})
+    if result.first():
+        raise HTTPException(status_code=400, detail=f"El código {cuenta.codigo} ya existe en esta empresa.")
+    
+    nueva_id = uuid.uuid4()
+    
+    # 🔹 INSERT con RETURNING para obtener todos los datos sin necesidad de refresh()
+    insert_sql = text(f"""
+        INSERT INTO {schema_name}.plan_cuentas 
+        (id, codigo, nombre, tipo, naturaleza, acepta_tercero, nivel, cuenta_padre_id, empresa_id, activa, created_at)
+        VALUES 
+        (:id, :codigo, :nombre, :tipo, :naturaleza, :acepta_tercero, :nivel, :cuenta_padre_id, :empresa_id, true, NOW())
+        RETURNING id, codigo, nombre, tipo, naturaleza, acepta_tercero, nivel, cuenta_padre_id, activa, created_at
+    """)
+    
+    result = await db.execute(insert_sql, {
+        "id": str(nueva_id),
+        "codigo": cuenta.codigo,
+        "nombre": cuenta.nombre,
+        "tipo": cuenta.tipo,
+        "naturaleza": cuenta.naturaleza,
+        "acepta_tercero": cuenta.acepta_tercero,
+        "nivel": cuenta.nivel,
+        "cuenta_padre_id": str(cuenta.cuenta_padre_id) if cuenta.cuenta_padre_id else None,
+        "empresa_id": str(cuenta.empresa_id)
+    })
+    
+    row = result.first()
+    await db.commit()
+    
+    # 🔹 Construir la respuesta directamente desde el RETURNING
+    return CuentaOut(
+        id=row[0],
+        codigo=row[1],
+        nombre=row[2],
+        tipo=row[3],
+        naturaleza=row[4],
+        acepta_tercero=row[5],
+        nivel=row[6],
+        cuenta_padre_id=row[7],
+        activa=row[8],
+        created_at=row[9]
+    )
+
+# ==========================================
+# 3. Importar Excel 
+# ==========================================
+@router.post("/importar")
+async def importar_plan_cuentas(
+    file: UploadFile = File(...),
+    empresa_id: UUID = Form(..., description="ID de la empresa (Obligatorio)"),
+    tenant_id: str | None = Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
+):
+    await _set_schema_for_query(db, scope, tenant_id)
+    schema_name = await _get_current_schema(db)
+    
+    # 🔹 BLOQUEO DE SEGURIDAD: Solo permitir importación si NO hay cuentas activas
+    check_sql = text(f"SELECT 1 FROM {schema_name}.plan_cuentas WHERE empresa_id = :empresa_id AND activa = true LIMIT 1")
+    exists = await db.execute(check_sql, {"empresa_id": str(empresa_id)})
+    if exists.scalar():
+        raise HTTPException(
+            status_code=400, 
+            detail="⚠️ Importación bloqueada: Esta empresa ya tiene un Plan de Cuentas configurado. La importación masiva solo está permitida para cargas iniciales. Use la edición manual para realizar ajustes."
+        )
+        
+    return await procesar_importacion_excel(file, empresa_id, db, schema_name)
+
+# ==========================================
+# 4. Exportar a Excel
+# ==========================================
+@router.get("/exportar")
+async def exportar_plan_cuentas_endpoint(
+    empresa_id: UUID = Query(..., description="ID de la empresa"),
+    tenant_id: str | None = Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
+):
+    # 1. Configurar contexto multi-tenant
+    await _set_schema_for_query(db, scope, tenant_id)
+    schema_name = await _get_current_schema(db)
+    
+    # 2. 🔹 Delegar toda la lógica pesada al servicio
+    excel_buffer = await exportar_plan_cuentas(empresa_id, db, schema_name)
+    
+    # 3. Devolver el buffer como un archivo descargable
+    return StreamingResponse(
+        iter([excel_buffer.getvalue()]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=plan_cuentas_{empresa_id}.xlsx"}
+    )
+
+# ==========================================
+# 5. Obtener cuenta por ID
 # ==========================================
 @router.get("/{cuenta_id}", response_model=CuentaOut)
 async def get_cuenta(
@@ -92,204 +212,74 @@ async def get_cuenta(
         raise HTTPException(status_code=404, detail="Cuenta no encontrada")
     return cuenta
 
-# ==========================================
-# 3. Crear cuenta (usa get_tenant_db para usuarios normales)
-# ==========================================
-@router.post("/", response_model=CuentaOut, status_code=status.HTTP_201_CREATED)
-async def create_cuenta(
-    payload: CuentaCreate, 
-    db: AsyncSession = Depends(get_tenant_db)
-):
-    empresa_res = await db.execute(select(Empresa).where(Empresa.id == payload.empresa_id))
-    if not empresa_res.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Empresa no encontrada")
-    
-    existe = await db.execute(select(CuentaContable).where(CuentaContable.codigo == payload.codigo))
-    if existe.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="El código de cuenta ya existe")
-    
-    cuenta = CuentaContable(**payload.dict())
-    db.add(cuenta)
-    await db.commit()
-    await db.refresh(cuenta)
-    return cuenta
 
 # ==========================================
-# 4. Actualizar cuenta
+# 6. Actualizar cuenta (SQL Directo)
 # ==========================================
 @router.put("/{cuenta_id}", response_model=CuentaOut)
 async def update_cuenta(
-    cuenta_id: str, 
-    payload: CuentaUpdate, 
-    db: AsyncSession = Depends(get_tenant_db)
+    cuenta_id: UUID,
+    cuenta_data: CuentaUpdate,
+    tenant_id: str | None = Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
-    result = await db.execute(select(CuentaContable).where(CuentaContable.id == cuenta_id))
-    cuenta = result.scalar_one_or_none()
-    if not cuenta:
+    await _set_schema_for_query(db, scope, tenant_id)
+    schema_name = await _get_current_schema(db)
+    
+    # Construir dinámicamente el UPDATE solo con los campos enviados
+    update_fields = []
+    params = {"id": str(cuenta_id)}
+    
+    data = cuenta_data.model_dump(exclude_unset=True)
+    for key, value in data.items():
+        update_fields.append(f"{key} = :{key}")
+        params[key] = str(value) if isinstance(value, UUID) else value
+        
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="No hay campos para actualizar.")
+        
+    sql = text(f"""
+        UPDATE {schema_name}.plan_cuentas 
+        SET {', '.join(update_fields)} 
+        WHERE id = :id 
+        RETURNING id, codigo, nombre, tipo, naturaleza, acepta_tercero, nivel, cuenta_padre_id, activa, created_at
+    """)
+    
+    result = await db.execute(sql, params)
+    row = result.first()
+    
+    if not row:
         raise HTTPException(status_code=404, detail="Cuenta no encontrada")
-    
-    update_data = payload.dict(exclude_unset=True)
-    if "empresa_id" in update_data:
-        new_emp_id = update_data["empresa_id"]
-        if new_emp_id != cuenta.empresa_id:
-            result_emp = await db.execute(select(Empresa).where(Empresa.id == new_emp_id))
-            if not result_emp.scalar_one_or_none():
-                raise HTTPException(status_code=400, detail="Nueva empresa no encontrada")
-
-    for field, value in update_data.items():
-        setattr(cuenta, field, value)
-    
+        
     await db.commit()
-    await db.refresh(cuenta)
-    return cuenta
+    
+    return CuentaOut(
+        id=row[0], codigo=row[1], nombre=row[2], tipo=row[3], naturaleza=row[4],
+        acepta_tercero=row[5], nivel=row[6], cuenta_padre_id=row[7], activa=row[8],
+        created_at=row[9]
+    )
 
 # ==========================================
-# 5. Eliminar cuenta
+# 7. Eliminar cuenta (Soft Delete)
 # ==========================================
-@router.delete("/{cuenta_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{cuenta_id}", status_code=204)
 async def delete_cuenta(
-    cuenta_id: str, 
-    db: AsyncSession = Depends(get_tenant_db)
+    cuenta_id: UUID,
+    tenant_id: str | None = Query(None),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
 ):
-    result = await db.execute(select(CuentaContable).where(CuentaContable.id == cuenta_id))
-    cuenta = result.scalar_one_or_none()
-    if not cuenta:
+    await _set_schema_for_query(db, scope, tenant_id)
+    schema_name = await _get_current_schema(db)
+    
+    sql = text(f"UPDATE {schema_name}.plan_cuentas SET activa = false WHERE id = :id RETURNING id")
+    result = await db.execute(sql, {"id": str(cuenta_id)})
+    row = result.first()
+    
+    if not row:
         raise HTTPException(status_code=404, detail="Cuenta no encontrada")
-    await db.delete(cuenta)
+        
     await db.commit()
     return None
 
-# ==========================================
-# 6. Libro Mayor de cuenta
-# ==========================================
-@router.get("/{cuenta_id}/movimientos", response_model=LibroMayorResponse)
-async def libro_mayor_cuenta(
-    cuenta_id: str,
-    fecha_inicio: date = Query(..., description="Fecha inicial del período"),
-    fecha_fin: date = Query(..., description="Fecha final del período"),
-    tenant_id: str | None = Query(None),
-    scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
-):
-    await _set_schema_for_query(db, scope, tenant_id)
-    
-    result = await db.execute(select(CuentaContable).where(CuentaContable.id == cuenta_id))
-    cuenta = result.scalar_one_or_none()
-    if not cuenta:
-        raise HTTPException(status_code=404, detail="Cuenta no encontrada")
-    
-    stmt = (select(DetallePartida, Partida)
-            .join(Partida, DetallePartida.partida_id == Partida.id)
-            .where(
-                DetallePartida.cuenta_id == cuenta_id,
-                Partida.fecha >= fecha_inicio,
-                Partida.fecha <= fecha_fin
-            )
-            .order_by(Partida.fecha, Partida.created_at))
-
-    result = await db.execute(stmt)
-    rows = result.all()
-
-    movimientos = []
-    saldo = Decimal('0.00')
-    for det, part in rows:
-        monto = det.monto
-        if det.tipo_movimiento == "debe":
-            if cuenta.naturaleza == "deudora":
-                saldo += monto
-            else:
-                saldo -= monto
-        else:
-            if cuenta.naturaleza == "acreedora":
-                saldo += monto
-            else:
-                saldo -= monto
-
-        movimientos.append(MovimientoCuenta(
-            fecha=part.fecha,
-            partida_id=part.id,
-            numero_poliza=part.numero_poliza,
-            descripcion_partida=part.descripcion,
-            tipo_movimiento=det.tipo_movimiento,
-            monto=monto
-        ))
-
-    return LibroMayorResponse(
-        cuenta_id=cuenta.id,
-        cuenta_codigo=cuenta.codigo,
-        cuenta_nombre=cuenta.nombre,
-        naturaleza=cuenta.naturaleza,
-        movimientos=movimientos,
-        saldo_actual=saldo
-    )
-
-# ==========================================
-# 7. Balance de Comprobación
-# ==========================================
-@router.get("/comprobacion", response_model=BalanceComprobacionResponse)
-async def balance_comprobacion(
-    fecha_inicio: date | None = Query(None),
-    fecha_fin: date | None = Query(None),
-    tenant_id: str | None = Query(None),
-    scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
-):
-    await _set_schema_for_query(db, scope, tenant_id)
-    
-    result = await db.execute(
-        select(CuentaContable)
-        .where(CuentaContable.activa.is_(True))
-        .order_by(CuentaContable.codigo)
-    )
-    cuentas = result.scalars().all()
-    
-    filas = []
-    for cuenta in cuentas:
-        stmt = (
-            select(
-                func.coalesce(func.sum(
-                    case(
-                        (DetallePartida.tipo_movimiento == 'debe', DetallePartida.monto),
-                        else_=0
-                    )
-                ), 0).label('sum_debe'),
-                func.coalesce(func.sum(
-                    case(
-                        (DetallePartida.tipo_movimiento == 'haber', DetallePartida.monto),
-                        else_=0
-                    )
-                ), 0).label('sum_haber')
-            )
-            .select_from(DetallePartida)
-            .join(Partida, DetallePartida.partida_id == Partida.id)
-            .where(DetallePartida.cuenta_id == cuenta.id)
-        )
-        if fecha_inicio:
-            stmt = stmt.where(Partida.fecha >= fecha_inicio)
-        if fecha_fin:
-            stmt = stmt.where(Partida.fecha <= fecha_fin)
-
-        result = await db.execute(stmt)
-        sum_debe, sum_haber = result.one()
-
-        if cuenta.naturaleza == 'deudora':
-            saldo = sum_debe - sum_haber
-        else:
-            saldo = sum_haber - sum_debe
-
-        filas.append(FilaBalance(
-            cuenta_id=cuenta.id,
-            codigo=cuenta.codigo,
-            nombre=cuenta.nombre,
-            tipo=cuenta.tipo,
-            naturaleza=cuenta.naturaleza,
-            sum_debe=sum_debe,
-            sum_haber=sum_haber,
-            saldo=saldo
-        ))
-
-    return BalanceComprobacionResponse(
-        fecha_inicio=fecha_inicio,
-        fecha_fin=fecha_fin,
-        filas=filas
-    )

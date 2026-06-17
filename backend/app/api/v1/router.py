@@ -5,6 +5,7 @@ from app.api.v1.endpoints import (
     auth,
     balances,
     cierre,
+    declaraciones,
     empresas,
     facturas,
     partidas,
@@ -28,5 +29,6 @@ api_router.include_router(facturas.router, prefix="/facturas", tags=["facturas"]
 api_router.include_router(sat_libros.router, prefix="/sat-libros", tags=["Libros SAT"])
 api_router.include_router(users.router)
 api_router.include_router(activos_fijos.router)
+api_router.include_router(declaraciones.router)
 
 

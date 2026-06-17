@@ -24,7 +24,7 @@
       </div>
     </div>
 
-    <!-- ✅ Contenido Principal (Solo si factura existe) -->
+    <!-- ✅ Contenido Principal -->
     <div v-else-if="factura" class="space-y-6">
       
       <!-- Encabezado -->
@@ -39,28 +39,26 @@
             </p>
           </div>
           
-          <!-- Badges: Estado, Operación y ÁMBITO -->
+          <!-- Badges -->
           <div class="flex gap-2 flex-wrap">
             <span :class="estadoBadgeClass">{{ factura.estado || 'N/A' }}</span>
             <span :class="tipoOpBadgeClass">{{ factura.tipo_operacion || 'N/A' }}</span>
-            
-            <!-- 🔹 NUEVO: Badge de Ámbito -->
             <span 
               :class="factura.es_exportacion ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-gray-100 text-gray-700 border-gray-200'"
               class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border"
             >
               {{ factura.es_exportacion ? 'Exportación' : 'Local' }}
             </span>
-            <span v-if="factura.validado" class="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 border border-green-200" :title="`Validada: ${formFechaValidacion(factura.fecha_validacion)}`">
+            <span v-if="factura.validado" class="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 border border-green-200">
               ✅ Validada
             </span>
-            <span v-else class="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200" title="Pendiente de validación">
+            <span v-else class="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200">
               ❌ Pendiente
             </span>
           </div>
         </div>
 
-        <!-- 🔹 Info Grid (Sin duplicados) -->
+        <!-- Info Grid -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
           <div class="bg-gray-50 p-3 rounded border">
             <p class="text-xs text-gray-500 uppercase tracking-wide">Fecha Emisión</p>
@@ -82,7 +80,7 @@
           </div>
         </div>
 
-        <!-- 🔹 Emisor / Receptor con lógica dinámica -->
+        <!-- Emisor / Receptor -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 pt-6 border-t">
           <div>
             <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
@@ -142,6 +140,7 @@
             <thead class="bg-gray-50">
               <tr>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descripción</th>
+                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Precio Unit.</th>
                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Línea</th>
@@ -151,13 +150,21 @@
             <tbody class="bg-white divide-y divide-gray-200">
               <tr v-for="det in factura.detalles || []" :key="det.id" class="hover:bg-gray-50">
                 <td class="px-4 py-3 text-sm text-gray-900">{{ det.descripcion }}</td>
+                <td class="px-4 py-3 text-center">
+                  <span 
+                    :class="det.bien_o_servicio === 'S' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'"
+                    class="px-2 py-1 rounded text-xs font-bold uppercase"
+                  >
+                    {{ det.bien_o_servicio === 'S' ? 'Servicio' : 'Bien' }}
+                  </span>
+                </td>
                 <td class="px-4 py-3 text-sm text-right font-mono">{{ det.cantidad }}</td>
                 <td class="px-4 py-3 text-sm text-right font-mono">{{ formatCurrency(det.precio_unitario) }}</td>
                 <td class="px-4 py-3 text-sm text-right font-medium text-gray-900">{{ formatCurrency(det.total_linea) }}</td>
                 <td class="px-4 py-3 text-sm text-right text-gray-500 font-mono">{{ formatCurrency(det.iva_linea) }}</td>
               </tr>
               <tr v-if="!factura.detalles?.length">
-                <td colspan="5" class="px-4 py-12 text-center text-gray-500 bg-gray-50">
+                <td colspan="6" class="px-4 py-12 text-center text-gray-500 bg-gray-50">
                   No se registraron líneas de detalle
                 </td>
               </tr>
@@ -168,16 +175,6 @@
 
       <!-- Acciones -->
       <div class="flex flex-wrap gap-3 justify-end pt-2">
-        <!-- Se elimina botón de Anular, ya que la operación de anulación se realiza al validar facturas con excel
-        <button
-          v-if="factura.estado === 'Activa'"
-          @click="anularFactura"
-          :disabled="accionCargando"
-          class="px-4 py-2 bg-white border border-red-300 text-red-700 rounded-md hover:bg-red-50 disabled:opacity-50 transition font-medium"
-        >
-          {{ accionCargando && accionActual === 'anular' ? 'Anulando...' : 'Anular Factura' }}
-        </button>
-        -->
         <button
           v-if="factura.estado === 'Activa'"
           @click="generarPartida"
@@ -196,16 +193,14 @@
       </div>
 
     </div>
-    <!-- ✅ Cierre del contenedor principal v-else-if="factura" -->
   </div>
-  <!-- ✅ Cierre del contenedor raíz -->
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/services/api'
-import { useAuthStore } from '@/stores/auth' 
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -217,7 +212,6 @@ const error = ref('')
 const accionCargando = ref(false)
 const accionActual = ref('')
 
-// 🎨 Clases dinámicas para badges
 const estadoBadgeClass = computed(() => {
   const base = 'px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide'
   if (!factura.value?.estado) return `${base} bg-gray-100 text-gray-600`
@@ -234,7 +228,6 @@ const tipoOpBadgeClass = computed(() => {
     : `${base} bg-indigo-100 text-indigo-700 border border-indigo-200`
 })
 
-// ️ Utilidades de formato
 const formatearFecha = (fecha) => {
   if (!fecha) return 'N/A'
   return fecha.includes('T') ? fecha.split('T')[0] : fecha.substring(0, 10)
@@ -249,20 +242,15 @@ const formatearNit = (nit) => {
 const formatCurrency = (valor) => {
   if (valor === null || valor === undefined) return 'Q 0.00'
   const num = typeof valor === 'string' ? parseFloat(valor) : valor
-  
-  // Determinar símbolo según la moneda de la factura
   const simbolo = factura.value?.moneda === 'USD' ? '$' : 
                   factura.value?.moneda === 'GTQ' ? 'Q' : 
                   factura.value?.moneda || 'Q'
-  
   return `${simbolo} ${num.toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-// 🔹 Formateador de tipo de cambio (5 decimales, estándar Banco de Guatemala)
 const formatoTipoCambio = (valor, moneda) => {
   if (!valor && moneda === 'GTQ') return '1.00000'
   if (!valor) return 'N/A'
-
   const num = typeof valor === 'string' ? parseFloat(valor) : valor
   return num.toLocaleString('es-GT', { 
     minimumFractionDigits: 5, 
@@ -271,8 +259,6 @@ const formatoTipoCambio = (valor, moneda) => {
   })
 }
 
-// 📥 Carga de datos
-// En cargarFactura:
 const cargarFactura = async () => {
   cargando.value = true
   error.value = ''
@@ -292,7 +278,7 @@ const cargarFactura = async () => {
     }
     const resp = await api.get(`/facturas/${facturaId}`, { params })
     factura.value = resp.data
-    if (!factura.value?.id) {
+    if (!factura.value?.id) { 
       error.value = 'La factura no tiene datos válidos'
       factura.value = null
     }
@@ -303,7 +289,6 @@ const cargarFactura = async () => {
   }
 }
 
-// En generarPartida:
 const generarPartida = async () => {
   if (!confirm('¿Generar la partida contable automática?')) return
   accionCargando.value = true
@@ -321,22 +306,6 @@ const generarPartida = async () => {
   } finally {
     accionCargando.value = false
     accionActual.value = ''
-  }
-}
-
-// ⚡ Acciones
-const anularFactura = async () => {
-  if (!confirm('¿Confirmas la anulación de esta factura?')) return
-  accionCargando.value = true
-  accionActual.value = 'anular'
-  try {
-    await api.patch(`/facturas/${route.params.factura_id}/anular`)
-    await cargarFactura()
-  } catch (err) {
-    error.value = err.response?.data?.detail || 'Error al anular'
-  } finally {
-    accionCargando.value = false
-    accionActual.value = '' 
   }
 }
 

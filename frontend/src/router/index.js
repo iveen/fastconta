@@ -63,6 +63,15 @@ const routes = [
         name: 'ActivosFijosProyeccion', 
         component: ActivoFijoProyeccion, 
         meta: { requiresAuth: true } 
+      },
+      {
+        path: '/declaraciones',
+        name: 'Declaraciones',
+        component: () => import('@/views/Declaraciones.vue'), 
+        meta: { 
+          requiresAuth: true, 
+          title: "Declaraciones SAT"
+        } 
       }
     ]
   }

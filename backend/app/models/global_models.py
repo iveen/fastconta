@@ -7,6 +7,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -266,6 +267,12 @@ class RegimenFiscal(Base):
         back_populates="regimen", 
         cascade="all, delete-orphan"
     )
+    # Dentro de class RegimenFiscal(Base):
+    formularios_sat = relationship(
+        "FormularioSat",
+        secondary="public.regimenes_formularios_sat",
+        back_populates="regimenes"
+    )
 
 
 class CatalogoImpuesto(Base):
@@ -330,3 +337,82 @@ class RegimenImpuestoConfig(Base):
     impuesto = relationship("CatalogoImpuesto")
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+#------------------------------------------------------
+# Catálogos Declaraciones SAT
+#------------------------------------------------------
+class FormularioSat(Base):
+    """
+    Catalogo global de formularios de la SAT (2237, 2046, 2276, 1031, etc.)
+    """
+    __tablename__ = "formularios_sat"
+    __table_args__ = {"schema": "public"}
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    codigo = Column(String(20), unique=True, nullable=False, index=True) # Ej: 'SAT-2237'
+    nombre = Column(String(255), nullable=False)
+    descripcion = Column(Text)
+    
+    # Relaciones
+    casillas = relationship("CasillaSat", back_populates="formulario", cascade="all, delete-orphan")
+    
+    # Relación N:M con Regimenes (A través de la tabla puente)
+    regimenes = relationship(
+        "RegimenFiscal",
+        secondary="public.regimenes_formularios_sat",
+        back_populates="formularios_sat"
+    )
+
+class CasillaSat(Base):
+    """
+    Catalogo global de cada fila/casilla de los formularios SAT.
+    Define la estructura visual y lógica del formulario.
+    """
+    __tablename__ = "casillas_sat"
+    __table_args__ = (
+        UniqueConstraint('formulario_id', 'seccion', 'orden_seccion', name='uq_casilla_seccion_orden'),
+        Index('idx_casillas_formulario_seccion', 'formulario_id', 'seccion'),
+        {"schema": "public"}  
+    )    
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    formulario_id = Column(UUID(as_uuid=True), ForeignKey("public.formularios_sat.id"), nullable=False)
+    
+    seccion = Column(String(10), nullable=False) # Ej: '3', '4', '5', '7', '9'
+    codigo = Column(String(50), unique=True, nullable=False, index=True) 
+    nombre = Column(String(255), nullable=False) 
+    
+    # 🔹 NUEVOS CAMPOS
+    tipo_casilla = Column(String(20), nullable=False, default='CALCULO') 
+    # Valores: 'CALCULO' (Débito/Crédito), 'REFERENCIA' (Exportaciones), 'INDICADOR' (Conteos), 'CALCULADO' (Totales)
+    
+    orden_seccion = Column(Integer, default=0) 
+    
+    # Relaciones
+    formulario = relationship("FormularioSat", back_populates="casillas")
+    detalles = relationship("DetalleDeclaracionImpuesto", back_populates="casilla")
+
+class RegimenFormularioSat(Base):
+    """
+    TABLA PUENTE: Define qué formularios debe presentar cada régimen fiscal.
+    Esto permite que el sistema sepa automáticamente qué declaraciones 
+    generar al seleccionar una empresa.
+    """
+    __tablename__ = "regimenes_formularios_sat"
+    __table_args__ = (
+        UniqueConstraint('regimen_id', 'formulario_id', name='uq_regimen_formulario'),
+        {"schema": "public"}
+    )
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    regimen_id = Column(UUID(as_uuid=True), ForeignKey("public.regimenes_fiscales.id"), nullable=False)
+    formulario_id = Column(UUID(as_uuid=True), ForeignKey("public.formularios_sat.id"), nullable=False)
+    
+    # Banderas de control
+    es_obligatorio = Column(Boolean, default=True, server_default="true")
+    # Ej: El SAT-2237 es obligatorio para RG, pero el SAT-1031 es anual.
+    # El frontend puede usar esto para filtrar qué mostrar en el dashboard mensual.
+    
+    # Relaciones
+    regimen = relationship("RegimenFiscal", overlaps="formularios_sat,regimenes")
+    formulario = relationship("FormularioSat", overlaps="formularios_sat,regimenes")

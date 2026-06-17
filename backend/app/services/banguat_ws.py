@@ -28,7 +28,7 @@ async def obtener_tipo_cambio(fecha: date, moneda_iso: str, db: AsyncSession) ->
     result = await db.execute(
         select(CatalogoMoneda.codigo_banguat).where(
             CatalogoMoneda.codigo_iso == moneda_iso.upper(),
-            CatalogoMoneda.activo is True
+            CatalogoMoneda.activo.is_(True)
         )
     )
     codigo_banguat = result.scalar_one_or_none()

@@ -257,6 +257,18 @@ class FacturaElectronica(Base):  # 🔹 CRÍTICO: Debe ser TenantBase, no Base
     tipo_documento = Column(String(10), nullable=True)
     moneda = Column(String(5), nullable=True)
 
+    # 1. Retenciones (Vital para la Sección 7 del SAT-2237)
+    retencion_iva = Column(Numeric(12, 2), default=0, server_default="0")
+    retencion_isr = Column(Numeric(12, 2), default=0, server_default="0")
+
+    # 2. Clasificación SAT para Crédito Fiscal (Sección 5)
+    # Valores: 'NORMAL', 'COMBUSTIBLE', 'ACTIVO_FIJO', 'MEDICAMENTO', 'PEQUENO_CONTRIBUYENTE'
+    clasificacion_gasto_sat = Column(String(50), default='NORMAL', server_default="'NORMAL'")
+
+    # 3. Indicadores de Importación (Sección 5 y 6)
+    es_importacion = Column(Boolean, default=False, server_default="false")
+
+
     # 🔹 FKs simplificadas (sin "public." ni use_alter)
     tipo_documento_id = Column(
         UUID(as_uuid=True), 
@@ -275,6 +287,8 @@ class FacturaElectronica(Base):  # 🔹 CRÍTICO: Debe ser TenantBase, no Base
     emisor_nombre = Column(String(255), nullable=False)
     receptor_nit = Column(String(15), nullable=False)
     receptor_nombre = Column(String(255), nullable=False)
+
+    # Montos en Factura - Sin importar Moneda
     total_exento = Column(Numeric(12,2), default=0)
     total_gravado = Column(Numeric(12,2), default=0)
     total_iva = Column(Numeric(12,2), default=0)
@@ -282,7 +296,27 @@ class FacturaElectronica(Base):  # 🔹 CRÍTICO: Debe ser TenantBase, no Base
 
     tipo_cambio = Column(Numeric(10, 5), nullable=True)
 
+    # Montos en GTQ aplicando tipo de Cambio
+    total_gravado_gtq = Column(Numeric(15, 2), nullable=False)
+    total_iva_gtq = Column(Numeric(15, 2), nullable=False)
+    total_exento_gtq = Column(Numeric(15, 2), default=0)
+    total_gtq = Column(Numeric(15, 2), nullable=False)
+
+    # Totales separados por tipo (Bienes vs Servicios)
+    total_gravado_bienes = Column(Numeric(12,2), default=0)
+    total_iva_bienes = Column(Numeric(12,2), default=0)
+    total_gravado_servicios = Column(Numeric(12,2), default=0)
+    total_iva_servicios = Column(Numeric(12,2), default=0)
+
+    # Lo mismo para montos en GTQ
+    total_gravado_bienes_gtq = Column(Numeric(15, 2), default=0)
+    total_iva_bienes_gtq = Column(Numeric(15, 2), default=0)
+    total_gravado_servicios_gtq = Column(Numeric(15, 2), default=0)
+    total_iva_servicios_gtq = Column(Numeric(15, 2), default=0)
+
     es_exportacion = Column(Boolean, default=False)
+    pais_destino_exportacion = Column(String(100), nullable=True)
+    
     nombre_comercial = Column(String(255), nullable=True)
     tipo_operacion = Column(String(10), nullable=False, default='Compra')
     estado = Column(String(20), nullable=False, default='Activa')
@@ -334,9 +368,19 @@ class FacturaDetalle(Base):
     factura_id = Column(UUID(as_uuid=True), ForeignKey("facturas_electronicas.id", ondelete="CASCADE"), nullable=False)
     cantidad = Column(Numeric(12,4), nullable=False)
     descripcion = Column(String(500), nullable=False)
+
+    # Datos de Factura sin importar Moneda
     precio_unitario = Column(Numeric(12,2), nullable=False)
     total_linea = Column(Numeric(12,2), nullable=False)
     iva_linea = Column(Numeric(12,2), default=0)
+
+    # Datos en GTQ aplicando el Tipo de Cambio para Impuestos y Contabilidad
+    precio_unitario_gtq = Column(Numeric(12,2), nullable=False)
+    total_linea_gtq = Column(Numeric(12,2), nullable=False)
+    iva_linea_gtq = Column(Numeric(12,2), default=0)
+
+    bien_o_servicio = Column(String(1), default='B', server_default='B')  # 'B' = Bien, 'S' = Servicio
+
     # Relación
     factura = relationship("FacturaElectronica", back_populates="detalles")
 
@@ -513,4 +557,116 @@ class DepreciacionActivo(Base):
         UniqueConstraint("activo_id", "anio_periodo", "mes_periodo", name="uq_depreciacion_activo_periodo"),
         CheckConstraint("mes_periodo BETWEEN 1 AND 12", name="chk_depreciacion_mes_valido"),
         Index("idx_depreciacion_activos_empresa_periodo", "empresa_id", "anio_periodo", "mes_periodo"),
+    )
+
+# ==============================================================================
+# MODULO DE DECLARACIONES DE IMPUESTOS (Tenant Specific - Formulario Sombra)
+# ==============================================================================
+
+class DeclaracionImpuesto(Base):
+    """
+    Cabecera de la declaracion sombra. 
+    Guarda el estado general, totales y el remanente para el mes siguiente.
+    """
+    __tablename__ = "declaraciones_impuesto"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # FK al tenant (sin prefijo, asume el esquema actual del tenant)
+    empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False, index=True)
+    
+    # FK al catalogo global (CON prefijo 'public.' explícito para evitar conflictos de esquema)
+    formulario_sat_id = Column(UUID(as_uuid=True), ForeignKey("public.formularios_sat.id"), nullable=False)
+    
+    # Periodo
+    anio = Column(SmallInteger, nullable=False, index=True)
+    mes = Column(SmallInteger, nullable=False, index=True)
+    
+    # Estado del flujo de trabajo
+    estado = Column(String(20), default='BORRADOR', nullable=False) 
+    
+    # Totales Financieros (Seccion 7 del SAT-2237)
+    total_debito_fiscal = Column(Numeric(15, 2), default=0, server_default="0")
+    total_credito_fiscal = Column(Numeric(15, 2), default=0, server_default="0")
+    impuesto_determinado = Column(Numeric(15, 2), default=0, server_default="0") # Debito - Credito
+    
+    # Manejo de Remanentes (CRITICO para la continuidad entre meses)
+    remanente_periodo_anterior = Column(Numeric(15, 2), default=0, server_default="0")
+    remanente_siguiente_periodo = Column(Numeric(15, 2), default=0, server_default="0")
+    impuesto_a_pagar = Column(Numeric(15, 2), default=0, server_default="0")
+    
+    # Auditoria
+    finalizado_por = Column(UUID(as_uuid=True), nullable=True)
+    fecha_cierre = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relaciones
+    empresa = relationship("Empresa")
+    # Nota: No definimos la relacion al formulario global aqui para evitar ambiguedades de esquema, 
+    # se puede hacer via query directa o con primaryjoin si es estrictamente necesario.
+    detalles = relationship("DetalleDeclaracionImpuesto", back_populates="declaracion", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        UniqueConstraint("empresa_id", "formulario_sat_id", "anio", "mes", name="uq_declaracion_periodo"),
+    )
+
+
+class DetalleDeclaracionImpuesto(Base):
+    """
+    Cada fila (casilla) del formulario sombra.
+    Permite ajustes manuales con auditoria.
+    """
+    __tablename__ = "detalles_declaracion_impuesto"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    declaracion_id = Column(UUID(as_uuid=True), ForeignKey("declaraciones_impuesto.id", ondelete="CASCADE"), nullable=False)
+    
+    # FK al catalogo global (CON prefijo 'public.' explícito)
+    casilla_sat_id = Column(UUID(as_uuid=True), ForeignKey("public.casillas_sat.id"), nullable=False)
+    
+    # Montos
+    base_imponible = Column(Numeric(15, 2), default=0, server_default="0")
+    monto_impuesto = Column(Numeric(15, 2), default=0, server_default="0") # Debito o Credito
+    
+    # Control de Ajustes Manuales (La ventaja competitiva)
+    es_ajuste_manual = Column(Boolean, default=False, server_default="false")
+    motivo_ajuste = Column(Text, nullable=True) # Obligatorio si es_ajuste_manual es True
+    ajustado_por = Column(UUID(as_uuid=True), nullable=True)
+    
+    # Relaciones
+    declaracion = relationship("DeclaracionImpuesto", back_populates="detalles")
+    facturas_asociadas = relationship("DeclaracionImpuestoFactura", back_populates="detalle", cascade="all, delete-orphan")
+    casilla = relationship(
+        "CasillaSat",
+        primaryjoin="DetalleDeclaracionImpuesto.casilla_sat_id == foreign(CasillaSat.id)",
+        uselist=False,
+        viewonly=True  # Solo lectura, no intentamos modificar la tabla pública
+    )
+
+
+class DeclaracionImpuestoFactura(Base):
+    """
+    Tabla puente para "Drill-Down" (Trazabilidad).
+    Permite que el contador haga clic en una casilla y vea exactamente 
+    que facturas componen ese monto.
+    """
+    __tablename__ = "declaraciones_impuesto_facturas"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    detalle_declaracion_id = Column(UUID(as_uuid=True), ForeignKey("detalles_declaracion_impuesto.id", ondelete="CASCADE"), nullable=False)
+    
+    # FK al tenant (sin prefijo)
+    factura_id = Column(UUID(as_uuid=True), ForeignKey("facturas_electronicas.id"), nullable=False)
+    
+    # Por si una factura se debe prorratear entre dos casillas (raro, pero posible)
+    base_asignada = Column(Numeric(15, 2), default=0, server_default="0")
+    impuesto_asignado = Column(Numeric(15, 2), default=0, server_default="0")
+    
+    # Relaciones
+    detalle = relationship("DetalleDeclaracionImpuesto", back_populates="facturas_asociadas")
+    factura = relationship("FacturaElectronica")
+    
+    __table_args__ = (
+        UniqueConstraint("detalle_declaracion_id", "factura_id", name="uq_detalle_factura"),
     )

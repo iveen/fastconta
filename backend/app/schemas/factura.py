@@ -16,6 +16,13 @@ class FacturaDetalleOut(BaseModel):
     precio_unitario: Decimal
     total_linea: Decimal
     iva_linea: Decimal
+    bien_o_servicio: str = 'B'
+
+    # Montos en GTQ
+    precio_unitario_gtq: Decimal | None = None
+    total_linea_gtq: Decimal | None = None
+    iva_linea_gtq: Decimal | None = None
+    
     model_config = ConfigDict(from_attributes=True)
 
 class FacturaImpuestoEspecialOut(BaseModel):

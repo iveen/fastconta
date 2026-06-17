@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 async def parse_fel_xml(xml_content: str, db: AsyncSession = None) -> Dict | None:
     try:
-        # Parsear XML
         root = etree.fromstring(xml_content.encode('utf-8'))
     except Exception as e:
         logger.error(f"Error al parsear XML (Sintaxis): {e}")
@@ -25,7 +24,7 @@ async def parse_fel_xml(xml_content: str, db: AsyncSession = None) -> Dict | Non
             break
     if not dte_ns:
         dte_ns = 'http://www.sat.gob.gt/dte/fel/0.2.0'
-    
+
     ns = {'dte': dte_ns}
 
     def first(el_list):
@@ -47,10 +46,11 @@ async def parse_fel_xml(xml_content: str, db: AsyncSession = None) -> Dict | Non
         numero_autorizacion = aut_el.get('Numero', '')
         serie = aut_el.get('Serie', '')
 
-        # 2. Datos Generales (Fecha, Moneda)
+        # 2. Datos Generales (Fecha, Moneda, Exportación)
         dg_el = first(root.xpath('//dte:DatosGenerales', namespaces=ns))
         fecha_emision = None
         moneda = 'GTQ'
+        es_exportacion = False
         
         if dg_el is not None:
             moneda = dg_el.get('CodigoMoneda', 'GTQ')
@@ -59,28 +59,55 @@ async def parse_fel_xml(xml_content: str, db: AsyncSession = None) -> Dict | Non
                 try:
                     fecha_emision = datetime.fromisoformat(fecha_str)
                 except ValueError:
-                    pass # Mantener None si falla
+                    pass
+            
+            # Detectar exportación por atributo Exp="SI"
+            if dg_el.get('Exp', '').upper() == 'SI':
+                es_exportacion = True
         
-        # 🔹 NUEVO: Determinar si es exportación
-        es_exportacion = False
-        # 1. Por atributo Exp="SI" en DatosGenerales
-        if dg_el is not None and dg_el.get('Exp', '').upper() == 'SI':
-            es_exportacion = True
-        # 2. Por complemento cex:Exportacion (más robusto)
-        for val in root.nsmap.values():
-            if val and 'ComplementoExportaciones' in val:
-                cex_ns = val
-                if root.xpath('//cex:Exportacion', namespaces={'cex': cex_ns}):
-                    es_exportacion = True
-                break
+        # 🔹 Detectar exportación por complemento cex:Exportacion
+        if not es_exportacion:
+            for val in root.nsmap.values():
+                if val and 'ComplementoExportaciones' in val:
+                    cex_ns = val
+                    if root.xpath('//cex:Exportacion', namespaces={'cex': cex_ns}):
+                        es_exportacion = True
+                    break
         
-        # 🔹 NUEVO: Obtener tipo de cambio desde Banguat
-        tipo_cambio = None
-        if fecha_emision and moneda:
-            # Extraer solo la fecha (sin hora) para consultar Banguat
-            fecha_consulta = fecha_emision.date() if hasattr(fecha_emision, 'date') else fecha_emision
-            tipo_cambio = await obtener_tipo_cambio(fecha_emision.date(), moneda, db) or Decimal("1.00000")
-            logger.debug(f"🔍 Tipo de cambio para {moneda} ({fecha_consulta}): {tipo_cambio}")
+        # 🔹 NUEVO: Extraer país de destino de exportación
+        pais_destino = None
+        if es_exportacion:
+            for val in root.nsmap.values():
+                if val and 'ComplementoExportaciones' in val:
+                    cex_ns = val
+                    export_el = first(root.xpath('//cex:Exportacion', namespaces={'cex': cex_ns}))
+                    if export_el is not None:
+                        pais_destino = export_el.findtext('cex:PaisConsignatario', namespaces={'cex': cex_ns})
+                        if pais_destino:
+                            pais_destino = pais_destino.strip()
+                    break
+        
+        # 🔹 Obtener tipo de cambio desde Banguat (SOLO si no es GTQ)
+        tipo_cambio = Decimal("1.00000")  # Default para GTQ
+        
+        if moneda != 'GTQ' and fecha_emision and db:
+            try:
+                fecha_consulta = fecha_emision.date() if hasattr(fecha_emision, 'date') else fecha_emision
+                tc_banguat = await obtener_tipo_cambio(fecha_consulta, moneda, db)
+                
+                if tc_banguat:
+                    tipo_cambio = tc_banguat
+                    logger.info(f"✅ Tipo de cambio {moneda} ({fecha_consulta}): {tipo_cambio}")
+                else:
+                    logger.warning(f"⚠️ No se pudo obtener tipo de cambio para {moneda} ({fecha_consulta}), usando 1.00000")
+            except Exception as e:
+                logger.error(f"❌ Error consultando Banguat: {e}")
+                # Si falla, buscar en el XML
+                if dg_el and dg_el.get('TipoCambio'):
+                    try:
+                        tipo_cambio = Decimal(dg_el.get('TipoCambio'))
+                    except Exception as e:
+                        pass
 
         # 3. Emisor
         emisor_el = first(root.xpath('//dte:Emisor', namespaces=ns))
@@ -109,32 +136,49 @@ async def parse_fel_xml(xml_content: str, db: AsyncSession = None) -> Dict | Non
             if imp_el.get('NombreCorto', '') == 'IVA' or get_text(imp_el.find('dte:NombreCorto', ns)) == 'IVA':
                 total_iva = float(imp_el.get('TotalMontoImpuesto', '0'))
 
-        # 6. Items (Líneas de detalle)
+        # 6. Items (Líneas de detalle) - CON CÁLCULOS SEPARADOS
         items = []
+        total_gravado_bienes = 0.0
+        total_iva_bienes = 0.0
+        total_gravado_servicios = 0.0
+        total_iva_servicios = 0.0
+
         for item_el in root.xpath('//dte:Items/dte:Item', namespaces=ns):
             cantidad = float(get_text(item_el.find('dte:Cantidad', ns), '0'))
             descripcion = get_text(item_el.find('dte:Descripcion', ns))
             precio_unitario = float(get_text(item_el.find('dte:PrecioUnitario', ns), '0'))
             total_linea = float(get_text(item_el.find('dte:Total', ns), '0'))
             
+            # 🔹 Extraer BienOServicio
+            bien_o_servicio = item_el.get('BienOServicio', 'B')  # Default 'B' si no viene
+            
             iva_linea = 0.0
+            gravable_linea = 0.0
+            
             for imp_el in item_el.xpath('.//dte:Impuesto', namespaces=ns):
                 nombre_imp = imp_el.get('NombreCorto', '') or get_text(imp_el.find('dte:NombreCorto', ns))
                 if nombre_imp == 'IVA':
-                    # Buscar MontoImpuesto (puede ser atributo o elemento)
+                    # Buscar MontoImpuesto
                     monto_imp = imp_el.get('MontoImpuesto')
                     if monto_imp is None:
                         el_monto = imp_el.find('dte:MontoImpuesto', ns)
                         monto_imp = get_text(el_monto, '0')
-                    iva_linea += float(monto_imp)
-                
-                # Calcular gravado si es IVA
-                if nombre_imp == 'IVA':
+                    iva_linea = float(monto_imp)
+                    
+                    # Buscar MontoGravable
                     gravable = imp_el.get('MontoGravable')
                     if gravable is None:
                         el_grav = imp_el.find('dte:MontoGravable', ns)
                         gravable = get_text(el_grav, '0')
-                    total_gravado += float(gravable)
+                    gravable_linea = float(gravable)
+
+            # 🔹 Acumular según tipo (BIEN o SERVICIO)
+            if bien_o_servicio == 'B':
+                total_gravado_bienes += gravable_linea
+                total_iva_bienes += iva_linea
+            else:  # 'S' - Servicio
+                total_gravado_servicios += gravable_linea
+                total_iva_servicios += iva_linea
 
             items.append({
                 'cantidad': cantidad,
@@ -142,66 +186,50 @@ async def parse_fel_xml(xml_content: str, db: AsyncSession = None) -> Dict | Non
                 'precio_unitario': precio_unitario,
                 'total_linea': total_linea,
                 'iva_linea': iva_linea,
+                'bien_o_servicio': bien_o_servicio,
             })
 
-        # 7. Exportación
-        es_exportacion = False
-        for val in root.nsmap.values():
-            if val and 'ComplementoExportaciones' in val:
-                cex_ns = val
-                if root.xpath('//cex:Exportacion', namespaces={'cex': cex_ns}):
-                    es_exportacion = True
-                break
-
-        # 8. Tipo de Cambio (Lógica solicitada)
-        # Si es GTQ, es 1.00000. Si es otra moneda, intentar buscar en MonedaRef o atributo.
-        tipo_cambio = 1.00000 if moneda == 'GTQ' else None
-        
-        if moneda != 'GTQ':
-            # Intentar buscar en Complemento o atributo de DatosGenerales
-            moneda_ref_el = first(root.xpath('//dte:MonedaRef', namespaces=ns))
-            if moneda_ref_el is not None:
-                tc_val = moneda_ref_el.get('TipoCambio')
-                if tc_val:
-                    try:
-                        tipo_cambio = float(tc_val)
-                    except ValueError:
-                        pass
-            
-            if tipo_cambio is None and dg_el is not None:
-                tc_attr = dg_el.get('TipoCambio')
-                if tc_attr:
-                    try:
-                        tipo_cambio = float(tc_attr)
-                    except ValueError:
-                        pass
-            
-            # Fallback seguro si no se encuentra
-            if tipo_cambio is None:
-                tipo_cambio = 1.0
+        # 🔹 Calcular totales en GTQ separados
+        tc_float = float(tipo_cambio)
+        total_gravado_bienes_gtq = total_gravado_bienes * tc_float
+        total_iva_bienes_gtq = total_iva_bienes * tc_float
+        total_gravado_servicios_gtq = total_gravado_servicios * tc_float
+        total_iva_servicios_gtq = total_iva_servicios * tc_float
 
         return {
             'numero_autorizacion': numero_autorizacion,
             'serie': serie,
-            'numero': numero_autorizacion, # El número suele ser igual a la autorización o se extrae de otro lado
+            'numero': numero_autorizacion,
             'fecha_emision': fecha_emision,
             'emisor_nit': emisor_nit,
             'emisor_nombre': emisor_nombre,
             'receptor_nit': receptor_nit,
             'receptor_nombre': receptor_nombre,
-            'total_gravado': total_gravado,
-            'total_iva': total_iva,
-            'total_exento': 0.0, # Se puede calcular: total - gravado - iva
+            'total_gravado': total_gravado_bienes + total_gravado_servicios,  # Total general
+            'total_iva': total_iva_bienes + total_iva_servicios,  # Total general
+            'total_exento': 0.0,
             'total': gran_total,
             'tipo_documento': dg_el.get('Tipo', 'FACT') if dg_el is not None else 'FACT',
             'moneda': moneda,
             'autorizacion_uuid': aut_el.text.strip() if aut_el.text else '',
             'items': items,
             'es_exportacion': es_exportacion,
-            'tipo_cambio': tipo_cambio,
+            'pais_destino_exportacion': pais_destino,
+            'tipo_cambio': float(tipo_cambio),
+            
+            # 🔹 NUEVOS: Totales separados por bienes/servicios (moneda original)
+            'total_gravado_bienes': total_gravado_bienes,
+            'total_iva_bienes': total_iva_bienes,
+            'total_gravado_servicios': total_gravado_servicios,
+            'total_iva_servicios': total_iva_servicios,
+            
+            # 🔹 NUEVOS: Totales separados por bienes/servicios (en GTQ)
+            'total_gravado_bienes_gtq': total_gravado_bienes_gtq,
+            'total_iva_bienes_gtq': total_iva_bienes_gtq,
+            'total_gravado_servicios_gtq': total_gravado_servicios_gtq,
+            'total_iva_servicios_gtq': total_iva_servicios_gtq,
         }
 
     except Exception as e:
-        # 🔴 AQUÍ ESTÁ LA CLAVE: Loguear el error real para debug
         logger.error(f"Error crítico parseando XML: {e}", exc_info=True)
         return None

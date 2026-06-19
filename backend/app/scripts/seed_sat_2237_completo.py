@@ -37,6 +37,34 @@ async def seed_sat_2237_completo(db):
     )
     
     print("="*70)
+    print("VERIFICANDO SI EL FORMULARIO SAT-2237 YA EXISTE")
+    print("="*70)
+
+    # Verificar si ya existe el SAT-2237
+    result = await db.execute(
+        FormularioSat.__table__.select().where(
+            FormularioSat.codigo == 'SAT-2237'
+        )
+    )
+    existente = result.scalars().first()
+    
+    if existente:
+        print("="*70)
+        print("ELIMINANDO SAT-2237 EXISTENTE")
+        print("="*70)
+        print("⚠️  SAT-2237 ya existe en la base de datos.")
+        print("   Si quieres re-ejecutar el seed, primero limpia las tablas:")
+        print("   DELETE FROM public.reglas_filtrado_factura;")
+        print("   DELETE FROM public.exclusiones_casilla;")
+        print("   DELETE FROM public.mapeo_casilla_cuenta;")
+        print("   DELETE FROM public.regimenes_formularios_sat;")
+        print("   DELETE FROM public.casillas_sat;")
+        print("   DELETE FROM public.secciones_formulario;")
+        print("   DELETE FROM public.formularios_sat;")
+        return
+
+
+    print("="*70)
     print("INICIANDO SEED SAT-2237 CON VERSIONADO (ASÍNCRONO)")
     print("="*70)
     
@@ -269,7 +297,6 @@ async def seed_sat_2237_completo(db):
             casilla = CasillaSat(
                 id=uuid.uuid4(),
                 seccion_id=seccion_id,
-                formulario_id=formulario_v1.id,
                 codigo=casilla_data['codigo'],
                 codigo_visual=casilla_data['codigo'],
                 nombre=casilla_data['nombre'],
@@ -389,7 +416,6 @@ async def seed_sat_2237_completo(db):
         casilla_v2 = CasillaSat(
             id=uuid.uuid4(),
             seccion_id=seccion_v2.id,
-            formulario_id=formulario_v2.id,
             codigo=casilla_v1.codigo,
             codigo_visual=casilla_v1.codigo_visual,
             nombre=casilla_v1.nombre,
@@ -433,7 +459,6 @@ async def seed_sat_2237_completo(db):
         casilla = CasillaSat(
             id=uuid.uuid4(),
             seccion_id=seccion_9_1.id,
-            formulario_id=formulario_v2.id,
             codigo=cas_data['codigo'],
             codigo_visual=cas_data['codigo'],
             nombre=cas_data['nombre'],
@@ -458,7 +483,6 @@ async def seed_sat_2237_completo(db):
         casilla = CasillaSat(
             id=uuid.uuid4(),
             seccion_id=seccion_9_2.id,
-            formulario_id=formulario_v2.id,
             codigo=cas_data['codigo'],
             codigo_visual=cas_data['codigo'],
             nombre=cas_data['nombre'],
@@ -551,23 +575,22 @@ async def seed_sat_2237_completo(db):
     regimenes_sat_2237 = ['RG_UTILIDADES', 'RG_FEL']
     
     for codigo_regimen in regimenes_sat_2237:
-        # Buscar régimen
+        # ✅ CORREGIDO: Usar select() con el modelo ORM completo
+        from sqlalchemy import select
         result = await db.execute(
-            RegimenFiscal.__table__.select().where(
-                RegimenFiscal.codigo == codigo_regimen
-            )
+            select(RegimenFiscal).where(RegimenFiscal.codigo == codigo_regimen)
         )
-        regimen = result.scalar_one_or_none()
+        regimen = result.scalars().first()  # ← Devuelve el objeto ORM completo
         
         if regimen:
             # Verificar si ya existe la asociación
             result = await db.execute(
-                RegimenFormularioSat.__table__.select().where(
+                select(RegimenFormularioSat).where(
                     RegimenFormularioSat.regimen_id == regimen.id,
                     RegimenFormularioSat.formulario_id == formulario_v2.id
                 )
             )
-            existente = result.scalar_one_or_none()
+            existente = result.scalars().first()
             
             if not existente:
                 asociacion = RegimenFormularioSat(

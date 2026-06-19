@@ -23,6 +23,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func, text
 
 from app.db.base import Base
+from app.db.mixins import AuditableFull
 from app.models.global_models import (
     CatalogoMoneda,
     EstadoActivoFijoEnum,
@@ -562,78 +563,94 @@ class DepreciacionActivo(Base):
 # ==============================================================================
 # MODULO DE DECLARACIONES DE IMPUESTOS (Tenant Specific - Formulario Sombra)
 # ==============================================================================
-
-class DeclaracionImpuesto(Base):
+class DeclaracionImpuesto(AuditableFull, Base):
     """
-    Cabecera de la declaracion sombra. 
+    Cabecera de la declaracion sombra.
     Guarda el estado general, totales y el remanente para el mes siguiente.
+    
+    Auditoría:
+    - created_at/created_by: cuándo y quién creó la declaración
+    - updated_at/updated_by: última modificación (cualquier cambio)
+    - finalizado_por/fecha_cierre: evento específico de CIERRE (semántica de negocio)
     """
     __tablename__ = "declaraciones_impuesto"
-    
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    
+
     # FK al tenant (sin prefijo, asume el esquema actual del tenant)
     empresa_id = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False, index=True)
-    
-    # FK al catalogo global (CON prefijo 'public.' explícito para evitar conflictos de esquema)
+
+    # FK al catalogo global (CON prefijo 'public.' explícito)
     formulario_sat_id = Column(UUID(as_uuid=True), ForeignKey("public.formularios_sat.id"), nullable=False)
-    
+
     # Periodo
     anio = Column(SmallInteger, nullable=False, index=True)
     mes = Column(SmallInteger, nullable=False, index=True)
-    
+
     # Estado del flujo de trabajo
-    estado = Column(String(20), default='BORRADOR', nullable=False) 
-    
+    estado = Column(String(20), default='BORRADOR', nullable=False)
+    # Valores: 'BORRADOR', 'EN_REVISION', 'CALCULADA', 'AJUSTADA', 'CERRADA', 'TRANSMITIDA'
+
     # Totales Financieros (Seccion 7 del SAT-2237)
     total_debito_fiscal = Column(Numeric(15, 2), default=0, server_default="0")
     total_credito_fiscal = Column(Numeric(15, 2), default=0, server_default="0")
-    impuesto_determinado = Column(Numeric(15, 2), default=0, server_default="0") # Debito - Credito
-    
+    impuesto_determinado = Column(Numeric(15, 2), default=0, server_default="0")  # Debito - Credito
+
     # Manejo de Remanentes (CRITICO para la continuidad entre meses)
     remanente_periodo_anterior = Column(Numeric(15, 2), default=0, server_default="0")
     remanente_siguiente_periodo = Column(Numeric(15, 2), default=0, server_default="0")
     impuesto_a_pagar = Column(Numeric(15, 2), default=0, server_default="0")
-    
-    # Auditoria
+
+    # ============================================================
+    # AUDITORÍA GENERAL (del mixin AuditableFull)
+    # - created_at, created_by: creación del registro
+    # - updated_at, updated_by: última modificación
+    # ============================================================
+    # (Los proporciona el mixin automáticamente)
+
+    # ============================================================
+    # AUDITORÍA ESPECÍFICA DE CIERRE (semántica de negocio)
+    # Solo se llenan cuando estado cambia a 'CERRADA'
+    # ============================================================
     finalizado_por = Column(UUID(as_uuid=True), nullable=True)
     fecha_cierre = Column(DateTime(timezone=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    
+
     # Relaciones
     empresa = relationship("Empresa")
-    # Nota: No definimos la relacion al formulario global aqui para evitar ambiguedades de esquema, 
-    # se puede hacer via query directa o con primaryjoin si es estrictamente necesario.
     detalles = relationship("DetalleDeclaracionImpuesto", back_populates="declaracion", cascade="all, delete-orphan")
-    
+
     __table_args__ = (
         UniqueConstraint("empresa_id", "formulario_sat_id", "anio", "mes", name="uq_declaracion_periodo"),
     )
 
 
-class DetalleDeclaracionImpuesto(Base):
+class DetalleDeclaracionImpuesto(AuditableFull, Base):
     """
     Cada fila (casilla) del formulario sombra.
     Permite ajustes manuales con auditoria.
+    
+    Auditoría:
+    - created_at/created_by: cuándo se creó este detalle (al calcular la declaración)
+    - updated_at/updated_by: última modificación (ej: cuando se hace un ajuste manual)
+    - ajustado_por: quién hizo el último ajuste manual (semántica específica)
     """
     __tablename__ = "detalles_declaracion_impuesto"
-    
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     declaracion_id = Column(UUID(as_uuid=True), ForeignKey("declaraciones_impuesto.id", ondelete="CASCADE"), nullable=False)
-    
+
     # FK al catalogo global (CON prefijo 'public.' explícito)
     casilla_sat_id = Column(UUID(as_uuid=True), ForeignKey("public.casillas_sat.id"), nullable=False)
-    
+
     # Montos
     base_imponible = Column(Numeric(15, 2), default=0, server_default="0")
-    monto_impuesto = Column(Numeric(15, 2), default=0, server_default="0") # Debito o Credito
-    
-    # Control de Ajustes Manuales (La ventaja competitiva)
+    monto_impuesto = Column(Numeric(15, 2), default=0, server_default="0")  # Debito o Credito
+
+    # ============================================================
+    # CONTROL DE AJUSTES MANUALES (La ventaja competitiva)
+    # ============================================================
     es_ajuste_manual = Column(Boolean, default=False, server_default="false")
-    motivo_ajuste = Column(Text, nullable=True) # Obligatorio si es_ajuste_manual es True
-    ajustado_por = Column(UUID(as_uuid=True), nullable=True)
-    
+    motivo_ajuste = Column(Text, nullable=True)  # Obligatorio si es_ajuste_manual es True
+    ajustado_por = Column(UUID(as_uuid=True), nullable=True)  # Auditoría específica de ajustes
+
     # Relaciones
     declaracion = relationship("DeclaracionImpuesto", back_populates="detalles")
     facturas_asociadas = relationship("DeclaracionImpuestoFactura", back_populates="detalle", cascade="all, delete-orphan")
@@ -645,28 +662,29 @@ class DetalleDeclaracionImpuesto(Base):
     )
 
 
-class DeclaracionImpuestoFactura(Base):
+class DeclaracionImpuestoFactura(AuditableFull, Base):
     """
     Tabla puente para "Drill-Down" (Trazabilidad).
-    Permite que el contador haga clic en una casilla y vea exactamente 
+    Permite que el contador haga clic en una casilla y vea exactamente
     que facturas componen ese monto.
+    
+    Auditoría completa para saber cuándo y quién asoció/desasoció facturas.
     """
     __tablename__ = "declaraciones_impuesto_facturas"
-    
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     detalle_declaracion_id = Column(UUID(as_uuid=True), ForeignKey("detalles_declaracion_impuesto.id", ondelete="CASCADE"), nullable=False)
-    
+
     # FK al tenant (sin prefijo)
     factura_id = Column(UUID(as_uuid=True), ForeignKey("facturas_electronicas.id"), nullable=False)
-    
+
     # Por si una factura se debe prorratear entre dos casillas (raro, pero posible)
     base_asignada = Column(Numeric(15, 2), default=0, server_default="0")
     impuesto_asignado = Column(Numeric(15, 2), default=0, server_default="0")
-    
+
     # Relaciones
     detalle = relationship("DetalleDeclaracionImpuesto", back_populates="facturas_asociadas")
     factura = relationship("FacturaElectronica")
-    
+
     __table_args__ = (
         UniqueConstraint("detalle_declaracion_id", "factura_id", name="uq_detalle_factura"),
     )

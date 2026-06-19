@@ -5,6 +5,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -14,11 +15,12 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+from sqlalchemy.sql import func, text
 
 from app.db.base import Base
+from app.db.mixins import AuditableFull
 
 
 class Tenant(Base):
@@ -341,58 +343,130 @@ class RegimenImpuestoConfig(Base):
 #------------------------------------------------------
 # Catálogos Declaraciones SAT
 #------------------------------------------------------
-class FormularioSat(Base):
+class FormularioSat(AuditableFull, Base):
     """
-    Catalogo global de formularios de la SAT (2237, 2046, 2276, 1031, etc.)
+    Catálogo global de formularios de la SAT (2237, 2046, 2276, 1031, etc.)
+    SOPORTA VERSIONADO: Permite mantener múltiples versiones del mismo formulario
     """
     __tablename__ = "formularios_sat"
-    __table_args__ = {"schema": "public"}
+    __table_args__ = (
+        UniqueConstraint('codigo', 'version', name='uq_formulario_codigo_version'),
+        Index('idx_formularios_vigencia', 'codigo', 'fecha_vigencia_desde', 'fecha_vigencia_hasta'),
+        {"schema": "public"}
+    )
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    codigo = Column(String(20), unique=True, nullable=False, index=True) # Ej: 'SAT-2237'
+    codigo = Column(String(20), nullable=False, index=True)  # Ej: 'SAT-2237' (sin unique)
+    version = Column(String(10), nullable=False, default='1.0')  # Ej: '1.0', '2.0'
+    
     nombre = Column(String(255), nullable=False)
     descripcion = Column(Text)
     
-    # Relaciones
-    casillas = relationship("CasillaSat", back_populates="formulario", cascade="all, delete-orphan")
+    # Versionado y Vigencia
+    fecha_vigencia_desde = Column(Date, nullable=False, server_default=text("CURRENT_DATE"))
+    fecha_vigencia_hasta = Column(Date, nullable=True)  # NULL = vigente actualmente
+    es_version_activa = Column(Boolean, default=True, server_default="true")
     
-    # Relación N:M con Regimenes (A través de la tabla puente)
+    # Auto-referencia para versionado
+    formulario_padre_id = Column(
+        UUID(as_uuid=True), 
+        ForeignKey("public.formularios_sat.id"), 
+        nullable=True,
+        comment="ID del formulario versión anterior (para duplicación)"
+    )
+    
+    # Relaciones
+    #============================================================================
+    # La relación uno a muchos de Formulario a Casillas fue eliminada
+    # por cambios en el diseño, y la creación de una tabla Sección
+    # que contendrá casillas, mientras el formulario contendrá Secciones
+    #============================================================================
+    # casillas = relationship("CasillaSat", back_populates="formulario", cascade="all, delete-orphan")
+    #============================================================================
+    secciones = relationship("SeccionFormulario", back_populates="formulario", cascade="all, delete-orphan")
+    
+    # Relación N:M con Regimenes
     regimenes = relationship(
         "RegimenFiscal",
         secondary="public.regimenes_formularios_sat",
         back_populates="formularios_sat"
     )
+    
+    # Auto-relación para versionado
+    version_hija = relationship(
+        "FormularioSat",
+        back_populates="version_padre",
+        foreign_keys=[formulario_padre_id],
+        remote_side=[formulario_padre_id]
+    )
 
-class CasillaSat(Base):
+    version_padre = relationship(
+        "FormularioSat",
+        back_populates="version_hija",
+        foreign_keys=[formulario_padre_id],
+        remote_side=[id]
+    )
+    
+    @property
+    def nombre_completo(self):
+        return f"{self.codigo} v{self.version}"
+
+class CasillaSat(AuditableFull, Base):
     """
-    Catalogo global de cada fila/casilla de los formularios SAT.
-    Define la estructura visual y lógica del formulario.
+    Catálogo global de cada fila/casilla de los formularios SAT.
+    Cada versión de formulario tiene sus propias casillas.
     """
     __tablename__ = "casillas_sat"
     __table_args__ = (
-        UniqueConstraint('formulario_id', 'seccion', 'orden_seccion', name='uq_casilla_seccion_orden'),
-        Index('idx_casillas_formulario_seccion', 'formulario_id', 'seccion'),
-        {"schema": "public"}  
-    )    
+        UniqueConstraint('seccion_id', 'codigo', name='uq_casilla_seccion_codigo'),
+        {"schema": "public"}
+    )
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    formulario_id = Column(UUID(as_uuid=True), ForeignKey("public.formularios_sat.id"), nullable=False)
+    #============================================================================
+    # formulario_id ha sido eliminado al no ser necesario
+    # por cambios en el diseño, y la creación de una tabla Sección
+    # que contendrá casillas, mientras el formulario contendrá Secciones
+    #============================================================================
+    # formulario_id = Column(UUID(as_uuid=True), ForeignKey("public.formularios_sat.id"), nullable=False)
+    #============================================================================
+    seccion_id = Column(UUID(as_uuid=True), ForeignKey("public.secciones_formulario.id"), nullable=True)
+
     
-    seccion = Column(String(10), nullable=False) # Ej: '3', '4', '5', '7', '9'
-    codigo = Column(String(50), unique=True, nullable=False, index=True) 
-    nombre = Column(String(255), nullable=False) 
+    # Identificación
+    codigo = Column(String(50), nullable=False)  # Ej: '3.1', '4.2' (no unique global)
+    codigo_visual = Column(String(20), nullable=True)
+    nombre = Column(String(255), nullable=False)
+    descripcion = Column(Text)
     
-    # 🔹 NUEVOS CAMPOS
-    tipo_casilla = Column(String(20), nullable=False, default='CALCULO') 
-    # Valores: 'CALCULO' (Débito/Crédito), 'REFERENCIA' (Exportaciones), 'INDICADOR' (Conteos), 'CALCULADO' (Totales)
+    # Ubicación
+    seccion = Column(String(10), nullable=True)
+    orden_seccion = Column(Integer, default=0)
     
-    orden_seccion = Column(Integer, default=0) 
+    # Configuración
+    tipo_casilla = Column(String(30), nullable=False, default='CALCULO')
+    naturaleza = Column(String(20), nullable=True)
+    formula_calculo = Column(Text, nullable=True)
+    porcentaje_aplicable = Column(Numeric(5, 2), nullable=True)
+    campo_origen_factura = Column(String(50), nullable=True)
+    
+    # Banderas
+    es_editable = Column(Boolean, default=False, server_default="false")
+    requiere_justificacion = Column(Boolean, default=False, server_default="false")
+    es_visible_usuario = Column(Boolean, default=True, server_default="true")
     
     # Relaciones
-    formulario = relationship("FormularioSat", back_populates="casillas")
+    seccion_rel = relationship("SeccionFormulario", back_populates="casillas")
+    reglas_filtrado = relationship("ReglaFiltradoFactura", back_populates="casilla", cascade="all, delete-orphan")
+    exclusiones = relationship("ExclusionCasilla", back_populates="casilla", cascade="all, delete-orphan")
     detalles = relationship("DetalleDeclaracionImpuesto", back_populates="casilla")
+    
+    # ✅ Propiedad para obtener formulario_id vía seccion
+    @property
+    def formulario_id(self):
+        return self.seccion_rel.formulario_id if self.seccion_rel else None
 
-class RegimenFormularioSat(Base):
+class RegimenFormularioSat(AuditableFull, Base):
     """
     TABLA PUENTE: Define qué formularios debe presentar cada régimen fiscal.
     Esto permite que el sistema sepa automáticamente qué declaraciones 
@@ -416,3 +490,139 @@ class RegimenFormularioSat(Base):
     # Relaciones
     regimen = relationship("RegimenFiscal", overlaps="formularios_sat,regimenes")
     formulario = relationship("FormularioSat", overlaps="formularios_sat,regimenes")
+
+# =============================================================
+# REDISEÑO: Configuración Avanzada de Formularios SAT
+# Permite configurar dinámicamente cualquier formulario SAT
+# sin tocar código (solo datos). Soporta fórmulas, filtros,
+# exclusiones (ej: FYDUCA Honduras) y mapeo contable.
+# =============================================================
+
+class SeccionFormulario(AuditableFull, Base):
+    """
+    Representa una sección lógica del formulario SAT.
+    Ejemplo: "Sección 3: Débito Fiscal por Operaciones Locales"
+    
+    Esto permite:
+    - Agrupar casillas visualmente
+    - Aplicar lógica de negocio por sección
+    - Reordenar secciones sin tocar código
+    """
+    __tablename__ = "secciones_formulario"
+    __table_args__ = (
+        UniqueConstraint('formulario_id', 'numero_seccion', name='uq_seccion_formulario'),
+        {"schema": "public"}
+    )
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    formulario_id = Column(UUID(as_uuid=True), ForeignKey("public.formularios_sat.id"), nullable=False)
+    
+    # Identificación
+    numero_seccion = Column(String(10), nullable=False)  # '3', '4', '5', '7'
+    titulo = Column(String(255), nullable=False)
+    descripcion = Column(Text)
+    orden = Column(Integer, nullable=False, default=0)
+    
+    # Tipo de sección para lógica de negocio
+    tipo_seccion = Column(String(30), nullable=False)
+    # Valores: 'IDENTIFICACION', 'PERIODO', 'DEBITO_FISCAL', 'CREDITO_FISCAL',
+    #          'EXPORTACIONES', 'DETERMINACION', 'INFORMATIVA', 'DOCUMENTOS'
+    
+    # Banderas de control
+    es_obligatoria = Column(Boolean, default=True, server_default="true")
+    requiere_exportador = Column(Boolean, default=False, server_default="false")
+    
+    # Relaciones
+    formulario = relationship("FormularioSat", back_populates="secciones")
+    casillas = relationship("CasillaSat", back_populates="seccion_rel", cascade="all, delete-orphan")
+
+
+class ReglaFiltradoFactura(AuditableFull, Base):
+    """
+    Define qué facturas alimentan una casilla específica.
+    
+    Ejemplo: "Casilla 3.2 solo recibe facturas de tipo 'Venta',
+    que NO sean exentas, y que NO sean exportaciones."
+    
+    Los criterios se guardan como JSON para máxima flexibilidad:
+    {"tipo_operacion": "Venta", "es_exento": false, "es_exportacion": false}
+    """
+    __tablename__ = "reglas_filtrado_factura"
+    __table_args__ = {"schema": "public"}
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    casilla_id = Column(UUID(as_uuid=True), ForeignKey("public.casillas_sat.id"), nullable=False)
+    
+    nombre = Column(String(255), nullable=False)
+    descripcion = Column(Text)
+    
+    # Criterios de filtrado en JSON
+    criterios_json = Column(JSONB, nullable=False)
+    
+    # Campo de la factura a sumar
+    campo_factura = Column(String(50), nullable=False)  # 'total_gravado_gtq', 'total_iva_gtq'
+    
+    operacion = Column(String(20), nullable=False, default='SUMA')  # SUMA, COUNT, PROMEDIO
+    orden = Column(Integer, default=0)
+    es_activa = Column(Boolean, default=True, server_default="true")
+    
+    # Relaciones
+    casilla = relationship("CasillaSat", back_populates="reglas_filtrado")
+
+
+class ExclusionCasilla(AuditableFull, Base):
+    """
+    Define exclusiones específicas para una casilla.
+    
+    Caso de uso crítico: FYDUCA Honduras debe ir en casilla separada
+    de "Exportaciones Centroamérica", así que excluimos de 4.1.
+    
+    Criterios en JSON:
+    {"tipo_documento": "FYDUCA", "pais_destino": "HND"}
+    """
+    __tablename__ = "exclusiones_casilla"
+    __table_args__ = {"schema": "public"}
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    casilla_id = Column(UUID(as_uuid=True), ForeignKey("public.casillas_sat.id"), nullable=False)
+    
+    nombre = Column(String(255), nullable=False)
+    descripcion = Column(Text)
+    
+    # Criterios de exclusión en JSON
+    criterios_exclusion_json = Column(JSONB, nullable=False)
+    
+    es_activa = Column(Boolean, default=True, server_default="true")
+    
+    # Relaciones
+    casilla = relationship("CasillaSat", back_populates="exclusiones")
+
+
+class MapeoCasillaCuenta(AuditableFull, Base):
+    """
+    Mapea casillas SAT a cuentas contables del tenant.
+    
+    Permite que al cerrar una declaración se generen
+    partidas contables automáticas.
+    
+    Puede ser global (tenant_id NULL) o específico por tenant.
+    """
+    __tablename__ = "mapeo_casilla_cuenta"
+    __table_args__ = (
+        UniqueConstraint('casilla_id', 'tenant_id', 'empresa_id', name='uq_casilla_tenant_empresa'),
+        {"schema": "public"}
+    )
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    casilla_id = Column(UUID(as_uuid=True), ForeignKey("public.casillas_sat.id"), nullable=False)
+    
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("public.tenants.id"), nullable=True)
+    empresa_id = Column(UUID(as_uuid=True), nullable=True)
+    
+    codigo_cuenta_sugerido = Column(String(20), nullable=False)
+    nombre_cuenta_sugerido = Column(String(255), nullable=False)
+    tipo_movimiento = Column(String(10), nullable=False)  # 'DEBE', 'HABER'
+    
+    # Relaciones
+    casilla = relationship("CasillaSat")
+    tenant = relationship("Tenant")

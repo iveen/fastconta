@@ -1,5 +1,6 @@
 """Schemas para Casillas SAT"""
 
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -73,9 +74,9 @@ class CasillaSatResponse(CasillaSatBase):
     id: UUID
     seccion_id: UUID | None = None
     formulario_id: UUID | None = None  # Via property
-    created_at: str | None = None
+    created_at: datetime | None = None
     created_by: UUID | None = None
-    updated_at: str | None = None
+    updated_at: datetime | None = None
     updated_by: UUID | None = None
 
     model_config = {"from_attributes": True}

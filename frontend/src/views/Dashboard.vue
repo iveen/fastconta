@@ -99,7 +99,7 @@
           active-class="bg-blue-600 text-white"
         >
           <!-- Ícono Declaraciones (Documento con check) -->
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
           </svg>
           Declaraciones SAT
@@ -112,6 +112,15 @@
         >
           <CreditCard class="w-5 h-5 text-blue-200 group-hover:text-white transition-colors" />
           Activos Fijos
+        </router-link>
+
+        <router-link
+          to="/configuracion"
+          class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors group text-white"
+          active-class="bg-blue-700"
+        >
+          <Settings class="w-5 h-5 text-blue-200 group-hover:text-white transition-colors" />
+          Configuración
         </router-link>
 
         <router-link
@@ -227,7 +236,8 @@ import {
   Receipt,
   CreditCard,
   Users,
-  LogOut
+  LogOut,
+  Settings
 } from '@lucide/vue'
 
 const authStore = useAuthStore()

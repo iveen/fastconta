@@ -1,6 +1,6 @@
 """Schemas para Formulario SAT con versionado"""
 
-from datetime import date
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -38,9 +38,9 @@ class FormularioSatUpdate(BaseModel):
 class FormularioSatResponse(FormularioSatBase):
     id: UUID
     formulario_padre_id: UUID | None = None
-    created_at: date | None = None
+    created_at: datetime | None = None
     created_by: UUID | None = None
-    updated_at: date | None = None
+    updated_at: datetime | None = None
     updated_by: UUID | None = None
 
     model_config = {"from_attributes": True}

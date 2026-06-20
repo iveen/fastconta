@@ -5,15 +5,16 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
+from app.models.global_models import FormularioSat, SeccionFormulario
 from app.schemas.configuracion_fiscal.formulario import (
     FormularioSatCreate,
     FormularioSatDetail,
     FormularioSatDuplicarRequest,
     FormularioSatHistorial,
-    FormularioSatListResponse,
     FormularioSatResponse,
     FormularioSatUpdate,
 )
@@ -31,25 +32,54 @@ def get_service(db: AsyncSession = Depends(get_db)) -> FormularioSatService:
 # ============================================================
 @router.get("/", response_model=dict)
 async def listar_formularios(
-    codigo: Optional[str] = Query(None, description="Filtrar por código (ej: SAT-2237)"),
-    es_version_activa: Optional[bool] = Query(None, description="Filtrar por estado activo"),
+    codigo: str | None = Query(None),
+    es_version_activa: bool | None = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     service: FormularioSatService = Depends(get_service),
 ):
-    """Lista formularios SAT con filtros y paginación"""
-    formularios, total = await service.obtener_todos(
-        codigo=codigo,
-        es_version_activa=es_version_activa,
-        skip=skip,
-        limit=limit,
-    )
-    return {
-        "data": [FormularioSatListResponse.model_validate(f) for f in formularios],
-        "total": total,
-        "skip": skip,
-        "limit": limit,
-    }
+    # 1️⃣ Subconsulta eficiente para contar secciones
+    subquery_sec = select(func.count(SeccionFormulario.id)).where(
+        SeccionFormulario.formulario_id == FormularioSat.id
+    ).correlate(FormularioSat).scalar_subquery()
+
+    # 2️⃣ Query principal con el conteo como columna virtual
+    query = select(FormularioSat, subquery_sec.label("total_secciones"))
+
+    if codigo:
+        query = query.where(FormularioSat.codigo == codigo)
+    if es_version_activa is not None:
+        query = query.where(FormularioSat.es_version_activa.is_(es_version_activa))
+
+    # Contar total para paginación
+    count_query = select(func.count()).select_from(query.subquery())
+    total = (await service.db.execute(count_query)).scalar() or 0
+
+    # Paginar y ejecutar
+    query = query.order_by(FormularioSat.codigo, FormularioSat.version.desc())
+    query = query.offset(skip).limit(limit)
+    
+    result = await service.db.execute(query)
+    rows = result.all()
+
+    # 3️ Mapear a formato JSON esperado por el frontend
+    data = []
+    for form, total_sec in rows:
+        form_dict = {
+            "id": str(form.id),
+            "codigo": form.codigo,
+            "version": form.version,
+            "nombre": form.nombre,
+            "descripcion": form.descripcion,
+            "fecha_vigencia_desde": form.fecha_vigencia_desde.isoformat() if form.fecha_vigencia_desde else None,
+            "fecha_vigencia_hasta": form.fecha_vigencia_hasta.isoformat() if form.fecha_vigencia_hasta else None,
+            "es_version_activa": form.es_version_activa,
+            "formulario_padre_id": str(form.formulario_padre_id) if form.formulario_padre_id else None,
+            "total_secciones": total_sec or 0,  # ✅ Aquí se inyecta el conteo real
+        }
+        data.append(form_dict)
+
+    return {"data": data, "total": total, "skip": skip, "limit": limit}
 
 
 # ============================================================

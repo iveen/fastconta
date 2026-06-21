@@ -72,17 +72,18 @@
           />
         </div>
 
-        <!-- Tab: Estructura -->
         <div v-else-if="activeTab === 'estructura' && store.formularioActual">
           <FormularioDetail
             :formulario="store.formularioActual"
             :loading="store.loading"
             @editar="editarFormulario"
             @duplicar="abrirDuplicar"
-            @agregar-seccion="toast.info('Próximamente: Agregar sección')"
-            @editar-seccion="toast.info('Próximamente: Editar sección')"
-            @eliminar-seccion="toast.info('Próximamente: Eliminar sección')"
-            @agregar-casilla="toast.info('Próximamente: Agregar casilla')"
+            @agregar-seccion="abrirModalSeccion"
+            @editar-seccion="abrirModalSeccion"
+            @eliminar-seccion="confirmarEliminarSeccion"
+            @agregar-casilla="abrirModalCasilla"
+            @editar-casilla="abrirModalCasilla"
+            @eliminar-casilla="confirmarEliminarCasilla"
           />
         </div>
 
@@ -97,7 +98,7 @@
       </div>
     </div>
 
-    <!-- Modal Crear/Editar -->
+    <!-- Modal Crear/Editar Formulario -->
     <FormularioModal
       v-if="showCrearModal || showEditarModal"
       :titulo="showEditarModal ? 'Editar Formulario' : 'Nuevo Formulario'"
@@ -115,12 +116,37 @@
       @cancelar="showDuplicarModal = false"
       @duplicar="ejecutarDuplicar"
     />
+
+    <!-- ✅ NUEVO: Modal Sección -->
+    <SeccionModal
+      v-if="showSeccionModal"
+      :titulo="modoEdicionSeccion ? 'Editar Sección' : 'Nueva Sección'"
+      :data="seccionSeleccionada"
+      :formulario-id="store.formularioActual?.id"
+      :loading="loadingSeccion"
+      @cancelar="cerrarModalSeccion"
+      @guardar="guardarSeccion"
+    />
+
+    <!-- ✅ NUEVO: Modal Casilla -->
+    <CasillaModal
+      v-if="showCasillaModal"
+      :titulo="modoEdicionCasilla ? 'Editar Casilla' : 'Nueva Casilla'"
+      :data="casillaSeleccionada"
+      :loading="loadingCasilla"
+      :seccion-numero="seccionParaCasilla?.numero_seccion || ''"
+      :seccion-titulo="seccionParaCasilla?.titulo || ''"
+      @cancelar="cerrarModalCasilla"
+      @guardar="guardarCasilla"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useFormulariosStore } from '@/stores/formularios'
+import { useSeccionesStore } from '@/stores/secciones'
+import { useCasillasStore } from '@/stores/casillas'
 import { Plus } from '@lucide/vue'
 import { toast } from 'vue3-toastify'
 
@@ -129,14 +155,31 @@ import FormularioHistorialView from '@/components/configuracion/formularios/Form
 import FormularioDetail from '@/components/configuracion/formularios/FormularioDetail.vue'
 import FormularioModal from '@/components/configuracion/formularios/FormularioModal.vue'
 import FormularioDuplicarModal from '@/components/configuracion/formularios/FormularioDuplicarModal.vue'
+import SeccionModal from '@/components/configuracion/formularios/SeccionModal.vue'
+import CasillaModal from '@/components/configuracion/formularios/CasillaModal.vue'
 
 const store = useFormulariosStore()
+const seccionesStore = useSeccionesStore()
+const casillasStore = useCasillasStore()
 
 const activeTab = ref('todos')
 const showCrearModal = ref(false)
 const showEditarModal = ref(false)
 const showDuplicarModal = ref(false)
 const formularioSeleccionado = ref(null)
+
+// Estados para Secciones
+const showSeccionModal = ref(false)
+const seccionSeleccionada = ref(null)
+const modoEdicionSeccion = ref(false)
+const loadingSeccion = ref(false)
+
+// Estados para Casillas
+const showCasillaModal = ref(false)
+const casillaSeleccionada = ref(null)
+const modoEdicionCasilla = ref(false)
+const seccionParaCasilla = ref(null)
+const loadingCasilla = ref(false)
 
 const tabs = computed(() => [
   { id: 'todos', label: 'Todos', count: store.total },
@@ -165,12 +208,12 @@ async function verDetalle(formulario) {
   
   console.log('📋 Formulario seleccionado:', formulario)
   
-  // Cargar detalle completo (esto actualiza store.formularioActual)
   const result = await store.fetchFormularioDetail(formulario.id)
   
   console.log('✅ Resultado:', result)
   console.log('📑 Store.formularioActual:', store.formularioActual)
   console.log('📑 Secciones:', store.formularioActual?.secciones)
+  console.log('📑 Total secciones:', store.formularioActual?.secciones?.length)
   
   if (!result.success) {
     toast.error(result.error)
@@ -235,6 +278,151 @@ async function ejecutarDuplicar(data) {
     } else {
       toast.error(result?.error || 'Error al duplicar el formulario')
     }
+  }
+}
+
+// === FUNCIONES DE SECCIÓN ===
+
+function abrirModalSeccion(seccion = null) {
+  seccionSeleccionada.value = seccion
+  modoEdicionSeccion.value = !!seccion
+  showSeccionModal.value = true
+}
+
+function cerrarModalSeccion() {
+  showSeccionModal.value = false
+  seccionSeleccionada.value = null
+  modoEdicionSeccion.value = false
+}
+
+async function guardarSeccion(data) {
+  loadingSeccion.value = true
+  try {
+    let result
+    if (modoEdicionSeccion.value && seccionSeleccionada.value) {
+      result = await seccionesStore.actualizarSeccion(seccionSeleccionada.value.id, data)
+    } else {
+      result = await seccionesStore.crearSeccion(data)
+    }
+    
+    if (result.success) {
+      toast.success('Sección guardada exitosamente')
+      cerrarModalSeccion()
+      // Recargar el formulario para ver los cambios
+      if (store.formularioActual) {
+        await store.fetchFormularioDetail(store.formularioActual.id)
+      }
+    } else {
+      toast.error(result.error)
+    }
+  } catch (error) {
+    console.error('Error al guardar sección:', error)
+    toast.error('Error al guardar sección')
+  } finally {
+    loadingSeccion.value = false
+  }
+}
+
+async function confirmarEliminarSeccion(seccion) {
+  if (confirm(`¿Está seguro de eliminar la sección "${seccion.titulo}"?`)) {
+    loadingSeccion.value = true
+    const result = await seccionesStore.eliminarSeccion(seccion.id)
+    if (result.success) {
+      toast.success('Sección eliminada exitosamente')
+      // Recargar el formulario
+      if (store.formularioActual) {
+        await store.fetchFormularioDetail(store.formularioActual.id)
+      }
+    } else {
+      toast.error(result.error)
+    }
+    loadingSeccion.value = false
+  }
+}
+
+// === FUNCIONES DE CASILLA ===
+
+function abrirModalCasilla(payload) {
+  // payload puede ser una casilla (editar) o un objeto { seccion_id, seccion_numero }
+  if (payload && payload.id) {
+    // Es edición
+    casillaSeleccionada.value = payload
+    modoEdicionCasilla.value = true
+    // Buscar la sección de esta casilla
+    if (store.formularioActual) {
+      const seccion = store.formularioActual.secciones?.find(
+        s => s.casillas?.some(c => c.id === payload.id)
+      )
+      seccionParaCasilla.value = seccion
+    }
+  } else {
+    // Es creación
+    casillaSeleccionada.value = null
+    modoEdicionCasilla.value = false
+    seccionParaCasilla.value = payload
+  }
+  showCasillaModal.value = true
+}
+
+function cerrarModalCasilla() {
+  showCasillaModal.value = false
+  casillaSeleccionada.value = null
+  modoEdicionCasilla.value = false
+  seccionParaCasilla.value = null
+}
+
+async function guardarCasilla(data) {
+  if (!seccionParaCasilla.value) {
+    toast.error('No hay sección seleccionada')
+    return
+  }
+  
+  loadingCasilla.value = true
+  try {
+    const casillaData = {
+      ...data,
+      seccion_id: seccionParaCasilla.value.id,
+    }
+    
+    let result
+    if (modoEdicionCasilla.value && casillaSeleccionada.value) {
+      result = await casillasStore.actualizarCasilla(casillaSeleccionada.value.id, casillaData)
+    } else {
+      result = await casillasStore.crearCasilla(casillaData)
+    }
+    
+    if (result.success) {
+      toast.success('Casilla guardada exitosamente')
+      cerrarModalCasilla()
+      // Recargar el formulario para ver los cambios
+      if (store.formularioActual) {
+        await store.fetchFormularioDetail(store.formularioActual.id)
+      }
+    } else {
+      toast.error(result.error)
+    }
+  } catch (error) {
+    console.error('Error al guardar casilla:', error)
+    toast.error('Error al guardar casilla')
+  } finally {
+    loadingCasilla.value = false
+  }
+}
+
+async function confirmarEliminarCasilla(casilla) {
+  if (confirm(`¿Está seguro de eliminar la casilla "${casilla.nombre}"?`)) {
+    loadingCasilla.value = true
+    const result = await casillasStore.eliminarCasilla(casilla.id)
+    if (result.success) {
+      toast.success('Casilla eliminada exitosamente')
+      // Recargar el formulario
+      if (store.formularioActual) {
+        await store.fetchFormularioDetail(store.formularioActual.id)
+      }
+    } else {
+      toast.error(result.error)
+    }
+    loadingCasilla.value = false
   }
 }
 

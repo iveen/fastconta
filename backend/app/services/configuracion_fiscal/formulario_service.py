@@ -117,7 +117,7 @@ class FormularioSatService:
         """Crea un nuevo formulario"""
         formulario = FormularioSat(**data, created_by=usuario_id)
         self.db.add(formulario)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(formulario)
         return formulario
 
@@ -137,7 +137,7 @@ class FormularioSatService:
                 setattr(formulario, key, value)
 
         formulario.updated_by = usuario_id
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(formulario)
         return formulario
 
@@ -148,7 +148,7 @@ class FormularioSatService:
             return False
 
         formulario.es_version_activa = False
-        await self.db.flush()
+        await self.db.commit()
         return True
 
     # ============================================================

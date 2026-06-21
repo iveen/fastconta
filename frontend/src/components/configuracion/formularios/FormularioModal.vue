@@ -162,6 +162,15 @@ watch(
 )
 
 function handleSubmit() {
-  emit('guardar', { ...form })
+  const formData = {
+    codigo: form.codigo,
+    version: form.version,
+    nombre: form.nombre,
+    descripcion: form.descripcion || null,
+    fecha_vigencia_desde: form.fecha_vigencia_desde,
+    fecha_vigencia_hasta: form.fecha_vigencia_hasta || null,
+    es_version_activa: form.es_version_activa,
+  }
+  emit('guardar', formData)
 }
 </script>

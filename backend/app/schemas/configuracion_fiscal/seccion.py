@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.schemas.configuracion_fiscal.casilla import CasillaSatResponse
+
 
 # ============================================================
 # BASE
@@ -57,6 +59,8 @@ class SeccionFormularioResponse(SeccionFormularioBase):
     created_by: UUID | None = None
     updated_at: datetime | None = None
     updated_by: UUID | None = None
+    casillas: list["CasillaSatResponse"]
+    total_casillas: int = 0
 
     model_config = {"from_attributes": True}
 

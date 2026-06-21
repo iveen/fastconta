@@ -66,7 +66,7 @@
 <script setup>
 import { Pencil, Trash2 } from '@lucide/vue'
 
-const props = defineProps({
+defineProps({
   casilla: { type: Object, required: true },
 })
 

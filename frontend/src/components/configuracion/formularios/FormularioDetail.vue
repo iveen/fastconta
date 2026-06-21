@@ -69,6 +69,8 @@
         @editar="$emit('editar-seccion', $event)"
         @eliminar="$emit('eliminar-seccion', $event)"
         @agregar-casilla="$emit('agregar-casilla', $event)"
+        @editar-casilla="$emit('editar-casilla', $event)"
+        @eliminar-casilla="$emit('eliminar-casilla', $event)"
       />
     </div>
   </div>
@@ -90,6 +92,8 @@ defineEmits([
   'editar-seccion',
   'eliminar-seccion',
   'agregar-casilla',
+  'editar-casilla',
+  'eliminar-casilla',
 ])
 
 // Debug: Ver qué recibe el componente
@@ -98,6 +102,8 @@ console.log('📦 FormularioDetail recibe:', props.formulario)
 const secciones = computed(() => {
   const secs = props.formulario.secciones || []
   console.log(' Secciones en FormularioDetail:', secs)
+  console.log('📑 Primera sección con casillas:', secs[0]?.casillas)
+
   return secs
 })
 

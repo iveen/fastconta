@@ -1,5 +1,6 @@
 """Router para gestión de formularios SAT con versionado"""
 
+import logging
 from datetime import date
 from typing import Optional
 from uuid import UUID
@@ -21,6 +22,8 @@ from app.schemas.configuracion_fiscal.formulario import (
 from app.services.configuracion_fiscal.formulario_service import FormularioSatService
 
 router = APIRouter(prefix="/formularios-sat", tags=["Configuración Fiscal - Formularios"])
+logger = logging.getLogger(__name__)
+
 
 
 def get_service(db: AsyncSession = Depends(get_db)) -> FormularioSatService:
@@ -127,12 +130,12 @@ async def obtener_por_id(
     formulario_id: UUID,
     service: FormularioSatService = Depends(get_service),
 ):
-    """Obtiene un formulario específico con todas sus secciones y casillas"""
+    """Obtiene un formulario con todas sus secciones y casillas"""
     formulario = await service.obtener_por_id(formulario_id)
-    if not formulario:
+    if formulario is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Formulario no encontrado",
+            detail="Formulario no encontrado"
         )
     return formulario
 

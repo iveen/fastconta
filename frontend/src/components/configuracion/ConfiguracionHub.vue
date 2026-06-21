@@ -63,7 +63,7 @@
           <ConfigCard
             icon="📝"
             title="Formularios SAT"
-            description="Versionado de formularios (2237, 2046, 2276, etc.)"
+            description="Versionado de formularios (2237, 2046, 1311, etc.)"
             to="/configuracion/formularios-sat"
           />
           <ConfigCard

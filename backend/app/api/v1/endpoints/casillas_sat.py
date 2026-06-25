@@ -71,6 +71,7 @@ async def crear_casilla(
 ):
     """Crea una nueva casilla"""
     try:
+        await service.verificar_editable(data.seccion_id)
         casilla = await service.crear(data.model_dump())
         return casilla
     except ValueError as e:
@@ -87,12 +88,19 @@ async def actualizar_casilla(
     service: CasillaSatService = Depends(get_service),
 ):
     """Actualiza una casilla"""
-    casilla = await service.actualizar(casilla_id, data.model_dump(exclude_unset=True))
+    casilla = await service.obtener_por_id(casilla_id)
+
     if casilla is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Casilla no encontrada",
         )
+    
+    if casilla.es_automatica:
+        raise HTTPException(status_code=403, detail="No se puede modificar una casilla automática")
+    
+    casilla = await service.actualizar(casilla_id, data.model_dump(exclude_unset=True))
+
     return casilla
 
 
@@ -105,6 +113,17 @@ async def eliminar_casilla(
     service: CasillaSatService = Depends(get_service),
 ):
     """Elimina una casilla (cascade a reglas y exclusiones)"""
+    casilla = await service.obtener_por_id(casilla_id)
+
+    if casilla is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Casilla no encontrada",
+        )
+    
+    if casilla.es_automatica:
+        raise HTTPException(status_code=403, detail="No se puede eliminar una casilla automática")
+
     eliminado = await service.eliminar(casilla_id)
     if not eliminado:
         raise HTTPException(

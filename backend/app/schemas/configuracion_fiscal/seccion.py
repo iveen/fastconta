@@ -34,6 +34,7 @@ class SeccionFormularioBase(BaseModel):
     )
     es_obligatoria: bool = True
     requiere_exportador: bool = False
+    es_automatica: bool = False
 
 
 class SeccionFormularioCreate(SeccionFormularioBase):
@@ -59,7 +60,7 @@ class SeccionFormularioResponse(SeccionFormularioBase):
     created_by: UUID | None = None
     updated_at: datetime | None = None
     updated_by: UUID | None = None
-    casillas: list["CasillaSatResponse"]
+    casillas: list[CasillaSatResponse] = []
     total_casillas: int = 0
 
     model_config = {"from_attributes": True}
@@ -67,7 +68,7 @@ class SeccionFormularioResponse(SeccionFormularioBase):
 
 class SeccionFormularioDetail(SeccionFormularioResponse):
     """Respuesta detallada con casillas"""
-    total_casillas: int = 0
+    pass
 
 
 class SeccionFormularioListResponse(BaseModel):

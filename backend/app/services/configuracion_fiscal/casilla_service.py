@@ -1,5 +1,4 @@
 """Servicio para gestión de Casillas SAT"""
-
 from uuid import UUID
 
 from app.models.global_models import (
@@ -31,6 +30,7 @@ class CasillaSatService:
             select(CasillaSat)
             .where(CasillaSat.seccion_id == seccion_id)
             .options(
+                selectinload(CasillaSat.seccion_rel),
                 selectinload(CasillaSat.reglas_filtrado),
                 selectinload(CasillaSat.exclusiones),
             )
@@ -52,12 +52,27 @@ class CasillaSatService:
             select(CasillaSat)
             .where(CasillaSat.id == casilla_id)
             .options(
+                selectinload(CasillaSat.seccion_rel),
                 selectinload(CasillaSat.reglas_filtrado),
                 selectinload(CasillaSat.exclusiones),
             )
         )
         result = await self.db.execute(query)
         return result.scalars().first()
+    
+    async def verificar_editable(self, seccion_id: UUID) -> None:
+        """Verifica que el formulario de la sección permite modificaciones"""
+        query = (
+            select(SeccionFormulario)
+            .where(SeccionFormulario.id == seccion_id)
+            .options(selectinload(SeccionFormulario.formulario))
+        )
+        result = await self.db.execute(query)
+        seccion = result.scalars().first()
+        if seccion is None:
+            raise ValueError("Sección no encontrada")
+        if seccion.formulario and not seccion.formulario.editable:
+            raise ValueError("El formulario está bloqueado y no permite modificaciones")
 
     # ============================================================
     # CRUD
@@ -73,12 +88,25 @@ class CasillaSatService:
         sec_result = await self.db.execute(sec_query)
         if sec_result.scalars().first() is None:
             raise ValueError("Sección no encontrada")
+        
+        data["seccion"] = sec_result.numero_seccion
 
         casilla = CasillaSat(**data, created_by=usuario_id)
         self.db.add(casilla)
-        await self.db.flush()
-        await self.db.refresh(casilla)
-        return casilla
+        await self.db.commit()  # ✅ Commit en lugar de flush
+        
+        # ✅ Recargar con eager loading
+        query = (
+            select(CasillaSat)
+            .where(CasillaSat.id == casilla.id)
+            .options(
+                selectinload(CasillaSat.seccion_rel),
+                selectinload(CasillaSat.reglas_filtrado),
+                selectinload(CasillaSat.exclusiones),
+            )
+        )
+        result = await self.db.execute(query)
+        return result.scalars().first()
 
     async def actualizar(
         self,
@@ -96,9 +124,20 @@ class CasillaSatService:
                 setattr(casilla, key, value)
 
         casilla.updated_by = usuario_id
-        await self.db.flush()
-        await self.db.refresh(casilla)
-        return casilla
+        await self.db.commit()  # ✅ Commit en lugar de flush
+        
+        # ✅ Recargar con eager loading
+        query = (
+            select(CasillaSat)
+            .where(CasillaSat.id == casilla_id)
+            .options(
+                selectinload(CasillaSat.seccion_rel),
+                selectinload(CasillaSat.reglas_filtrado),
+                selectinload(CasillaSat.exclusiones),
+            )
+        )
+        result = await self.db.execute(query)
+        return result.scalars().first()
 
     async def eliminar(self, casilla_id: UUID) -> bool:
         """Elimina una casilla (hard delete con cascade)"""
@@ -107,7 +146,7 @@ class CasillaSatService:
             return False
 
         await self.db.delete(casilla)
-        await self.db.flush()
+        await self.db.commit()  # ✅ Commit en lugar de flush
         return True
 
     # ============================================================
@@ -145,7 +184,7 @@ class CasillaSatService:
             created_by=usuario_id,
         )
         self.db.add(nueva)
-        await self.db.flush()
+        await self.db.commit()  # ✅ Commit en lugar de flush
 
         # Duplicar reglas
         if copiar_reglas:
@@ -176,6 +215,17 @@ class CasillaSatService:
                 )
                 self.db.add(nueva_exclusion)
 
-        await self.db.flush()
-        await self.db.refresh(nueva)
-        return nueva
+        await self.db.commit()  # ✅ Commit final
+        
+        # ✅ Recargar con eager loading
+        query = (
+            select(CasillaSat)
+            .where(CasillaSat.id == nueva.id)
+            .options(
+                selectinload(CasillaSat.seccion_rel),
+                selectinload(CasillaSat.reglas_filtrado),
+                selectinload(CasillaSat.exclusiones),
+            )
+        )
+        result = await self.db.execute(query)
+        return result.scalars().first()

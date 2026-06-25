@@ -151,15 +151,8 @@ export const useFormulariosStore = defineStore('formularios', () => {
     try {
         const data = await formulariosService.obtenerPorId(id)
 
-        console.log('📥 Datos crudos del backend:', data)
-
         formularioActual.value = data
 
-        if (data.secciones) {
-            console.log(`✅ Secciones cargadas: ${data.secciones.length}`)
-        } else {
-            console.warn('⚠️ El backend no devolvió secciones')
-        }
         return { success: true, data }
     } catch (err) {
         console.error('Error al cargar detalle:', err)

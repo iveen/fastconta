@@ -367,6 +367,8 @@ class FormularioSat(AuditableFull, Base):
     fecha_vigencia_hasta = Column(Date, nullable=True)  # NULL = vigente actualmente
     es_version_activa = Column(Boolean, default=True, server_default="true")
     
+    editable = Column(Boolean, default=True, server_default="true", nullable=False)
+    
     # Auto-referencia para versionado
     formulario_padre_id = Column(
         UUID(as_uuid=True), 
@@ -440,7 +442,12 @@ class CasillaSat(AuditableFull, Base):
     descripcion = Column(Text)
     
     # Ubicación
-    seccion = Column(String(10), nullable=True)
+    @property
+    def seccion(self) -> str | None:
+        """Retorna el número de sección al que pertenece esta casilla"""
+        if self.seccion_rel:  # Asumiendo que la relación se llama seccion_rel
+            return self.seccion_rel.numero_seccion
+        return None
     orden_seccion = Column(Integer, default=0)
     
     # Configuración
@@ -454,6 +461,7 @@ class CasillaSat(AuditableFull, Base):
     es_editable = Column(Boolean, default=False, server_default="false")
     requiere_justificacion = Column(Boolean, default=False, server_default="false")
     es_visible_usuario = Column(Boolean, default=True, server_default="true")
+    es_automatica = Column(Boolean, nullable=False, default=False, server_default="false")
     
     # Relaciones
     seccion_rel = relationship("SeccionFormulario", back_populates="casillas")
@@ -531,6 +539,7 @@ class SeccionFormulario(AuditableFull, Base):
     # Banderas de control
     es_obligatoria = Column(Boolean, default=True, server_default="true")
     requiere_exportador = Column(Boolean, default=False, server_default="false")
+    es_automatica = Column(Boolean, default=False, nullable=False, server_default="false")
     
     # Relaciones
     formulario = relationship("FormularioSat", back_populates="secciones")

@@ -47,6 +47,16 @@ class SeccionFormularioService:
         )
         result = await self.db.execute(query)
         return result.scalars().first()
+    
+    async def verificar_editable(self, formulario_id: UUID) -> None:
+        """Verifica que el formulario permite modificaciones"""
+        query = select(FormularioSat).where(FormularioSat.id == formulario_id)
+        result = await self.db.execute(query)
+        formulario = result.scalars().first()
+        if formulario is None:
+            raise ValueError("Formulario no encontrado")
+        if not formulario.editable:
+            raise ValueError("El formulario está bloqueado y no permite modificaciones")
 
     # ============================================================
     # CRUD
@@ -65,9 +75,16 @@ class SeccionFormularioService:
 
         seccion = SeccionFormulario(**data, created_by=usuario_id)
         self.db.add(seccion)
-        await self.db.flush()
-        await self.db.refresh(seccion)
-        return seccion
+        await self.db.commit()
+
+        # ✅ Recargar con eager loading de casillas
+        query = (
+            select(SeccionFormulario)
+            .where(SeccionFormulario.id == seccion.id)
+            .options(selectinload(SeccionFormulario.casillas))
+        )
+        result = await self.db.execute(query)
+        return result.scalars().first()
 
     async def actualizar(
         self,
@@ -85,9 +102,15 @@ class SeccionFormularioService:
                 setattr(seccion, key, value)
 
         seccion.updated_by = usuario_id
-        await self.db.flush()
-        await self.db.refresh(seccion)
-        return seccion
+        await self.db.commit()
+        # ✅ Recargar con eager loading de casillas
+        query = (
+            select(SeccionFormulario)
+            .where(SeccionFormulario.id == seccion.id)
+            .options(selectinload(SeccionFormulario.casillas))
+        )
+        result = await self.db.execute(query)
+        return result.scalars().first()
 
     async def eliminar(self, seccion_id: UUID) -> bool:
         """Elimina una sección (hard delete con cascade)"""
@@ -96,7 +119,7 @@ class SeccionFormularioService:
             return False
 
         await self.db.delete(seccion)
-        await self.db.flush()
+        await self.db.commit()
         return True
 
     # ============================================================
@@ -126,5 +149,5 @@ class SeccionFormularioService:
             seccion.orden = idx
             seccion.updated_by = usuario_id
 
-        await self.db.flush()
+        await self.db.commit()
         return True

@@ -64,13 +64,18 @@ async def obtener_seccion(
 # ============================================================
 # CREAR
 # ============================================================
-@router.post("/", response_model=SeccionFormularioResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+        "/", 
+        response_model=SeccionFormularioResponse,
+        status_code=status.HTTP_201_CREATED
+)
 async def crear_seccion(
     data: SeccionFormularioCreate,
     service: SeccionFormularioService = Depends(get_service),
 ):
     """Crea una nueva sección"""
     try:
+        await service.verificar_editable(data.formulario_id)
         seccion = await service.crear(data.model_dump())
         return seccion
     except ValueError as e:
@@ -93,6 +98,9 @@ async def actualizar_seccion(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Sección no encontrada",
         )
+    if seccion.es_automatica:
+        raise HTTPException(status_code=403, detail="No se puede modificar una sección automática")
+
     return seccion
 
 
@@ -105,6 +113,15 @@ async def eliminar_seccion(
     service: SeccionFormularioService = Depends(get_service),
 ):
     """Elimina una sección (cascade a casillas)"""
+    seccion = await service.obtener_por_id(seccion_id)
+    if seccion is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sección no encontrada",
+        )
+    if seccion.es_automatica:
+        raise HTTPException(status_code=403, detail="No se puede eliminar una sección automática")
+    
     eliminado = await service.eliminar(seccion_id)
     if not eliminado:
         raise HTTPException(

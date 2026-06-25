@@ -114,21 +114,36 @@ class FormularioSatService:
     async def crear(
         self, data: dict, usuario_id: UUID | None = None
     ) -> FormularioSat:
-        """Crea un nuevo formulario"""
+        """Crea un nuevo formulario con secciones automáticas"""
         formulario = FormularioSat(**data, created_by=usuario_id)
         self.db.add(formulario)
+        await self.db.flush()
+        
+        # ✅ Crear secciones automáticas
+        await self._crear_secciones_automaticas(formulario.id, usuario_id)
+        
         await self.db.commit()
-        await self.db.refresh(formulario)
-        return formulario
+        
+        # Recargar con relaciones
+        query = (
+            select(FormularioSat)
+            .where(FormularioSat.id == formulario.id)
+            .options(
+                selectinload(FormularioSat.secciones)
+                .selectinload(SeccionFormulario.casillas)
+            )
+        )
+        result = await self.db.execute(query)
+        return result.scalars().first()
 
     async def actualizar(
         self,
-        formulario_id: UUID,
+        formulario_id: UUID,  # ✅ Cambiar de seccion_id a formulario_id
         data: dict,
         usuario_id: UUID | None = None,
-    ) -> FormularioSat | None:
-        """Actualiza un formulario existente"""
-        formulario = await self.obtener_por_id(formulario_id)
+    ) -> FormularioSat | None:  # ✅ Cambiar tipo de retorno
+        """Actualiza un formulario"""  # ✅ Actualizar docstring
+        formulario = await self.obtener_por_id(formulario_id)  # ✅ Usar formulario
         if formulario is None:
             return None
 
@@ -138,16 +153,27 @@ class FormularioSatService:
 
         formulario.updated_by = usuario_id
         await self.db.commit()
-        await self.db.refresh(formulario)
-        return formulario
+        
+        # ✅ Recargar con eager loading de secciones y casillas
+        query = (
+            select(FormularioSat)  # ✅ Cambiar de SeccionFormulario a FormularioSat
+            .where(FormularioSat.id == formulario_id)  # ✅ Usar formulario_id
+            .options(
+                selectinload(FormularioSat.secciones)
+                .selectinload(SeccionFormulario.casillas)
+            )
+        )
+        result = await self.db.execute(query)
+        return result
 
     async def eliminar(self, formulario_id: UUID) -> bool:
-        """Elimina un formulario (soft delete vía es_version_activa)"""
+        """Elimina una sección (hard delete con cascade)"""
         formulario = await self.obtener_por_id(formulario_id)
+
         if formulario is None:
             return False
 
-        formulario.es_version_activa = False
+        await self.db.delete(formulario)
         await self.db.commit()
         return True
 
@@ -315,3 +341,115 @@ class FormularioSatService:
 
         await self.db.refresh(nuevo)
         return nuevo
+
+
+    async def _crear_secciones_automaticas(
+        self, 
+        formulario_id: UUID, 
+        usuario_id: UUID | None = None
+    ) -> None:
+        """Crea las secciones 1 y 2 automáticas para todos los formularios"""
+        
+        # Sección 1: NIT DEL CONTRIBUYENTE
+        seccion_1 = SeccionFormulario(
+            formulario_id=formulario_id,
+            numero_seccion="1",
+            titulo="NIT DEL CONTRIBUYENTE",
+            descripcion="Información de identificación del contribuyente",
+            orden=0,
+            tipo_seccion="IDENTIFICACION",
+            es_obligatoria=True,
+            requiere_exportador=False,
+            created_by=usuario_id,
+        )
+        self.db.add(seccion_1)
+        await self.db.flush()
+        
+        # Casilla 1.1: NIT
+        casilla_1_1 = CasillaSat(
+            seccion_id=seccion_1.id,
+            seccion="1",
+            codigo="1.1",
+            codigo_visual="NIT",
+            nombre="NIT DEL CONTRIBUYENTE",
+            descripcion="Número de Identificación Tributaria",
+            orden_seccion=0,
+            tipo_casilla="REFERENCIA",
+            naturaleza="MANUAL",
+            es_editable=False,  # ✅ No editable
+            es_visible_usuario=True,
+            requiere_justificacion=False,
+            created_by=usuario_id,
+        )
+        self.db.add(casilla_1_1)
+        
+        # Casilla 1.2: Nombre/Razón Social (opcional)
+        casilla_1_2 = CasillaSat(
+            seccion_id=seccion_1.id,
+            seccion="1",
+            codigo="1.2",
+            codigo_visual="NOMBRE",
+            nombre="NOMBRE O RAZÓN SOCIAL",
+            descripcion="Nombre o razón social del contribuyente",
+            orden_seccion=1,
+            tipo_casilla="REFERENCIA",
+            naturaleza="MANUAL",
+            es_editable=False,  # ✅ No editable
+            es_visible_usuario=True,
+            requiere_justificacion=False,
+            created_by=usuario_id,
+        )
+        self.db.add(casilla_1_2)
+        
+        # Sección 2: PERÍODO DE IMPOSICIÓN
+        seccion_2 = SeccionFormulario(
+            formulario_id=formulario_id,
+            numero_seccion="2",
+            titulo="PERÍODO DE IMPOSICIÓN",
+            descripcion="Período de la declaración",
+            orden=1,
+            tipo_seccion="PERIODO",
+            es_obligatoria=True,
+            requiere_exportador=False,
+            created_by=usuario_id,
+        )
+        self.db.add(seccion_2)
+        await self.db.flush()
+        
+        # Casilla 2.1: Mes
+        casilla_2_1 = CasillaSat(
+            seccion_id=seccion_2.id,
+            seccion="2",
+            codigo="2.1",
+            codigo_visual="MES",
+            nombre="Mes",
+            descripcion="Mes de la declaración",
+            orden_seccion=0,
+            tipo_casilla="REFERENCIA",
+            naturaleza="MANUAL",
+            es_editable=False,  # ✅ No editable
+            es_visible_usuario=True,
+            requiere_justificacion=False,
+            created_by=usuario_id,
+        )
+        self.db.add(casilla_2_1)
+        
+        # Casilla 2.2: Año
+        casilla_2_2 = CasillaSat(
+            seccion_id=seccion_2.id,
+            seccion="2",
+            codigo="2.2",
+            codigo_visual="AÑO",
+            nombre="Año",
+            descripcion="Año de la declaración",
+            orden_seccion=1,
+            tipo_casilla="REFERENCIA",
+            naturaleza="MANUAL",
+            es_editable=False,  # ✅ No editable
+            es_visible_usuario=True,
+            requiere_justificacion=False,
+            created_by=usuario_id,
+        )
+        self.db.add(casilla_2_2)
+        
+        await self.db.flush()

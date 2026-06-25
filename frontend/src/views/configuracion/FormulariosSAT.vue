@@ -78,6 +78,7 @@
             :loading="store.loading"
             @editar="editarFormulario"
             @duplicar="abrirDuplicar"
+            @toggle-editable="toggleEditable"
             @agregar-seccion="abrirModalSeccion"
             @editar-seccion="abrirModalSeccion"
             @eliminar-seccion="confirmarEliminarSeccion"
@@ -123,6 +124,7 @@
       :titulo="modoEdicionSeccion ? 'Editar Sección' : 'Nueva Sección'"
       :data="seccionSeleccionada"
       :formulario-id="store.formularioActual?.id"
+      :formulario-codigo="store.formularioActual?.codigo"
       :loading="loadingSeccion"
       @cancelar="cerrarModalSeccion"
       @guardar="guardarSeccion"
@@ -134,8 +136,10 @@
       :titulo="modoEdicionCasilla ? 'Editar Casilla' : 'Nueva Casilla'"
       :data="casillaSeleccionada"
       :loading="loadingCasilla"
+      :seccion-id="seccionParaCasilla?.seccion_id"
       :seccion-numero="seccionParaCasilla?.numero_seccion || ''"
       :seccion-titulo="seccionParaCasilla?.titulo || ''"
+      :siguiente-orden="seccionParaCasilla?.siguienteOrden"
       @cancelar="cerrarModalCasilla"
       @guardar="guardarCasilla"
     />
@@ -206,15 +210,8 @@ async function verDetalle(formulario) {
   formularioSeleccionado.value = formulario
   activeTab.value = 'estructura'
   
-  console.log('📋 Formulario seleccionado:', formulario)
-  
-  const result = await store.fetchFormularioDetail(formulario.id)
-  
-  console.log('✅ Resultado:', result)
-  console.log('📑 Store.formularioActual:', store.formularioActual)
-  console.log('📑 Secciones:', store.formularioActual?.secciones)
-  console.log('📑 Total secciones:', store.formularioActual?.secciones?.length)
-  
+  const result = await store.fetchFormularioDetail(formulario.id) 
+
   if (!result.success) {
     toast.error(result.error)
   }
@@ -353,16 +350,34 @@ function abrirModalCasilla(payload) {
       const seccion = store.formularioActual.secciones?.find(
         s => s.casillas?.some(c => c.id === payload.id)
       )
-      seccionParaCasilla.value = seccion
+      seccionParaCasilla.value = {
+        seccion_id: seccion?.id,
+        seccion_numerio: seccion?.numero_seccion,
+        seccion_titulo: seccion?.titulo,
+      }
     }
   } else {
     // Es creación
     casillaSeleccionada.value = null
     modoEdicionCasilla.value = false
-    seccionParaCasilla.value = payload
+    
+    // Calcular siguiente orden
+    if (store.formularioActual && payload?.seccion_id) {
+      const seccion = store.formularioActual.secciones?.find(
+        s => s.id === payload.seccion_id
+      )
+      const maxOrden = Math.max(
+        ...(seccion?.casillas?.map(c => c.orden_seccion) || [0])
+      )
+      seccionParaCasilla.value = {
+        ...payload,
+        siguienteOrden: maxOrden + 1,
+      }
+    } else {
+      seccionParaCasilla.value = { ...payload, siguienteOrden: 0 }
+    }
   }
   showCasillaModal.value = true
-}
 
 function cerrarModalCasilla() {
   showCasillaModal.value = false
@@ -381,7 +396,7 @@ async function guardarCasilla(data) {
   try {
     const casillaData = {
       ...data,
-      seccion_id: seccionParaCasilla.value.id,
+      seccion_id: seccionParaCasilla.value.seccion_id,
     }
     
     let result
@@ -431,5 +446,21 @@ function cancelarModal() {
   showEditarModal.value = false
   showDuplicarModal.value = false
   formularioSeleccionado.value = null
+}
+
+async function toggleEditable(formulario) {
+  const nuevoEstado = !formulario.editable
+  const accion = nuevoEstado ? 'desbloquear' : 'bloquear'
+  
+  if (confirm(`¿Está seguro de ${accion} el formulario ${formulario.codigo} v${formulario.version}?`)) {
+    const result = await store.actualizarFormulario(formulario.id, { editable: nuevoEstado })
+    if (result.success) {
+      toast.success(`Formulario ${nuevoEstado ? 'desbloqueado' : 'bloqueado'} exitosamente`)
+      // Recargar detalle
+      await store.fetchFormularioDetail(formulario.id)
+    } else {
+      toast.error(result.error)
+    }
+  }
 }
 </script>

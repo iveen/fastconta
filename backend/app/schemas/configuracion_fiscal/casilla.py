@@ -18,6 +18,7 @@ TIPOS_CASILLA = [
     "AJUSTE",
     "CONTEO",
     "MANUAL",
+    "PERIODO",
 ]
 
 NATURALEZAS_CASILLA = [
@@ -46,6 +47,7 @@ class CasillaSatBase(BaseModel):
     es_editable: bool = False
     requiere_justificacion: bool = False
     es_visible_usuario: bool = True
+    es_automatica: bool = False
 
 
 class CasillaSatCreate(CasillaSatBase):

@@ -19,6 +19,7 @@ class FormularioSatBase(BaseModel):
     fecha_vigencia_desde: date
     fecha_vigencia_hasta: date | None = None
     es_version_activa: bool = True
+    editable: bool = True
 
 
 class FormularioSatCreate(FormularioSatBase):

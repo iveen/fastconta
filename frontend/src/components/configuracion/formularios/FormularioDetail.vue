@@ -15,6 +15,16 @@
             >
               ✓ Vigente
             </span>
+            <span
+                :class="[
+                    'px-2 py-1 text-xs font-medium rounded-full',
+                    formulario.editable
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-red-100 text-red-700'
+                ]"
+                >
+                {{ formulario.editable ? '✎ Editable' : '🔒 Bloqueado' }}
+            </span>
           </div>
           <p class="text-sm text-gray-600">{{ formulario.descripcion }}</p>
           <div class="flex items-center gap-4 mt-2 text-xs text-gray-500">
@@ -40,6 +50,17 @@
           >
             Duplicar Versión
           </button>
+          <button
+            @click="$emit('toggle-editable', formulario)"
+            :class="[
+              'px-3 py-1.5 text-sm rounded-lg transition-colors',
+              formulario.editable
+                ? 'text-red-600 hover:text-red-800 hover:bg-red-50'
+                : 'text-green-600 hover:text-green-800 hover:bg-green-50'
+            ]"
+          >
+            {{ formulario.editable ? '🔒 Bloquear' : '✎ Desbloquear' }}
+          </button>
         </div>
       </div>
     </div>
@@ -53,25 +74,46 @@
     <div v-else class="p-6 space-y-4">
       <div v-if="!secciones || secciones.length === 0" class="text-center py-8 bg-gray-50 rounded-lg">
         <p class="text-gray-500 mb-2">Este formulario no tiene secciones configuradas</p>
-        <button 
+        <button
+          v-if="formulario.editable"
           @click="$emit('agregar-seccion')"
           class="text-sm text-blue-600 hover:text-blue-800 font-medium"
         >
           + Agregar primera sección
-        </button>
-      </div>
+        </button>      
+    </div>
 
       <SeccionItem
         v-for="seccion in seccionesOrdenadas"
         :key="seccion.id"
         :seccion="seccion"
         :formulario-id="formulario.id"
+        :editable="formulario.editable"
+        :datos-empresa="datosEmpresa"
+        :periodo-declaracion="periodoDeclaracion"
         @editar="$emit('editar-seccion', $event)"
         @eliminar="$emit('eliminar-seccion', $event)"
         @agregar-casilla="$emit('agregar-casilla', $event)"
         @editar-casilla="$emit('editar-casilla', $event)"
         @eliminar-casilla="$emit('eliminar-casilla', $event)"
       />
+        <div v-if="formulario.editable && secciones.length > 0" class="mt-4">
+            <button
+            @click="$emit('agregar-seccion')"
+            class="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all flex items-center justify-center gap-2"
+            >
+            <Plus class="w-5 h-5" />
+            Agregar nueva sección
+            </button>
+        </div>
+
+        <!-- ✅ Mensaje cuando está bloqueado -->
+        <div v-if="!formulario.editable" class="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center gap-3">
+            <span class="text-xl">🔒</span>
+            <p class="text-sm text-yellow-800">
+            Este formulario está <strong>bloqueado</strong>. No se pueden agregar, editar ni eliminar secciones o casillas.
+            </p>
+        </div>
     </div>
   </div>
 </template>
@@ -97,12 +139,10 @@ defineEmits([
 ])
 
 // Debug: Ver qué recibe el componente
-console.log('📦 FormularioDetail recibe:', props.formulario)
+
 
 const secciones = computed(() => {
   const secs = props.formulario.secciones || []
-  console.log(' Secciones en FormularioDetail:', secs)
-  console.log('📑 Primera sección con casillas:', secs[0]?.casillas)
 
   return secs
 })
@@ -113,6 +153,10 @@ const seccionesOrdenadas = computed(() =>
 
 const totalCasillas = computed(() => 
   secciones.value.reduce((sum, sec) => sum + (sec.casillas?.length || 0), 0)
+)
+
+const esEditable = computed(() => 
+  props.formulario.editable === true
 )
 
 function formatDate(dateStr) {

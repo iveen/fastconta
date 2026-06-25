@@ -184,6 +184,6 @@ watch(
 )
 
 function handleSubmit() {
-  emit('guardar', { ...form })
+  emit('guardar', { ...form, formulario_id: props.formularioId })
 }
 </script>

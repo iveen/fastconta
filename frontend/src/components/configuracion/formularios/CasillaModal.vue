@@ -43,6 +43,26 @@
           </div>
         </div>
 
+        <div class="border-t border-gray-200 pt-4">
+          <h3 class="text-sm font-semibold text-gray-700 mb-3">Orden y Visualización</h3>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Orden en la Sección
+            </label>
+            <input
+              v-model.number="form.orden_seccion"
+              type="number"
+              min="0"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="0"
+            />
+            <p class="text-xs text-gray-500 mt-1">
+              Las casillas se mostrarán ordenadas de menor a mayor
+            </p>
+          </div>
+        </div>
+
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">
             Nombre <span class="text-red-500">*</span>
@@ -218,8 +238,10 @@ const props = defineProps({
   titulo: { type: String, required: true },
   data: { type: Object, default: null },
   loading: { type: Boolean, default: false },
+  seccionId: { type: String, default: null },  // ✅ NUEVO
   seccionNumero: { type: String, default: '' },
   seccionTitulo: { type: String, default: '' },
+  siguienteOrden: { type: Number, default: 0 },
 })
 
 const emit = defineEmits(['cancelar', 'guardar'])
@@ -234,6 +256,7 @@ const form = reactive({
   campo_origen_factura: '',
   formula_calculo: '',
   porcentaje_aplicable: null,
+  orden_seccion: 0,
   es_editable: false,
   requiere_justificacion: false,
   es_visible_usuario: true,
@@ -253,6 +276,7 @@ watch(
         campo_origen_factura: val.campo_origen_factura || '',
         formula_calculo: val.formula_calculo || '',
         porcentaje_aplicable: val.porcentaje_aplicable,
+        orden_seccion: val.orden_seccion || 0,
         es_editable: val.es_editable || false,
         requiere_justificacion: val.requiere_justificacion || false,
         es_visible_usuario: val.es_visible_usuario !== undefined ? val.es_visible_usuario : true,
@@ -263,6 +287,12 @@ watch(
 )
 
 function handleSubmit() {
-  emit('guardar', { ...form })
+  const payload = { 
+    ...form,
+    seccion_id: props.seccionId  // ✅ Incluir seccion_id
+  }
+  console.log('📤 Payload a enviar:', payload)
+  console.log('📋 seccionId prop:', props.seccionId)
+  emit('guardar', payload)
 }
 </script>

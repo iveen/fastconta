@@ -16,6 +16,7 @@ import Usuarios from '@/views/Usuarios.vue'
 import ActivoFijoList from '@/views/ActivoFijoList.vue'
 import ActivoFijoForm from '@/views/ActivoFijoForm.vue'
 import ActivoFijoProyeccion from '@/views/ActivoFijoProyeccion.vue'
+import ConfiguracionHub from '@/components/configuracion/ConfiguracionHub.vue'
 
 const routes = [
   { path: '/', redirect: '/login' },
@@ -72,6 +73,18 @@ const routes = [
           requiresAuth: true, 
           title: "Declaraciones SAT"
         } 
+      },
+      { 
+        path: '/configuracion', 
+        name: 'ConfiguracionHub', 
+        component: ConfiguracionHub,
+        meta: { title: 'Configuración del Sistema' }
+      },
+      {
+        path: '/configuracion/formularios-sat',
+        name: 'ConfiguracionFormulariosSAT',
+        component: () => import('@/views/configuracion/FormulariosSAT.vue'),
+        meta: { requiresAuth: true, title: 'Formularios SAT' }
       }
     ]
   }

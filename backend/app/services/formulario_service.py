@@ -137,9 +137,18 @@ class FormularioSatService:
                 setattr(formulario, key, value)
 
         formulario.updated_by = usuario_id
-        await self.db.flush()
-        await self.db.refresh(formulario)
-        return formulario
+        await self.db.commit()
+
+        query = (
+            select(FormularioSat)  
+            .where(FormularioSat.id == formulario_id)  
+            .options(
+                selectinload(FormularioSat.secciones)
+                .selectinload(SeccionFormulario.casillas)
+            )
+        )
+        result = await self.db.execute(query)
+        return result.scalars().first()
 
     async def eliminar(self, formulario_id: UUID) -> bool:
         """Elimina un formulario (soft delete vía es_version_activa)"""
@@ -241,7 +250,6 @@ class FormularioSatService:
                     codigo_visual=casilla_orig.codigo_visual,
                     nombre=casilla_orig.nombre,
                     descripcion=casilla_orig.descripcion,
-                    seccion=casilla_orig.seccion,
                     orden_seccion=casilla_orig.orden_seccion,
                     tipo_casilla=casilla_orig.tipo_casilla,
                     naturaleza=casilla_orig.naturaleza,
@@ -251,6 +259,9 @@ class FormularioSatService:
                     es_editable=casilla_orig.es_editable,
                     requiere_justificacion=casilla_orig.requiere_justificacion,
                     es_visible_usuario=casilla_orig.es_visible_usuario,
+                    dependencias=casilla_orig.dependencias,
+                    funcion_calculo=casilla_orig.funcion_calculo,
+                    parametros_funcion=casilla_orig.parametros_funcion,
                     created_by=usuario_id,
                 )
                 self.db.add(nueva_casilla)

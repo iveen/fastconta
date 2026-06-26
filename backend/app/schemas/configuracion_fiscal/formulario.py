@@ -31,6 +31,7 @@ class FormularioSatUpdate(BaseModel):
     descripcion: str | None = None
     fecha_vigencia_hasta: date | None = None
     es_version_activa: bool | None = None
+    editable: bool | None = None
 
 
 # ============================================================

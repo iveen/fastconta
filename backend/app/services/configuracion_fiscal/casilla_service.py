@@ -181,6 +181,9 @@ class CasillaSatService:
             es_editable=original.es_editable,
             requiere_justificacion=original.requiere_justificacion,
             es_visible_usuario=original.es_visible_usuario,
+            dependencias=original.dependencias,
+            funcion_calculo=original.funcion_calculo,
+            parametros_funcion=original.parametros_funcion,
             created_by=usuario_id,
         )
         self.db.add(nueva)

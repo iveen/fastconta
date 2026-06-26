@@ -48,6 +48,30 @@ class CasillaSatBase(BaseModel):
     requiere_justificacion: bool = False
     es_visible_usuario: bool = True
     es_automatica: bool = False
+    dependencias: list[str] | None = Field(
+        None,
+        description="Lista de códigos de casillas de las que depende para cálculo",
+        examples=[["3.1", "3.2"]]
+    )
+    funcion_calculo: str | None = Field(
+        None,
+        max_length=50,
+        description="Nombre de función especializada (ej: isr_progresivo, max_cero)",
+        examples=["isr_progresivo"]
+    )
+    parametros_funcion: dict | None = Field(
+        None,
+        description="Parámetros JSON para la función de cálculo",
+        examples=[
+            {
+                "tramos": [
+                    {"hasta": 30000, "tasa": 0.05},
+                    {"hasta": None, "tasa": 0.07}
+                ],
+                "referencia": "3.3"
+            }
+        ]
+    )
 
 
 class CasillaSatCreate(CasillaSatBase):
@@ -80,6 +104,7 @@ class CasillaSatResponse(CasillaSatBase):
     created_by: UUID | None = None
     updated_at: datetime | None = None
     updated_by: UUID | None = None
+    seccion: str |  None = None
 
     model_config = {"from_attributes": True}
 

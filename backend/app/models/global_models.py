@@ -15,7 +15,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSON, JSONB, UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func, text
 
@@ -462,6 +462,21 @@ class CasillaSat(AuditableFull, Base):
     requiere_justificacion = Column(Boolean, default=False, server_default="false")
     es_visible_usuario = Column(Boolean, default=True, server_default="true")
     es_automatica = Column(Boolean, nullable=False, default=False, server_default="false")
+
+    dependencias = Column(
+        JSON, nullable=True,
+        comment="Lista de códigos de casillas de las que depende ['3.1','3.2']"
+    )
+
+    funcion_calculo = Column(
+        String(50), nullable=True,
+        comment="Nombre de funcion especializada: 'isr_progresivo', 'max_cero', etc."
+    )
+
+    parametros_funcion = Column(
+        JSON, nullable=True,
+        comment="Parámetros: {'tramos': [{'hasta': 30000, 'tasa': 0.05}, ...]}"
+    )
     
     # Relaciones
     seccion_rel = relationship("SeccionFormulario", back_populates="casillas")

@@ -164,16 +164,17 @@ class FormularioSatService:
             )
         )
         result = await self.db.execute(query)
-        return result
+        return result.scalars().first()
 
     async def eliminar(self, formulario_id: UUID) -> bool:
-        """Elimina una sección (hard delete con cascade)"""
+        """Elimina un formulario (soft delete con cascade)"""
         formulario = await self.obtener_por_id(formulario_id)
 
         if formulario is None:
             return False
 
-        await self.db.delete(formulario)
+        formulario.es_version_activa = False
+        formulario.updated_by = None
         await self.db.commit()
         return True
 

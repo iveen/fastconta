@@ -18,6 +18,7 @@ from app.api.v1.endpoints import (
     periodos_fiscales,
     plan_cuentas,
     regimen_dte_config,
+    regimenes_fiscales,
     reglas_filtrado,
     sat_libros,
     secciones_formulario,
@@ -52,4 +53,4 @@ api_router.include_router(categorias_activos.router)
 api_router.include_router(monedas.router)
 api_router.include_router(geografia.router)
 api_router.include_router(tipo_persona.router)
-
+api_router.include_router(regimenes_fiscales.router)

@@ -22,13 +22,13 @@ import { useAuthStore } from '@/stores/auth'
 import { useCompanyStore } from '@/stores/company'
 
 const routes = [
-  { 
-    path: '/', 
-    redirect: '/dashboard'  // ✅ Cambiado: redirige a dashboard si está autenticado
+  {
+    path: '/',
+    redirect: '/dashboard'
   },
-  { 
-    path: '/login', 
-    name: 'Login', 
+  {
+    path: '/login',
+    name: 'Login',
     component: Login,
     meta: { requiresAuth: false }
   },
@@ -64,15 +64,22 @@ const routes = [
   },
   {
     path: '/configuracion',
-    name: 'ConfiguracionHub',
-    component: ConfiguracionHub,
-    meta: { requiresAuth: true, title: 'Configuración del Sistema' }
-  },
-  {
-    path: '/configuracion/formularios-sat',
-    name: 'ConfiguracionFormulariosSAT',
-    component: () => import('@/views/configuracion/FormulariosSAT.vue'),
-    meta: { requiresAuth: true, title: 'Formularios SAT' }
+    component: Dashboard,  // ✅ Dashboard como layout padre
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        name: 'ConfiguracionHub',
+        component: ConfiguracionHub,
+        meta: { title: 'Configuración del Sistema' }
+      },
+      {
+        path: 'formularios-sat',
+        name: 'ConfiguracionFormulariosSAT',
+        component: () => import('@/views/configuracion/FormulariosSAT.vue'),
+        meta: { title: 'Formularios SAT' }
+      }
+    ]
   }
 ]
 
@@ -81,25 +88,21 @@ const router = createRouter({
   routes
 })
 
-// ✅ CORRECCIÓN: Router guard simplificado y correcto
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
   const companyStore = useCompanyStore()
 
-  // Rutas públicas (login)
   if (to.meta.requiresAuth === false) {
     if (authStore.isAuthenticated) {
-      return next('/dashboard')  // ✅ Redirige a dashboard, no a "/"
+      return next('/dashboard')
     }
     return next()
   }
 
-  // Verificar autenticación
   if (!authStore.isAuthenticated) {
     return next('/login')
   }
 
-  // Si llegamos aquí, el usuario está autenticado
   next()
 })
 

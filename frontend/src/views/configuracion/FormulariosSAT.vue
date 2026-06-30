@@ -118,7 +118,7 @@
       @duplicar="ejecutarDuplicar"
     />
 
-    <!-- ✅ NUEVO: Modal Sección -->
+    <!-- Modal Sección -->
     <SeccionModal
       v-if="showSeccionModal"
       :titulo="modoEdicionSeccion ? 'Editar Sección' : 'Nueva Sección'"
@@ -130,7 +130,7 @@
       @guardar="guardarSeccion"
     />
 
-    <!-- ✅ NUEVO: Modal Casilla -->
+    <!-- Modal Casilla -->
     <CasillaModal
       v-if="showCasillaModal"
       :titulo="modoEdicionCasilla ? 'Editar Casilla' : 'Nueva Casilla'"
@@ -209,8 +209,8 @@ onMounted(async () => {
 async function verDetalle(formulario) {
   formularioSeleccionado.value = formulario
   activeTab.value = 'estructura'
-  
-  const result = await store.fetchFormularioDetail(formulario.id) 
+
+  const result = await store.fetchFormularioDetail(formulario.id)
 
   if (!result.success) {
     toast.error(result.error)
@@ -256,7 +256,7 @@ async function guardarFormulario(data) {
   } else {
     result = await store.crearFormulario(data)
   }
-  
+
   if (result?.success) {
     toast.success(result.message || 'Formulario guardado exitosamente')
     cancelarModal()
@@ -301,7 +301,7 @@ async function guardarSeccion(data) {
     } else {
       result = await seccionesStore.crearSeccion(data)
     }
-    
+
     if (result.success) {
       toast.success('Sección guardada exitosamente')
       cerrarModalSeccion()
@@ -352,7 +352,7 @@ function abrirModalCasilla(payload) {
       )
       seccionParaCasilla.value = {
         seccion_id: seccion?.id,
-        seccion_numerio: seccion?.numero_seccion,
+        seccion_numero: seccion?.numero_seccion,
         seccion_titulo: seccion?.titulo,
       }
     }
@@ -360,7 +360,7 @@ function abrirModalCasilla(payload) {
     // Es creación
     casillaSeleccionada.value = null
     modoEdicionCasilla.value = false
-    
+
     // Calcular siguiente orden
     if (store.formularioActual && payload?.seccion_id) {
       const seccion = store.formularioActual.secciones?.find(
@@ -378,8 +378,9 @@ function abrirModalCasilla(payload) {
     }
   }
   showCasillaModal.value = true
+}
 
-function cerrarModalCasilla() {
+async function cerrarModalCasilla() {
   showCasillaModal.value = false
   casillaSeleccionada.value = null
   modoEdicionCasilla.value = false
@@ -391,21 +392,21 @@ async function guardarCasilla(data) {
     toast.error('No hay sección seleccionada')
     return
   }
-  
+
   loadingCasilla.value = true
   try {
     const casillaData = {
       ...data,
       seccion_id: seccionParaCasilla.value.seccion_id,
     }
-    
+
     let result
     if (modoEdicionCasilla.value && casillaSeleccionada.value) {
       result = await casillasStore.actualizarCasilla(casillaSeleccionada.value.id, casillaData)
     } else {
       result = await casillasStore.crearCasilla(casillaData)
     }
-    
+
     if (result.success) {
       toast.success('Casilla guardada exitosamente')
       cerrarModalCasilla()
@@ -451,7 +452,7 @@ function cancelarModal() {
 async function toggleEditable(formulario) {
   const nuevoEstado = !formulario.editable
   const accion = nuevoEstado ? 'desbloquear' : 'bloquear'
-  
+
   if (confirm(`¿Está seguro de ${accion} el formulario ${formulario.codigo} v${formulario.version}?`)) {
     const result = await store.actualizarFormulario(formulario.id, { editable: nuevoEstado })
     if (result.success) {

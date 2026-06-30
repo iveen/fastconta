@@ -17,9 +17,9 @@
       <!-- 🔹 SELECTOR DE TENANT (Solo Superadmin) -->
       <div v-if="authStore.isSuperAdmin" class="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <label class="block text-sm font-semibold text-blue-800 mb-1">🏢 Seleccionar Firma (Tenant)</label>
-        <select 
-          v-model="selectedTenantId" 
-          @change="handleTenantChange" 
+        <select
+          v-model="selectedTenantId"
+          @change="handleTenantChange"
           class="w-full md:w-1/2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2 border bg-white"
         >
           <option value="">-- Seleccione una firma --</option>
@@ -29,17 +29,25 @@
         </select>
       </div>
 
-      <div class="bg-white p-4 rounded-xl shadow-xs border border-gray-100 flex flex-wrap gap-4 items-end">
-        <div class="flex flex-col gap-1 w-64">
-          <label class="text-xs font-semibold text-gray-600 uppercase">Empresa <span class="text-red-500">*</span></label>
-          <select v-model="filters.empresa_id" @change="limpiarLibro" class="border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full">
-            <option value="" disabled>-- Seleccione una empresa --</option>
-            <option v-for="emp in empresas" :key="emp.id" :value="emp.id">
-              {{ emp.nombre }} ({{ emp.nit }})
-            </option>
-          </select>
-        </div>
+      <!-- ✅ MENSAJE SI NO HAY EMPRESA SELECCIONADA -->
+      <div v-if="!companyStore.selectedCompanyId" class="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-12 rounded-lg text-center">
+        <svg class="w-12 h-12 mx-auto mb-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+        <p class="text-lg font-semibold">Selecciona una empresa desde la barra superior para consultar los Libros IVA</p>
+      </div>
 
+      <!-- ✅ Panel de filtros (solo si hay empresa seleccionada) -->
+      <div v-else class="bg-white p-4 rounded-xl shadow-xs border border-gray-100 flex flex-wrap gap-4 items-end">
+        <!-- Info de empresa activa -->
+        <div class="flex items-center gap-2 w-full mb-2 pb-2 border-b border-gray-200">
+          <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+          <span class="text-sm text-gray-600">Empresa:</span>
+          <span class="font-semibold text-gray-800">{{ empresaNombre }}</span>
+        </div>
+        
         <div class="flex flex-col gap-1 w-40">
           <label class="text-xs font-semibold text-gray-600 uppercase">Tipo de Libro</label>
           <select v-model="filters.tipo_libro" @change="limpiarLibro" class="border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full">
@@ -47,7 +55,6 @@
             <option value="ventas">📤 Ventas</option>
           </select>
         </div>
-
         <div class="flex flex-col gap-1 w-48">
           <label class="text-xs font-semibold text-gray-600 uppercase">Régimen Fiscal</label>
           <select v-model="filters.regimen_fiscal" :disabled="libro && libro.estado === 'finalizado'" class="border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100 w-full">
@@ -55,12 +62,10 @@
             <option value="pequeno_contribuyente">Pequeño Contribuyente</option>
           </select>
         </div>
-
         <div class="flex flex-col gap-1 w-24">
           <label class="text-xs font-semibold text-gray-600 uppercase">Año</label>
           <input type="number" v-model.number="filters.anio" @change="limpiarLibro" min="2020" max="2100" class="border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full" />
         </div>
-
         <div class="flex flex-col gap-1 w-36">
           <label class="text-xs font-semibold text-gray-600 uppercase">Mes</label>
           <select v-model.number="filters.mes" @change="limpiarLibro" class="border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full">
@@ -69,10 +74,9 @@
             </option>
           </select>
         </div>
-
-        <button @click="consultarLibro" :disabled="!filters.empresa_id || cargando"
+        <button @click="consultarLibro" :disabled="!empresaId || cargando"
           class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-medium shadow-sm transition disabled:opacity-50 flex items-center gap-2 cursor-pointer h-[38px]">
-          <span>🔍</span> Consultar
+          <span></span> Consultar
         </button>
       </div>
 
@@ -86,7 +90,7 @@
         <p class="mt-4 text-gray-500 font-medium text-sm">Procesando información de la SAT...</p>
       </div>
 
-      <div v-else-if="libroNoExiste && filters.empresa_id" class="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center max-w-2xl mx-auto shadow-xs">
+      <div v-else-if="libroNoExiste && empresaId" class="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center max-w-2xl mx-auto shadow-xs">
         <span class="text-4xl">📋</span>
         <h3 class="mt-4 text-lg font-bold text-gray-800">No se ha generado este libro</h3>
         <p class="mt-2 text-sm text-gray-500 max-w-md mx-auto">
@@ -181,36 +185,37 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
+import { useCompanyStore } from '@/stores/company'  // ✅ NUEVO
 import { formatDateGT, formatDateTimeGT } from '@/utils/dates'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const companyStore = useCompanyStore()  // ✅ NUEVO
 
 const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-
 const tenants = ref([])
 const selectedTenantId = ref('')
-const empresas = ref([])
-
 const filters = reactive({
-  empresa_id: route.query.empresa || '',
   tipo_libro: 'compras',
   regimen_fiscal: 'general',
   anio: 2025,
   mes: 5
 })
-
 const cargando = ref(false)
 const procesandoAccion = ref(false)
 const libroNoExiste = ref(false)
 const libro = ref(null)
 const statusMsg = ref('')
 const statusType = ref('success')
+
+// ✅ Computed: usar empresa del contexto global
+const empresaId = computed(() => companyStore.selectedCompanyId)
+const empresaNombre = computed(() => companyStore.currentCompany?.nombre || '')
 
 const limpiarLibro = () => {
   libro.value = null
@@ -228,44 +233,20 @@ const fetchTenants = async () => {
   }
 }
 
-const cargarEmpresas = async () => {
-  if (authStore.isSuperAdmin && !selectedTenantId.value) {
-    empresas.value = []
-    return
-  }
-  try {
-    const params = authStore.isSuperAdmin ? { tenant_id: selectedTenantId.value } : {}
-    const { data } = await api.get('/empresas/', { params })
-    empresas.value = data
-
-    if (route.query.empresa) {
-      filters.empresa_id = route.query.empresa
-      await consultarLibro()
-    }
-  } catch (err) {
-    console.error('Error cargando empresas en libros SAT:', err)
-    statusMsg.value = '❌ No se pudieron cargar las empresas del Tenant.'
-    statusType.value = 'error'
-  }
-}
-
 const handleTenantChange = () => {
-  filters.empresa_id = ''
   limpiarLibro()
-  cargarEmpresas()
 }
 
 const consultarLibro = async () => {
-  if (!filters.empresa_id) return
-
+  if (!empresaId.value) return
+  
   cargando.value = true
   libroNoExiste.value = false
   libro.value = null
   statusMsg.value = ''
-
+  
   try {
     const params = {
-      empresa_id: filters.empresa_id,
       tipo_libro: filters.tipo_libro,
       anio: filters.anio,
       mes: filters.mes
@@ -273,6 +254,7 @@ const consultarLibro = async () => {
     if (authStore.isSuperAdmin && selectedTenantId.value) {
       params.tenant_id = selectedTenantId.value
     }
+    // ✅ No pasamos empresa_id, el interceptor lo inyecta automáticamente
     const { data } = await api.get('/sat-libros/consultar', { params })
     libro.value = data
     filters.regimen_fiscal = data.regimen_fiscal
@@ -289,29 +271,26 @@ const consultarLibro = async () => {
 }
 
 const generarORecalcularLibro = async () => {
-  if (!filters.empresa_id) return
-
+  if (!empresaId.value) return
+  
   procesandoAccion.value = true
   statusMsg.value = ''
-
+  
   try {
     const payload = {
-      empresa_id: filters.empresa_id,
+      empresa_id: empresaId.value,  // ✅ Usar empresa del contexto global
       tipo_libro: filters.tipo_libro,
       regimen_fiscal: filters.regimen_fiscal,
       anio_periodo: filters.anio,
       mes_periodo: filters.mes
     }
-    
     const params = {}
     if (authStore.isSuperAdmin && selectedTenantId.value) {
       params.tenant_id = selectedTenantId.value
     }
-
     await api.post('/sat-libros/generar', payload, { params })
     statusMsg.value = '✅ Libro de IVA generado y totalizado exitosamente.'
     statusType.value = 'success'
-
     await consultarLibro()
   } catch (err) {
     statusMsg.value = `❌ Error al procesar: ${err.response?.data?.detail || err.message}`
@@ -323,32 +302,30 @@ const generarORecalcularLibro = async () => {
 
 const finalizarLibro = async () => {
   if (!libro.value || !confirm('¿Está seguro de finalizar este periodo? Una vez cerrado no podrá ser recalculado.')) return
-
+  
   procesandoAccion.value = true
   statusMsg.value = ''
-
+  
   try {
     const params = {}
     if (authStore.isSuperAdmin && selectedTenantId.value) {
       params.tenant_id = selectedTenantId.value
     }
-    
     await api.patch(`/sat-libros/${libro.value.id}/finalizar`, null, { params })
     statusMsg.value = `🔒 El periodo ${meses[filters.mes - 1]} se ha congelado con éxito.`
     statusType.value = 'success'
-  
     await consultarLibro()
   } catch (err) {
-    statusMsg.value = `❌ Error al finalizar: ${err.response?.data?.detail || err.message}`
+    statusMsg.value = ` Error al finalizar: ${err.response?.data?.detail || err.message}`
     statusType.value = 'error'
   } finally {
     procesandoAccion.value = false
   }
 }
 
-watch(() => filters.empresa_id, (val) => {
-  if (val) router.replace({ query: { ...route.query, empresa: val } })
-  else router.replace({ query: { ...route.query, empresa: undefined } })
+// ✅ Watch: Limpiar libro cuando cambie la empresa seleccionada
+watch(() => companyStore.selectedCompanyId, () => {
+  limpiarLibro()
 })
 
 onMounted(async () => {
@@ -356,7 +333,6 @@ onMounted(async () => {
   if (authStore.isSuperAdmin && tenants.value.length > 0) {
     selectedTenantId.value = tenants.value[0].id
   }
-  await cargarEmpresas()
 })
 
 const formatMonto = (valor) => {

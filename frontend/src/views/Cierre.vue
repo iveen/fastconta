@@ -10,9 +10,9 @@
       <!-- 🔹 SELECTOR DE TENANT (Solo Superadmin) -->
       <div v-if="authStore.isSuperAdmin" class="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <label class="block text-sm font-semibold text-blue-800 mb-1">🏢 Seleccionar Firma (Tenant)</label>
-        <select 
-          v-model="selectedTenantId" 
-          @change="handleTenantChange" 
+        <select
+          v-model="selectedTenantId"
+          @change="handleTenantChange"
           class="w-full md:w-1/2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2 border bg-white"
         >
           <option value="">-- Seleccione una firma --</option>
@@ -22,26 +22,31 @@
         </select>
       </div>
 
-      <div class="bg-white shadow-md rounded-lg p-6">
+      <!-- ✅ MENSAJE SI NO HAY EMPRESA SELECCIONADA -->
+      <div v-if="!companyStore.selectedCompanyId" class="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-12 rounded-lg text-center">
+        <svg class="w-12 h-12 mx-auto mb-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+        <p class="text-lg font-semibold">Selecciona una empresa desde la barra superior para ejecutar el cierre contable</p>
+      </div>
+
+      <!-- ✅ Panel de cierre (solo si hay empresa seleccionada) -->
+      <div v-else class="bg-white shadow-md rounded-lg p-6">
+        <!-- Info de empresa activa -->
+        <div class="mb-4 pb-4 border-b border-gray-200 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+          <span class="text-sm text-gray-600">Empresa activa:</span>
+          <span class="font-semibold text-gray-800">{{ companyStore.currentCompany?.nombre || 'Desconocida' }}</span>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label class="block text-gray-700 text-sm font-bold mb-2">Empresa</label>
-            <select
-              v-model="empresaId"
-              @change="cargarPeriodos"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">-- Seleccionar empresa --</option>
-              <option v-for="emp in empresas" :key="emp.id" :value="emp.id">
-                {{ emp.nombre }}
-              </option>
-            </select>
-          </div>
           <div>
             <label class="block text-gray-700 text-sm font-bold mb-2">Período Fiscal</label>
             <select
               v-model="periodoId"
-              :disabled="!empresaId"
+              :disabled="!companyStore.selectedCompanyId"
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
             >
               <option value="">-- Seleccionar período --</option>
@@ -54,7 +59,7 @@
 
         <button
           @click="ejecutarCierre"
-          :disabled="!empresaId || !periodoId || cargando"
+          :disabled="!periodoId || cargando"
           class="bg-orange-500 text-white px-6 py-2 rounded-md hover:bg-orange-600 transition disabled:opacity-50"
         >
           {{ cargando ? 'Cerrando...' : 'Ejecutar Cierre Anual' }}
@@ -65,16 +70,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
+import { useCompanyStore } from '@/stores/company'  // ✅ NUEVO
 
 const authStore = useAuthStore()
+const companyStore = useCompanyStore()  // ✅ NUEVO
 
 const tenants = ref([])
 const selectedTenantId = ref('')
-const empresas = ref([])
-const empresaId = ref('')
 const periodosAbiertos = ref([])
 const periodoId = ref('')
 const cargando = ref(false)
@@ -91,36 +96,25 @@ const fetchTenants = async () => {
   }
 }
 
-const cargarEmpresas = async () => {
-  if (authStore.isSuperAdmin && !selectedTenantId.value) {
-    empresas.value = []
-    return
-  }
-  try {
-    const params = authStore.isSuperAdmin ? { tenant_id: selectedTenantId.value } : {}
-    const resp = await api.get('/empresas/', { params })
-    empresas.value = resp.data
-  } catch {
-    error.value = 'Error al cargar empresas'
-  }
-}
-
 const handleTenantChange = () => {
-  empresaId.value = ''
   periodosAbiertos.value = []
   periodoId.value = ''
-  cargarEmpresas()
+  error.value = ''
+  exito.value = ''
 }
 
 const cargarPeriodos = async () => {
   periodosAbiertos.value = []
   periodoId.value = ''
-  if (!empresaId.value) return
+  
+  if (!companyStore.selectedCompanyId) return
+  
   try {
-    const params = { empresa_id: empresaId.value }
+    const params = {}
     if (authStore.isSuperAdmin && selectedTenantId.value) {
       params.tenant_id = selectedTenantId.value
     }
+    // ✅ El interceptor ya inyecta X-Company-Id automáticamente
     const resp = await api.get('/periodos-fiscales/', { params })
     periodosAbiertos.value = resp.data.filter(p => !p.cerrado)
   } catch {
@@ -129,17 +123,23 @@ const cargarPeriodos = async () => {
 }
 
 const ejecutarCierre = async () => {
+  if (!companyStore.selectedCompanyId) {
+    error.value = 'Debes seleccionar una empresa antes de ejecutar el cierre'
+    return
+  }
+  
   cargando.value = true
   error.value = ''
   exito.value = ''
+  
   try {
     const params = {
-      empresa_id: empresaId.value,
       periodo_id: periodoId.value
     }
     if (authStore.isSuperAdmin && selectedTenantId.value) {
       params.tenant_id = selectedTenantId.value
     }
+    // ✅ No pasamos empresa_id, el interceptor lo inyecta automáticamente
     const resp = await api.post('/cierre/cierre-anual', null, { params })
     exito.value = resp.data.mensaje + '. Utilidad neta: ' + resp.data.utilidad_neta_periodo
     await cargarPeriodos()
@@ -150,11 +150,24 @@ const ejecutarCierre = async () => {
   }
 }
 
+// ✅ Watch: Recargar períodos cuando cambie la empresa seleccionada
+watch(() => companyStore.selectedCompanyId, async (newId) => {
+  if (newId) {
+    await cargarPeriodos()
+  } else {
+    periodosAbiertos.value = []
+    periodoId.value = ''
+  }
+})
+
 onMounted(async () => {
   await fetchTenants()
   if (authStore.isSuperAdmin && tenants.value.length > 0) {
     selectedTenantId.value = tenants.value[0].id
   }
-  await cargarEmpresas()
+  // ✅ Cargar períodos si ya hay empresa seleccionada
+  if (companyStore.selectedCompanyId) {
+    await cargarPeriodos()
+  }
 })
 </script>

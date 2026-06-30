@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { useCompanyStore } from '@/stores/company'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -15,6 +16,12 @@ api.interceptors.request.use(config => {
   }
   if (!(config.data instanceof FormData)) {
     config.headers['Content-Type'] = 'application/json'
+  }
+
+  // Inyectar contexto de empresa si existe
+  const companyStore = useCompanyStore()
+  if (companyStore.selectedCompanyId) {
+    config.headers['X-Company-Id'] = companyStore.selectedCompanyId
   }
   return config
 })

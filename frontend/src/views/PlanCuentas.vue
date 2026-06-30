@@ -2,9 +2,10 @@
 <template>
   <div class="min-h-screen bg-gray-50 p-6">
     <div class="max-w-7xl mx-auto space-y-6">
+      <!-- Header con botones de acción -->
       <div class="flex justify-between items-center">
         <h2 class="text-2xl font-bold text-gray-800">Plan de Cuentas</h2>
-        <div class="space-x-2" v-if="empresaSeleccionadaId">
+        <div class="space-x-2" v-if="companyStore.selectedCompanyId">
           <button @click="exportarExcel" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 flex items-center gap-2 text-sm font-medium">
             📤 Exportar Excel
           </button>
@@ -42,24 +43,9 @@
         </select>
       </div>
 
-      <!-- Selector de empresa -->
-      <div class="bg-white shadow-md rounded-lg p-4">
-        <label class="block text-gray-700 text-sm font-bold mb-2">Seleccionar Empresa</label>
-        <select
-          v-model="empresaSeleccionadaId"
-          @change="cargarCuentas"
-          class="w-full md:w-1/3 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">-- Seleccione una empresa --</option>
-          <option v-for="emp in empresas" :key="emp.id" :value="emp.id">
-            {{ emp.nombre }}
-          </option>
-        </select>
-      </div>
-
-      <!-- Sin empresa seleccionada -->
-      <div v-if="!empresaSeleccionadaId" class="bg-white shadow-md rounded-lg p-8 text-center text-gray-500">
-        Seleccione una empresa para ver su plan de cuentas.
+      <!-- ✅ MENSAJE SI NO HAY EMPRESA SELECCIONADA -->
+      <div v-if="!companyStore.selectedCompanyId" class="bg-white shadow-md rounded-lg p-8 text-center text-gray-500">
+        <p>Seleccione una empresa desde la barra superior para ver su plan de cuentas.</p>
       </div>
 
       <!-- Listado de cuentas -->
@@ -67,9 +53,11 @@
         <div v-if="cargando" class="text-center py-8 text-gray-500">
           Cargando cuentas...
         </div>
+
         <div v-else-if="cuentas.length === 0" class="bg-white shadow-md rounded-lg p-8 text-center text-gray-500">
           No hay cuentas registradas para esta empresa.
         </div>
+
         <div v-else class="bg-white shadow-md rounded-lg overflow-hidden">
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
@@ -202,6 +190,7 @@
             <input v-model="form.acepta_tercero" type="checkbox" id="tercero" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4" />
             <label for="tercero" class="text-sm text-gray-700">Acepta Terceros (Clientes/Proveedores/Empleados)</label>
           </div>
+
           <div class="flex justify-end gap-2 pt-4 border-t border-gray-100">
             <button type="button" @click="showFormModal = false" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md">Cancelar</button>
             <button type="submit" :disabled="cargando" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50">
@@ -250,15 +239,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useCompanyStore } from '@/stores/company'  // ✅ NUEVO
 import api from '@/services/api'
 
 const authStore = useAuthStore()
+const companyStore = useCompanyStore()  // ✅ NUEVO
+
+// Variables de estado
 const tenants = ref([])
 const selectedTenantId = ref('')
-const empresas = ref([])
-const empresaSeleccionadaId = ref('')
 const cuentas = ref([])
 const cargando = ref(false)
 const error = ref('')
@@ -290,9 +281,8 @@ const selectedFile = ref(null)
 // Buscador de cuenta padre
 const busquedaPadre = ref('')
 const mostrarResultadosPadre = ref(false)
-const cuentaPadreSeleccionada = ref(null)
 
-// Computed: Filtrar cuentas para el buscador de padre
+// ✅ Computed: Filtrar cuentas para el buscador de padre
 const cuentasPadreFiltradas = computed(() => {
   if (!busquedaPadre.value) return cuentas.value
   const termino = busquedaPadre.value.toLowerCase()
@@ -313,39 +303,24 @@ const fetchTenants = async () => {
   }
 }
 
-const cargarEmpresas = async () => {
-  if (authStore.isSuperAdmin && !selectedTenantId.value) {
-    empresas.value = []
-    return
-  }
-  try {
-    const params = authStore.isSuperAdmin ? { tenant_id: selectedTenantId.value } : {}
-    const response = await api.get('/empresas/', { params })
-    empresas.value = response.data
-  } catch (err) {
-    error.value = 'Error al cargar empresas'
-  }
-}
-
-const handleTenantChange = () => {
-  empresaSeleccionadaId.value = ''
-  cuentas.value = []
-  cargarEmpresas()
-}
-
+// ✅ CORRECCIÓN: Ya no cargamos empresas, solo cargamos cuentas cuando cambia la empresa seleccionada
 const cargarCuentas = async () => {
-  if (!empresaSeleccionadaId.value) {
+  if (!companyStore.selectedCompanyId) {
     cuentas.value = []
     return
   }
+
   cargando.value = true
   error.value = ''
   successMessage.value = ''
+
   try {
-    const params = { empresa_id: empresaSeleccionadaId.value }
+    const params = {}
     if (authStore.isSuperAdmin && selectedTenantId.value) {
       params.tenant_id = selectedTenantId.value
     }
+    
+    // ✅ El interceptor de Axios ya inyecta X-Company-Id automáticamente
     const response = await api.get('/plan-cuentas/', { params })
     cuentas.value = response.data
   } catch (err) {
@@ -354,6 +329,20 @@ const cargarCuentas = async () => {
     cargando.value = false
   }
 }
+
+// ✅ CORRECCIÓN: Solo para superadmin cambiar de tenant
+const handleTenantChange = () => {
+  // Al cambiar de tenant, recargamos las cuentas automáticamente
+  // El companyStore.selectedCompanyId ya está configurado
+  cargarCuentas()
+}
+
+// ✅ Watch: Recargar cuentas cuando cambia la empresa seleccionada
+watch(() => companyStore.selectedCompanyId, () => {
+  if (companyStore.selectedCompanyId) {
+    cargarCuentas()
+  }
+})
 
 // 🔹 CRUD: Crear
 const abrirModalCrear = () => {
@@ -385,7 +374,7 @@ const editarCuenta = (cuenta) => {
     cuenta_padre_id: cuenta.cuenta_padre_id,
     acepta_tercero: cuenta.acepta_tercero
   }
-  
+
   // Si tiene cuenta padre, mostrarla en el buscador
   if (cuenta.cuenta_padre_id) {
     const padre = cuentas.value.find(c => c.id === cuenta.cuenta_padre_id)
@@ -397,7 +386,6 @@ const editarCuenta = (cuenta) => {
     cuentaPadreSeleccionada.value = null
     busquedaPadre.value = ''
   }
-  
   showFormModal.value = true
 }
 
@@ -406,13 +394,13 @@ const guardarCuenta = async () => {
   cargando.value = true
   error.value = ''
   successMessage.value = ''
-  
+
   try {
     const payload = {
-      ...form.value,
-      empresa_id: empresaSeleccionadaId.value
+      ...form.value
+      // ✅ NO agregamos empresa_id, el backend lo obtiene del header X-Company-Id
     }
-    
+
     if (isEditing.value) {
       await api.put(`/plan-cuentas/${form.value.id}`, payload)
       successMessage.value = 'Cuenta actualizada correctamente'
@@ -420,7 +408,7 @@ const guardarCuenta = async () => {
       await api.post('/plan-cuentas/', payload)
       successMessage.value = 'Cuenta creada correctamente'
     }
-    
+
     showFormModal.value = false
     await cargarCuentas()
   } catch (err) {
@@ -438,11 +426,11 @@ const confirmarEliminar = (cuenta) => {
 
 const eliminarCuenta = async () => {
   if (!cuentaAEliminar.value) return
-  
+
   cargando.value = true
   error.value = ''
   successMessage.value = ''
-  
+
   try {
     await api.delete(`/plan-cuentas/${cuentaAEliminar.value.id}`)
     successMessage.value = 'Cuenta eliminada correctamente'
@@ -460,6 +448,8 @@ const eliminarCuenta = async () => {
 const filtrarCuentasPadre = () => {
   mostrarResultadosPadre.value = true
 }
+
+const cuentaPadreSeleccionada = ref(null)
 
 const seleccionarCuentaPadre = (cuenta) => {
   form.value.cuenta_padre_id = cuenta.id
@@ -485,16 +475,16 @@ const handleFileUpload = (event) => {
 }
 
 const subirExcel = async () => {
-  if (!selectedFile.value || !empresaSeleccionadaId.value) return
-  
+  if (!selectedFile.value) return
+
   cargando.value = true
   error.value = ''
   successMessage.value = ''
-  
+
   const formData = new FormData()
   formData.append('file', selectedFile.value)
-  formData.append('empresa_id', empresaSeleccionadaId.value)
-  
+  // ✅ NO agregamos empresa_id, el backend lo obtiene del header
+
   try {
     const response = await api.post('/plan-cuentas/importar', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
@@ -515,30 +505,24 @@ const subirExcel = async () => {
 
 // 🔹 Lógica de Exportación
 const exportarExcel = async () => {
-  if (!empresaSeleccionadaId.value) return
-  
   try {
     cargando.value = true
     error.value = ''
-    
-    // Solicitar el archivo como blob
+
+    // ✅ NO pasamos empresa_id, el backend lo obtiene del header
     const response = await api.get('/plan-cuentas/exportar', {
-      params: { empresa_id: empresaSeleccionadaId.value },
-      responseType: 'blob' // 🔹 CRÍTICO: Indica que esperamos un archivo binario
+      responseType: 'blob'
     })
-    
-    // Crear URL temporal y forzar descarga
+
     const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', `plan_cuentas_${empresaSeleccionadaId.value}.xlsx`)
+    link.setAttribute('download', `plan_cuentas_${companyStore.selectedCompanyId}.xlsx`)
     document.body.appendChild(link)
     link.click()
     link.remove()
-    
-    // Liberar memoria
     window.URL.revokeObjectURL(url)
-    
+
     successMessage.value = '✅ Archivo exportado correctamente.'
   } catch (err) {
     if (err.response?.status === 404) {
@@ -556,6 +540,9 @@ onMounted(async () => {
   if (authStore.isSuperAdmin && tenants.value.length > 0) {
     selectedTenantId.value = tenants.value[0].id
   }
-  await cargarEmpresas()
+  // ✅ Ya no llamamos a cargarEmpresas(), solo cargamos cuentas si hay empresa seleccionada
+  if (companyStore.selectedCompanyId) {
+    await cargarCuentas()
+  }
 })
 </script>

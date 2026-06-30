@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.core.security import DataScope, get_data_scope
 from app.crud.secuencias import get_next_poliza
 from app.db.session import get_public_db, get_tenant_db
+from app.dependencies.empresa import get_active_empresa
 from app.models.tenant_models import (
     CuentaContable,
     DetallePartida,
@@ -322,12 +323,15 @@ async def listar_partidas(
     empresa_id: UUID | None = Query(None, description="Filtrar partidas por empresa"),
     tenant_id: str | None = Query(None, description="ID del tenant (requerido para superadmin)"),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa | None = Depends(get_active_empresa)
 ):
     await _set_schema_for_query(db, scope, tenant_id)
+
+    empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
     
-    if empresa_id:
-        result_emp = await db.execute(select(Empresa).where(Empresa.id == empresa_id))
+    if empresa_id_final:
+        result_emp = await db.execute(select(Empresa).where(Empresa.id == empresa_id_final))
         if not result_emp.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="Empresa no encontrada")
     
@@ -338,8 +342,8 @@ async def listar_partidas(
                      selectinload(Partida.empresa))
             .order_by(Partida.fecha.desc()))
 
-    if empresa_id:
-        stmt = stmt.where(Partida.empresa_id == empresa_id)
+    if empresa_id_final:
+        stmt = stmt.where(Partida.empresa_id == empresa_id_final)
 
     result = await db.execute(stmt)
     partidas = result.scalars().all()

@@ -1,20 +1,20 @@
 # app/api/v1/endpoints/balances.py
 from datetime import date
 from decimal import Decimal
-from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 from sqlalchemy import case, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import DataScope, get_data_scope
 from app.db.session import get_public_db
+from app.dependencies.empresa import get_active_empresa
 from app.models.tenant_models import CuentaContable, DetallePartida, Empresa, Partida
 from app.schemas.balances import (
     BalanceComprobacionResponse,
+    BalanceGeneralResponse,
     EstadoResultadosResponse,
     FilaBalance,
 )
@@ -68,24 +68,33 @@ async def _set_schema_for_query(db: AsyncSession, scope: DataScope, tenant_id: s
 # ==========================================
 @router.get("/comprobacion", response_model=BalanceComprobacionResponse)
 async def balance_comprobacion(
-    empresa_id: UUID = Query(..., description="ID de la empresa para filtrar el balance"),
+    empresa_id: UUID | None = Query(None, description="ID de la empresa para filtrar el balance"),
     fecha_inicio: date | None = Query(None, description="Fecha inicial (inclusive)"),
     fecha_fin: date | None = Query(None, description="Fecha final (inclusive)"),
     tenant_id: str | None = Query(None, description="ID del tenant (requerido para superadmin)"),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa = Depends(get_active_empresa)
 ):
     await _set_schema_for_query(db, scope, tenant_id)
+
+    empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
+
+    if not empresa_id_final:
+        raise HTTPException(
+            status_code=400, 
+            detail="Debe especificar un empresa_id o tener una empresa activa en el header"
+        )
     
     # Validar que la empresa existe
-    result_emp = await db.execute(select(Empresa).where(Empresa.id == empresa_id))
+    result_emp = await db.execute(select(Empresa).where(Empresa.id == empresa_id_final))
     if not result_emp.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Empresa no encontrada")
     
     # Obtener solo las cuentas activas de esa empresa
     result = await db.execute(
         select(CuentaContable)
-        .where(CuentaContable.activa == True, CuentaContable.empresa_id == empresa_id)
+        .where(CuentaContable.activa.is_(True), CuentaContable.empresa_id == empresa_id_final)
         .order_by(CuentaContable.codigo)
     )
     cuentas = result.scalars().all()
@@ -137,16 +146,19 @@ async def balance_comprobacion(
 # ==========================================
 @router.get("/estado-resultados", response_model=EstadoResultadosResponse)
 async def estado_resultados(
-    empresa_id: UUID = Query(..., description="ID de la empresa"),
+    empresa_id: UUID | None = Query(None, description="ID de la empresa"),
     fecha_inicio: date = Query(..., description="Fecha de inicio del período"),
     fecha_fin: date = Query(..., description="Fecha de fin del período"),
     tenant_id: str | None = Query(None),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa = Depends(get_active_empresa)
 ):
     await _set_schema_for_query(db, scope, tenant_id)
+
+    empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
     
-    result_emp = await db.execute(select(Empresa).where(Empresa.id == empresa_id))
+    result_emp = await db.execute(select(Empresa).where(Empresa.id == empresa_id_final))
     empresa = result_emp.scalar_one_or_none()
     if not empresa:
         raise HTTPException(status_code=400, detail="Empresa no encontrada")
@@ -154,8 +166,8 @@ async def estado_resultados(
     result = await db.execute(
         select(CuentaContable)
         .where(
-            CuentaContable.activa == True,
-            CuentaContable.empresa_id == empresa_id,
+            CuentaContable.activa.is_(True),
+            CuentaContable.empresa_id == empresa_id_final,
             CuentaContable.tipo.in_(['ingreso', 'gasto'])
         )
         .order_by(CuentaContable.codigo)
@@ -226,29 +238,20 @@ async def estado_resultados(
 # ==========================================
 # 3. Balance General
 # ==========================================
-class BalanceGeneralResponse(BaseModel):
-    empresa_id: UUID
-    empresa_nombre: str
-    fecha: date
-    activos: List[FilaBalance]
-    total_activos: Decimal
-    pasivos: List[FilaBalance]
-    total_pasivos: Decimal
-    patrimonio: List[FilaBalance]
-    total_patrimonio: Decimal
-    utilidad_ejercicio: Decimal
-
 @router.get("/balance-general", response_model=BalanceGeneralResponse)
 async def balance_general(
-    empresa_id: UUID = Query(..., description="ID de la empresa"),
+    empresa_id: UUID | None = Query(None, description="ID de la empresa"),
     fecha: date = Query(..., description="Fecha de corte del balance"),
     tenant_id: str | None = Query(None),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa = Depends(get_active_empresa)
 ):
     await _set_schema_for_query(db, scope, tenant_id)
+
+    empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
     
-    result_emp = await db.execute(select(Empresa).where(Empresa.id == empresa_id))
+    result_emp = await db.execute(select(Empresa).where(Empresa.id == empresa_id_final))
     empresa = result_emp.scalar_one_or_none()
     if not empresa:
         raise HTTPException(status_code=400, detail="Empresa no encontrada")
@@ -256,8 +259,8 @@ async def balance_general(
     result = await db.execute(
         select(CuentaContable)
         .where(
-            CuentaContable.activa == True,
-            CuentaContable.empresa_id == empresa_id,
+            CuentaContable.activa.is_(True),
+            CuentaContable.empresa_id == empresa_id_final,
             CuentaContable.tipo.in_(['activo', 'pasivo', 'patrimonio'])
         )
         .order_by(CuentaContable.codigo)
@@ -363,14 +366,21 @@ async def balance_general(
 # ==========================================
 @router.get("/comprobacion/excel")
 async def balance_comprobacion_excel(
-    empresa_id: UUID = Query(...),
+    empresa_id: UUID | None = Query(None, description="ID de la empresa"),
     fecha_inicio: date = Query(...),
     fecha_fin: date = Query(...),
     tenant_id: str | None = Query(None),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa = Depends(get_active_empresa)
 ):
-    datos = await balance_comprobacion(empresa_id, fecha_inicio, fecha_fin, tenant_id, scope, db)
+    empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
+    if not empresa_id_final:
+        raise HTTPException(
+            status_code=400, 
+            detail="Debe especificar un empresa_id o tener una empresa activa en el header"
+        )
+    datos = await balance_comprobacion(empresa_id_final, fecha_inicio, fecha_fin, tenant_id, scope, db, None)
     excel = generar_balance_comprobacion_excel(datos.dict())
     return StreamingResponse(
         excel,
@@ -380,14 +390,23 @@ async def balance_comprobacion_excel(
 
 @router.get("/estado-resultados/excel")
 async def estado_resultados_excel(
-    empresa_id: UUID = Query(...),
+    empresa_id: UUID | None = Query(None, description="ID de la empresa"),
     fecha_inicio: date = Query(...),
     fecha_fin: date = Query(...),
     tenant_id: str | None = Query(None),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa = Depends(get_active_empresa)
 ):
-    datos = await estado_resultados(empresa_id, fecha_inicio, fecha_fin, tenant_id, scope, db)
+    empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
+
+    if not empresa_id_final:
+        raise HTTPException(
+            status_code=400, 
+            detail="Debe especificar un empresa_id o tener una empresa activa en el header"
+        )
+    
+    datos = await estado_resultados(empresa_id_final, fecha_inicio, fecha_fin, tenant_id, scope, db, None)
     excel = generar_estado_resultados_excel(datos.dict())
     return StreamingResponse(
         excel,
@@ -397,13 +416,22 @@ async def estado_resultados_excel(
 
 @router.get("/balance-general/excel")
 async def balance_general_excel(
-    empresa_id: UUID = Query(...),
+    empresa_id: UUID | None = Query(None, description="ID de la empresa"),
     fecha: date = Query(...),
     tenant_id: str | None = Query(None),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa = Depends(get_active_empresa)
 ):
-    datos = await balance_general(empresa_id, fecha, tenant_id, scope, db)
+    empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
+
+    if not empresa_id_final:
+        raise HTTPException(
+            status_code=400, 
+            detail="Debe especificar un empresa_id o tener una empresa activa en el header"
+        )
+
+    datos = await balance_general(empresa_id_final, fecha, tenant_id, scope, db, None)
     excel = generar_balance_general_excel(datos.dict())
     return StreamingResponse(
         excel,
@@ -416,14 +444,23 @@ async def balance_general_excel(
 # ==========================================
 @router.get("/comprobacion/pdf")
 async def balance_comprobacion_pdf(
-    empresa_id: UUID = Query(...),
+    empresa_id: UUID | None = Query(None, description="ID de la empresa"),
     fecha_inicio: date = Query(...),
     fecha_fin: date = Query(...),
     tenant_id: str | None = Query(None),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa = Depends(get_active_empresa)
 ):
-    datos = await balance_comprobacion(empresa_id, fecha_inicio, fecha_fin, tenant_id, scope, db)
+    empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
+
+    if not empresa_id_final:
+        raise HTTPException(
+            status_code=400, 
+            detail="Debe especificar un empresa_id o tener una empresa activa en el header"
+        )
+
+    datos = await balance_comprobacion(empresa_id_final, fecha_inicio, fecha_fin, tenant_id, scope, db, None)
     pdf = generar_balance_comprobacion_pdf(datos.dict())
     return StreamingResponse(
         pdf,
@@ -433,14 +470,22 @@ async def balance_comprobacion_pdf(
 
 @router.get("/estado-resultados/pdf")
 async def estado_resultados_pdf(
-    empresa_id: UUID = Query(...),
+    empresa_id: UUID | None = Query(None, description="ID de la empresa"),
     fecha_inicio: date = Query(...),
     fecha_fin: date = Query(...),
     tenant_id: str | None = Query(None),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa = Depends(get_active_empresa)
 ):
-    datos = await estado_resultados(empresa_id, fecha_inicio, fecha_fin, tenant_id, scope, db)
+    empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
+    if not empresa_id_final:
+        raise HTTPException(
+            status_code=400, 
+            detail="Debe especificar un empresa_id o tener una empresa activa en el header"
+        )
+    
+    datos = await estado_resultados(empresa_id_final, fecha_inicio, fecha_fin, tenant_id, scope, db, None)
     pdf = generar_estado_resultados_pdf(datos.dict())
     return StreamingResponse(
         pdf,
@@ -450,13 +495,21 @@ async def estado_resultados_pdf(
 
 @router.get("/balance-general/pdf")
 async def balance_general_pdf(
-    empresa_id: UUID = Query(...),
+    empresa_id: UUID | None = Query(None, description="ID de la empresa"),
     fecha: date = Query(...),
     tenant_id: str | None = Query(None),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa = Depends(get_active_empresa)
 ):
-    datos = await balance_general(empresa_id, fecha, tenant_id, scope, db)
+    empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
+    if not empresa_id_final:
+        raise HTTPException(
+            status_code=400, 
+            detail="Debe especificar un empresa_id o tener una empresa activa en el header"
+        )
+
+    datos = await balance_general(empresa_id_final, fecha, tenant_id, scope, db, None)
     pdf = generar_balance_general_pdf(datos.dict())
     return StreamingResponse(
         pdf,

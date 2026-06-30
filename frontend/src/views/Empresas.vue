@@ -197,11 +197,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue' // 🔹 Agregado computed
+import { ref, onMounted, computed, watch } from 'vue' // 🔹 Agregado computed
 import { useAuthStore } from '@/stores/auth'
+import { useCompanyStore } from '@/stores/company'
 import api from '@/services/api'
 
 const authStore = useAuthStore()
+const companyStore = useCompanyStore()
 
 // State General
 const empresas = ref([])
@@ -256,22 +258,43 @@ const fetchTenants = async () => {
 }
 
 const cargarEmpresas = async () => {
-  if (authStore.isSuperAdmin && !selectedTenantId.value) {
-    empresas.value = []
-    return
-  }
   cargandoLista.value = true
   error.value = ''
+  
   try {
-    const params = authStore.isSuperAdmin ? { tenant_id: selectedTenantId.value } : {}
-    const response = await api.get('/empresas/', { params })
-    empresas.value = response.data
+    if (authStore.isSuperAdmin) {
+      if (!selectedTenantId.value) {
+        empresas.value = []
+      } else {
+        const params = { tenant_id: selectedTenantId.value }
+        const resp = await api.get('/empresas/', { params })
+        empresas.value = resp.data
+      }
+    } else {
+      // ✅ Para usuarios normales, usar directamente el store
+      if (!companyStore.hasCompanies) {
+        try {
+          await companyStore.loadCompanies()
+        } catch (err) {
+          console.warn('No se pudieron cargar empresas:', err)
+          // No lanzar error, permitir que la UI continúe
+        }
+      }
+      empresas.value = companyStore.availableCompanies || []
+    }
   } catch (err) {
     error.value = err.response?.data?.detail || 'Error al cargar empresas'
+    empresas.value = []
   } finally {
     cargandoLista.value = false
   }
 }
+
+
+// ✅ Watch: Recargar cuando cambie el contexto de empresa
+watch(() => companyStore.availableCompanies, (newCompanies) => {
+  empresas.value = newCompanies
+}, { immediate: true })
 
 const handleTenantChange = () => {
   empresas.value = []

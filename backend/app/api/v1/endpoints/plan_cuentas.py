@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import DataScope, get_data_scope
 from app.db.session import get_public_db
-from app.models.tenant_models import CuentaContable
+from app.dependencies.empresa import get_active_empresa
+from app.models.tenant_models import CuentaContable, Empresa
 from app.schemas.plan_cuentas import CuentaCreate, CuentaOut, CuentaUpdate
 from app.services.plan_cuentas_service import (
     exportar_plan_cuentas,
@@ -67,18 +68,21 @@ async def _get_current_schema(db: AsyncSession) -> str:
 # ==========================================
 @router.get("/", response_model=List[CuentaOut])
 async def list_cuentas(
-    empresa_id: UUID = Query(None, description="Filtrar por empresa"),
+    empresa_id: UUID | None = Query(None, description="Filtrar por empresa (opcional, usa X-Company-Id si no se especifica)"),
     tenant_id: str | None = Query(None, description="ID del tenant (requerido para superadmin)"),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa | None = Depends(get_active_empresa) 
 ):
     await _set_schema_for_query(db, scope, tenant_id)
+
+    empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
     
     stmt = select(CuentaContable).order_by(CuentaContable.codigo)
-    if empresa_id:
+    if empresa_id_final:
         stmt = stmt.where(
             and_(
-                CuentaContable.empresa_id == empresa_id,
+                CuentaContable.empresa_id == empresa_id_final,
                 CuentaContable.activa.is_(True)
             )
         )

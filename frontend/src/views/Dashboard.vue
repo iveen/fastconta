@@ -1,7 +1,7 @@
 <!-- src/views/Dashboard.vue -->
 <template>
   <div class="min-h-screen flex bg-gray-50">
-    <!-- Sidebar -->
+    <!-- Sidebar (sin cambios) -->
     <aside class="w-64 text-white flex flex-col shadow-xl" style="background: linear-gradient(180deg, #1e3a8a 0%, #1e40af 100%);">
       <!-- Logo combinado -->
       <div class="p-6 border-b border-blue-700">
@@ -98,7 +98,6 @@
           class="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors hover:bg-gray-800 text-gray-300 hover:text-white"
           active-class="bg-blue-600 text-white"
         >
-          <!-- Ícono Declaraciones (Documento con check) -->
           <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
           </svg>
@@ -157,11 +156,64 @@
 
     <!-- Main Content -->
     <div class="flex-1 flex flex-col">
-      <!-- Navbar -->
+      <!-- ✅ HEADER MODIFICADO: Título dinámico + Selector de Empresas + Dropdown Usuario -->
       <header class="bg-white shadow-md px-6 py-3 flex justify-between items-center">
-        <h1 class="text-lg font-semibold text-gray-700">Dashboard</h1>
+        <!-- Lado Izquierdo: Título + Selector de Empresa -->
+        <div class="flex items-center gap-4">
+          <h1 class="text-lg font-semibold text-gray-700">{{ pageTitle }}</h1>
+
+          <!-- ✅ NUEVO: Dropdown de Empresas -->
+          <div class="relative" ref="companyDropdownRef" v-if="companyStore.hasCompanies">
+            <button
+              @click="showCompanyDropdown = !showCompanyDropdown"
+              class="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 border border-gray-300 rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors min-w-[200px]"
+            >
+              <Building2 class="w-4 h-4 text-gray-500" />
+              <span class="truncate">{{ companyStore.currentCompany?.nombre || 'Seleccionar Empresa' }}</span>
+              <svg class="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            <!-- Dropdown Menu de Empresas -->
+            <div
+              v-if="showCompanyDropdown"
+              class="absolute left-0 mt-2 w-72 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-80 overflow-y-auto"
+            >
+              <div class="px-4 py-2 border-b border-gray-100 bg-gray-50">
+                <p class="text-xs font-semibold text-gray-600 uppercase">Cambiar de empresa</p>
+              </div>
+              <ul class="py-1">
+                <li
+                  v-for="company in companyStore.availableCompanies"
+                  :key="company.id"
+                  @click="selectCompany(company.id)"
+                  class="px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer flex items-center gap-2"
+                  :class="{ 'bg-blue-50 text-blue-700 font-medium': company.id === companyStore.selectedCompanyId }"
+                >
+                  <svg v-if="company.id === companyStore.selectedCompanyId" class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                  </svg>
+                  <span v-else class="w-4"></span>
+                  <div class="flex-1 min-w-0">
+                    <p class="truncate">{{ company.nombre }}</p>
+                    <p v-if="company.nit" class="text-xs text-gray-500">NIT: {{ company.nit }}</p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Mensaje si no hay empresas -->
+          <div v-else-if="!companyStore.loading" class="text-sm text-amber-600 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span>Sin empresas asignadas</span>
+          </div>
+        </div>
         
-        <!-- User Dropdown -->
+        <!-- Lado Derecho: User Dropdown (sin cambios) -->
         <div class="relative" ref="dropdownRef">
           <button
             @click="showDropdown = !showDropdown"
@@ -178,12 +230,11 @@
             </svg>
           </button>
 
-          <!-- Dropdown Menu -->
+          <!-- Dropdown Menu de Usuario -->
           <div
             v-if="showDropdown"
             class="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50"
           >
-            <!-- User Info -->
             <div class="px-4 py-3 border-b border-gray-100">
               <p class="text-sm font-semibold text-gray-900 truncate">{{ authStore.user?.full_name }}</p>
               <p class="text-xs text-gray-500 truncate">{{ authStore.user?.email }}</p>
@@ -194,12 +245,10 @@
               </div>
             </div>
 
-            <!-- Tenant Info -->
             <div v-if="authStore.user?.tenant_name" class="px-4 py-2 border-b border-gray-100 text-xs text-gray-600">
               <span class="font-medium">Firma:</span> {{ authStore.user.tenant_name }}
             </div>
 
-            <!-- Logout -->
             <button
               @click="handleLogout"
               class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition flex items-center gap-2"
@@ -216,15 +265,15 @@
         <router-view />
       </main>
     </div>
-
     <ToastContainer />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { useRouter } from 'vue-router'
+import { useCompanyStore } from '@/stores/company'  // ✅ NUEVO
 import ToastContainer from './ToastContainer.vue'
 import {
   BookOpen,
@@ -241,14 +290,56 @@ import {
 } from '@lucide/vue'
 
 const authStore = useAuthStore()
+const companyStore = useCompanyStore()  // ✅ NUEVO
 const router = useRouter()
-const showDropdown = ref(false)
-const dropdownRef = ref(null)
+const route = useRoute()  // ✅ NUEVO
 
-// Close dropdown when clicking outside
+const showDropdown = ref(false)
+const showCompanyDropdown = ref(false)  // ✅ NUEVO
+const dropdownRef = ref(null)
+const companyDropdownRef = ref(null)  // ✅ NUEVO
+
+// ✅ NUEVO: Título dinámico basado en la ruta actual
+const pageTitle = computed(() => {
+  const titles = {
+    'Empresas': 'Empresas',
+    'PlanCuentas': 'Plan de Cuentas',
+    'Partidas': 'Partidas de Diario',
+    'PartidaDetalle': 'Detalle de Partida',
+    'Reportes': 'Reportes Financieros',
+    'Cierre': 'Cierre Contable',
+    'PeriodosFiscales': 'Períodos Fiscales',
+    'Facturas': 'Facturas Electrónicas',
+    'FacturaDetalle': 'Detalle de Factura',
+    'SATLibros': 'Libros IVA (SAT)',
+    'Declaraciones': 'Declaraciones SAT',
+    'ActivosFijos': 'Activos Fijos',
+    'ActivosFijosCrear': 'Nuevo Activo Fijo',
+    'ActivosFijosEditar': 'Editar Activo Fijo',
+    'ActivosFijosProyeccion': 'Proyección de Activo',
+    'LibroMayor': 'Libro Mayor',
+    'ConfiguracionHub': 'Configuración del Sistema',
+    'ConfiguracionFormulariosSAT': 'Formularios SAT',
+    'Usuarios': 'Gestión de Usuarios'
+  }
+  return titles[route.name] || 'Dashboard'
+})
+
+// ✅ NUEVO: Seleccionar empresa y recargar contexto
+const selectCompany = (companyId) => {
+  companyStore.setCompany(companyId)
+  showCompanyDropdown.value = false
+  // Recargar la página para aplicar el nuevo contexto en todas las queries
+  router.go(0)
+}
+
+// Cerrar ambos dropdowns al hacer clic fuera
 const handleClickOutside = (event) => {
   if (dropdownRef.value && !dropdownRef.value.contains(event.target)) {
     showDropdown.value = false
+  }
+  if (companyDropdownRef.value && !companyDropdownRef.value.contains(event.target)) {
+    showCompanyDropdown.value = false
   }
 }
 

@@ -50,3 +50,15 @@ class EstadoResultadosResponse(BaseModel):
     gastos: List[FilaBalance]
     total_gastos: Decimal
     utilidad_neta: Decimal  # Puede ser negativo si es pérdida
+
+class BalanceGeneralResponse(BaseModel):
+    empresa_id: UUID
+    empresa_nombre: str
+    fecha: date
+    activos: List[FilaBalance]
+    total_activos: Decimal
+    pasivos: List[FilaBalance]
+    total_pasivos: Decimal
+    patrimonio: List[FilaBalance]
+    total_patrimonio: Decimal
+    utilidad_ejercicio: Decimal

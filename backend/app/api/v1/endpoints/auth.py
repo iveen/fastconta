@@ -10,10 +10,11 @@ from sqlalchemy.orm import selectinload
 
 from app.core.jwt_utils import create_access_token
 from app.core.security import (  # Asegúrate de importar tu haseador
+    get_current_user,
     get_password_hash,
     verify_password,
 )
-from app.db.session import get_db
+from app.db.session import get_db, get_tenant_db
 from app.models.global_models import Tenant, User
 from app.schemas.auth import LoginRequest, SignupRequest, SignupResponse, TokenResponse
 
@@ -21,6 +22,45 @@ from app.schemas.auth import LoginRequest, SignupRequest, SignupResponse, TokenR
 from app.services.tenant_setup import cleanup_tenant_schema, initialize_tenant_schema
 
 router = APIRouter()
+
+@router.get("/me")
+async def get_current_user_info(
+    db: AsyncSession = Depends(get_tenant_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Retorna información del usuario autenticado.
+    Usado por el frontend para restaurar la sesión al recargar.
+    """
+    tenant_name = None
+    if current_user.tenant_id:
+        # Forzar schema public para consultar tenants
+        await db.execute(text("SET LOCAL search_path TO public"))
+        tenant_result = await db.execute(
+            select(Tenant).where(Tenant.id == current_user.tenant_id)
+        )
+        tenant = tenant_result.scalar_one_or_none()
+        tenant_name = tenant.name if tenant else None
+    
+    role_code = "tenant_member"
+    if current_user.role:
+        if hasattr(current_user.role, 'codigo'):
+            role_code = current_user.role.codigo
+        elif hasattr(current_user.role, 'code'):
+            role_code = current_user.role.code
+        elif hasattr(current_user.role, 'name'):
+            role_code = current_user.role.name
+        elif isinstance(current_user.role, str):
+            role_code = current_user.role
+    
+    return {
+        "id": str(current_user.id),
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "role": role_code,  # ✅ Ahora es string, no objeto
+        "tenant_name": tenant_name,
+        "tenant_id": str(current_user.tenant_id) if current_user.tenant_id else None
+    }
 
 @router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
 async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):

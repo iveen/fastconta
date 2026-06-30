@@ -25,42 +25,46 @@
       </div>
 
       <!-- Selector de empresa y fechas -->
-      <div class="bg-white shadow-md rounded-lg p-4">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label class="block text-gray-700 text-sm font-bold mb-2">Empresa</label>
-            <select
-              v-model="empresaId"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">-- Seleccionar empresa --</option>
-              <option v-for="emp in empresas" :key="emp.id" :value="emp.id">
-                {{ emp.nombre }}
-              </option>
-            </select>
+      <!-- ✅ MENSAJE SI NO HAY EMPRESA SELECCIONADA -->
+      <div v-if="!companyStore.selectedCompanyId" class="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-12 rounded-lg text-center">
+        <svg class="w-12 h-12 mx-auto mb-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+        <p class="text-lg font-semibold">Selecciona una empresa desde la barra superior para generar reportes</p>
+      </div>
+
+      <!-- ✅ Panel de fechas (solo si hay empresa seleccionada) -->
+      <div v-else class="bg-white shadow-md rounded-lg p-4">
+        <div class="flex items-center gap-4 mb-4 pb-4 border-b border-gray-200">
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+            <span class="text-sm text-gray-600">Empresa:</span>
+            <span class="font-semibold text-gray-800">{{ empresaNombre }}</span>
           </div>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div v-if="tipoReporte !== 'balance-general'">
             <label class="block text-gray-700 text-sm font-bold mb-2">Fecha Inicio</label>
-            <input
+            <DateInput
               v-model="fechaInicio"
-              type="date"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="dd/mm/yyyy"
             />
           </div>
           <div v-if="tipoReporte !== 'balance-general'">
             <label class="block text-gray-700 text-sm font-bold mb-2">Fecha Fin</label>
-            <input
+            <DateInput
               v-model="fechaFin"
-              type="date"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="dd/mm/yyyy"
             />
           </div>
           <div v-else>
             <label class="block text-gray-700 text-sm font-bold mb-2">Fecha de Corte</label>
-            <input
+            <DateInput
               v-model="fechaCorte"
-              type="date"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="dd/mm/yyyy"
             />
           </div>
         </div>
@@ -87,29 +91,29 @@
 
       <!-- Botones de acción -->
       <div class="flex gap-3">
-        <button
-          @click="generarReporte()"
-          :disabled="!empresaId || cargando"
-          class="bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600 transition disabled:opacity-50"
-        >
-          {{ cargando ? 'Generando...' : 'Generar Reporte' }}
-        </button>
-        <button 
-          @click="generarReporte('excel')" 
-          :disabled="!empresaId || cargando" 
-          class="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition disabled:opacity-50"
-        >
-          <span v-if="cargando">Generando...</span>
-          <span v-else>📥 Excel</span>
-        </button>
-        <button 
-          @click="generarReporte('pdf')" 
-          :disabled="!empresaId || cargando" 
-          class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition disabled:opacity-50"
-        >
-          <span v-if="cargando">Generando...</span>
-          <span v-else>📄 PDF</span>
-        </button>
+      <button
+        @click="generarReporte()"
+        :disabled="!companyStore.selectedCompanyId || cargando"
+        class="bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600 transition disabled:opacity-50"
+      >
+        {{ cargando ? 'Generando...' : 'Generar Reporte' }}
+      </button>
+      <button
+        @click="generarReporte('excel')"
+        :disabled="!companyStore.selectedCompanyId || cargando"
+        class="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition disabled:opacity-50"
+      >
+        <span v-if="cargando">Generando...</span>
+        <span v-else> Excel</span>
+      </button>
+      <button
+        @click="generarReporte('pdf')"
+        :disabled="!companyStore.selectedCompanyId || cargando"
+        class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition disabled:opacity-50"
+      >
+        <span v-if="cargando">Generando...</span>
+        <span v-else>📄 PDF</span>
+      </button>
       </div>
 
       <!-- Estado de carga -->
@@ -237,11 +241,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
+import { useCompanyStore } from '@/stores/company'  // ✅ NUEVO
+import DateInput from '@/components/DateInput.vue'
 
 const authStore = useAuthStore()
+const companyStore = useCompanyStore()  // ✅ NUEVO
 
 const tabs = [
   { id: 'balance-comprobacion', nombre: 'Balance de Comprobación' },
@@ -251,8 +258,6 @@ const tabs = [
 
 const tenants = ref([])
 const selectedTenantId = ref('')
-const empresas = ref([])
-const empresaId = ref('')
 const tipoReporte = ref('balance-comprobacion')
 const fechaInicio = ref('')
 const fechaFin = ref('')
@@ -262,6 +267,10 @@ const error = ref('')
 const balanceComp = ref(null)
 const estadoResultados = ref(null)
 const balanceGeneral = ref(null)
+
+// ✅ Computed: usar empresa del contexto global
+const empresaId = computed(() => companyStore.selectedCompanyId)
+const empresaNombre = computed(() => companyStore.currentCompany?.nombre || '')
 
 // 🔹 Cargar lista de tenants solo si es superadmin
 const fetchTenants = async () => {
@@ -274,27 +283,11 @@ const fetchTenants = async () => {
   }
 }
 
-const cargarEmpresas = async () => {
-  if (authStore.isSuperAdmin && !selectedTenantId.value) {
-    empresas.value = []
-    return
-  }
-  
-  try {
-    const params = authStore.isSuperAdmin ? { tenant_id: selectedTenantId.value } : {}
-    const response = await api.get('/empresas/', { params })
-    empresas.value = response.data
-  } catch (err) {
-    error.value = 'Error al cargar empresas'
-  }
-}
-
 const handleTenantChange = () => {
-  empresaId.value = ''
   balanceComp.value = null
   estadoResultados.value = null
   balanceGeneral.value = null
-  cargarEmpresas()
+  error.value = ''
 }
 
 function cambiarTipo(id) {
@@ -345,16 +338,15 @@ async function generarReporte(formato = null) {
   if (!empresaId.value) return
   cargando.value = true
   error.value = ''
-
   const segmento = PATH_MAP[tipoReporte.value]
   const basePath = `/balances/${segmento}`
   const params = { empresa_id: empresaId.value }
-
-  // 🔹 Agregar tenant_id si es superadmin
+  
+  //  Agregar tenant_id si es superadmin
   if (authStore.isSuperAdmin && selectedTenantId.value) {
     params.tenant_id = selectedTenantId.value
   }
-
+  
   if (tipoReporte.value === 'balance-general') {
     if (!fechaCorte.value) {
       error.value = 'Debe seleccionar la fecha de corte'
@@ -371,7 +363,7 @@ async function generarReporte(formato = null) {
     params.fecha_inicio = fechaInicio.value
     params.fecha_fin = fechaFin.value
   }
-
+  
   try {
     if (formato) {
       const url = `/api/v1/balances/${segmento}/${formato}?${new URLSearchParams(params).toString()}`
@@ -390,11 +382,19 @@ async function generarReporte(formato = null) {
   }
 }
 
+// ✅ Watch: Recargar cuando cambie el contexto de empresa
+watch(() => companyStore.selectedCompanyId, () => {
+  // Limpiar reportes al cambiar de empresa
+  balanceComp.value = null
+  estadoResultados.value = null
+  balanceGeneral.value = null
+  error.value = ''
+})
+
 onMounted(async () => {
   await fetchTenants()
   if (authStore.isSuperAdmin && tenants.value.length > 0) {
     selectedTenantId.value = tenants.value[0].id
   }
-  await cargarEmpresas()
 })
 </script>

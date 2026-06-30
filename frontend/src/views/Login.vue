@@ -79,7 +79,10 @@ const authStore = useAuthStore()
 
 async function handleLogin() {
   try {
-    await authStore.login(email.value, password.value)
+    await authStore.login({
+      email: email.value, 
+      password: password.value
+  })
     router.push('/dashboard')
   } catch (err) {
     error.value = err.response?.data?.detail || 'Error al iniciar sesión'

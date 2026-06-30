@@ -1,69 +1,134 @@
 // src/stores/auth.js
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue' // 👈 CRÍTICO: agregar 'computed' aquí
+import { ref, computed } from 'vue'
 import api from '@/services/api'
+import { useCompanyStore } from './company'
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref(localStorage.getItem('token') || '')
-  const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
+  const token = ref(localStorage.getItem('token') || null)
+  const user = ref(null)
+  const loading = ref(false)
 
-  // 👇 Propiedades computadas para los roles
-  const isSuperAdmin = computed(() => user.value?.role === 'superadmin')
-  const isTenantManager = computed(() => user.value?.role === 'tenant_manager')
-  const canManageUsers = computed(() => isSuperAdmin.value || isTenantManager.value)
+  const isAuthenticated = computed(() => !!token.value)
 
-  const roleLabel = computed(() => {
-    const map = {
-      superadmin: 'Super Administrador',
-      tenant_manager: 'Administrador de Firma',
-      tenant_member: 'Miembro de Firma',
-      tenant_client: 'Cliente (Solo Lectura)'
-    }
-    return map[user.value?.role] || user.value?.role || 'Invitado'
-  })
-
+  // ✅ NUEVO: Iniciales del usuario para el avatar
   const initials = computed(() => {
-    const name = user.value?.full_name || user.value?.email || '?'
-    return name
-      .split(' ')
-      .map(n => n[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase()
+    if (!user.value) return 'U'
+    const name = user.value.full_name || user.value.email || ''
+    const parts = name.trim().split(' ')
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase()
+    }
+    return name.substring(0, 2).toUpperCase()
   })
 
-  async function login(email, password) {
-    const response = await api.post('/auth/login', { email, password })
-    token.value = response.data.access_token
-    
-    user.value = {
-      email: email,
-      full_name: response.data.full_name,
-      role: response.data.role,
-      tenant_name: response.data.tenant_name
+  // ✅ NUEVO: Label del rol formateado
+  const roleLabel = computed(() => {
+    if (!user.value?.role) return 'Usuario'
+    const roleMap = {
+      'superadmin': 'Super Admin',
+      'admin': 'Administrador',
+      'tenant_manager': 'Gerente',
+      'tenant_member': 'Miembro',
+      'contador': 'Contador',
+      'auxiliar': 'Auxiliar',
+      'cliente': 'Cliente'
     }
-    localStorage.setItem('token', token.value)
-    localStorage.setItem('user', JSON.stringify(user.value))
-    return response.data
+    return roleMap[user.value.role] || user.value.role
+  })
+
+  // ✅ NUEVO: Verificar si puede gestionar usuarios
+  const canManageUsers = computed(() => {
+    if (!user.value?.role) return false
+    return ['superadmin', 'admin', 'tenant_manager'].includes(user.value.role)
+  })
+
+  // Login
+  const login = async (credentials) => {
+    loading.value = true
+    try {
+      const response = await api.post('/auth/login', credentials)
+      const data = response.data
+      
+      // Guardar token
+      token.value = data.access_token
+      localStorage.setItem('token', data.access_token)
+      
+      // ✅ CORRECCIÓN: Construir objeto user desde los campos sueltos del backend
+      user.value = {
+        id: null,
+        email: credentials.email || credentials.username,
+        full_name: data.full_name,
+        tenant_name: data.tenant_name,
+        role: data.role
+      }
+      
+      // 🎯 CRÍTICO: Cargar empresas del usuario después del login
+      const companyStore = useCompanyStore()
+      await companyStore.loadCompanies()
+      
+      return data
+    } catch (err) {
+      console.error('Error en login:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
   }
 
-  function logout() {
-    token.value = ''
+  // Logout
+  const logout = () => {
+    token.value = null
     user.value = null
     localStorage.removeItem('token')
-    localStorage.removeItem('user')
+    
+    const companyStore = useCompanyStore()
+    companyStore.clearCompany()
+    
+    window.location.href = '/login'
   }
 
-  // 👈 Exportar las nuevas propiedades computadas
-  return { 
-    token, 
-    user, 
-    login, 
-    logout,
-    isSuperAdmin,
-    isTenantManager,
-    canManageUsers,
+  // Verificar sesión al cargar la app
+  const checkAuth = async () => {
+    if (!token.value) return false
+    
+    try {
+      const response = await api.get('/auth/me')
+      
+      // /auth/me probablemente retorna un objeto user completo
+      if (response.data.user) {
+        user.value = {
+          id: response.data.id,
+          email: response.data.email,
+          full_name: response.data.full_name || response.data.name || response.data.email,
+          tenant_name: response.data.tenant_name || response.data.tenant?.name || null,
+          role: response.data.role || response.data.role_code || 'tenant_member'
+        }
+      } else {
+        user.value = response.data
+      }
+      
+      const companyStore = useCompanyStore()
+      await companyStore.loadCompanies()
+      
+      return true
+    } catch (err) {
+      console.error('Error al verificar auth:', err)
+      logout()
+      return false
+    }
+  }
+
+  return {
+    token,
+    user,
+    loading,
+    isAuthenticated,
+    initials,
     roleLabel,
-    initials
+    canManageUsers,
+    login,
+    logout,
+    checkAuth
   }
 })

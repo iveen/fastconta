@@ -9,7 +9,6 @@
       :placeholder="placeholder"
       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
     />
-    
     <!-- Icono de limpiar -->
     <button 
       v-if="cuentaSeleccionada" 
@@ -35,7 +34,7 @@
         <span class="text-sm text-gray-700">{{ cuenta.nombre }}</span>
       </div>
     </div>
-    
+
     <!-- Mensaje si no hay resultados -->
     <div 
       v-if="mostrarDropdown && busqueda && cuentasFiltradas.length === 0" 
@@ -61,11 +60,18 @@ const busqueda = ref('')
 const mostrarDropdown = ref(false)
 const cuentaSeleccionada = ref(null)
 
+// ✅ CORRECCIÓN: Primero eliminar duplicados, luego filtrar por búsqueda
+const cuentasUnicas = computed(() => {
+  return props.cuentas.filter((cuenta, index, self) =>
+    index === self.findIndex((c) => c.id === cuenta.id)
+  )
+})
+
 // Filtrar cuentas por código o nombre (insensible a mayúsculas)
 const cuentasFiltradas = computed(() => {
-  if (!busqueda.value) return props.cuentas.slice(0, 10) // Mostrar primeras 10 si está vacío
+  if (!busqueda.value) return cuentasUnicas.value.slice(0, 10)
   const query = busqueda.value.toLowerCase()
-  return props.cuentas.filter(c => 
+  return cuentasUnicas.value.filter(c => 
     c.codigo.toLowerCase().includes(query) || 
     c.nombre.toLowerCase().includes(query)
   ).slice(0, 15) // Limitar a 15 resultados para rendimiento
@@ -90,13 +96,10 @@ watch(() => props.modelValue, (nuevoId) => {
     limpiar()
     return
   }
-  const encontrada = props.cuentas.find(c => c.id === nuevoId)
+  const encontrada = cuentasUnicas.value.find(c => c.id === nuevoId)
   if (encontrada) {
     cuentaSeleccionada.value = encontrada
     busqueda.value = `${encontrada.codigo} - ${encontrada.nombre}`
   }
 }, { immediate: true })
-
-// Cerrar dropdown si se hace clic fuera (opcional pero recomendado)
-// Se puede agregar un listener de 'click' en window si se desea mayor robustez.
 </script>

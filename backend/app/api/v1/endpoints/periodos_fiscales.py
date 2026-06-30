@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import DataScope, get_data_scope
 from app.db.session import get_public_db, get_tenant_db
+from app.dependencies.empresa import get_active_empresa
 from app.models.tenant_models import Empresa, PeriodoFiscal
 from app.schemas.periodo_fiscal import PeriodoFiscalCreate, PeriodoFiscalOut
 
@@ -20,12 +21,11 @@ router = APIRouter()
 async def _set_schema_for_query(db: AsyncSession, scope: DataScope, tenant_id: str | None = None):
     """Configura el search_path correcto según el rol del usuario."""
     schema_name = None
-    
     if scope.role_code == "superadmin":
         if not tenant_id:
             raise HTTPException(400, detail="Superadmin debe especificar un tenant_id")
         res = await db.execute(
-            text("SELECT schema_name FROM public.tenants WHERE id = :tid"), 
+            text("SELECT schema_name FROM public.tenants WHERE id = :tid"),
             {"tid": tenant_id}
         )
         row = res.first()
@@ -34,7 +34,7 @@ async def _set_schema_for_query(db: AsyncSession, scope: DataScope, tenant_id: s
         schema_name = row[0]
     else:
         res = await db.execute(
-            text("SELECT schema_name FROM public.tenants WHERE id = :tid"), 
+            text("SELECT schema_name FROM public.tenants WHERE id = :tid"),
             {"tid": str(scope.tenant_id)}
         )
         row = res.first()
@@ -48,23 +48,31 @@ async def _set_schema_for_query(db: AsyncSession, scope: DataScope, tenant_id: s
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
     return schema_name
 
+
 # ==========================================
 # 1. Listar períodos (con filtro para superadmin)
 # ==========================================
 @router.get("/", response_model=List[PeriodoFiscalOut])
 async def listar_periodos(
-    empresa_id: UUID | None = Query(None, description="Filtrar por empresa"),
+    empresa_id: UUID | None = Query(None, description="Filtrar por empresa (opcional, usa X-Company-Id si no se especifica)"),
     tenant_id: str | None = Query(None, description="ID del tenant (requerido para superadmin)"),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa | None = Depends(get_active_empresa)  # ✅ NUEVO
 ):
     await _set_schema_for_query(db, scope, tenant_id)
     
+    # ✅ Usar empresa_id del header si no se pasó como query param
+    empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
+    
     stmt = select(PeriodoFiscal).order_by(PeriodoFiscal.fecha_inicio.desc())
-    if empresa_id:
-        stmt = stmt.where(PeriodoFiscal.empresa_id == empresa_id)
+    
+    if empresa_id_final:
+        stmt = stmt.where(PeriodoFiscal.empresa_id == empresa_id_final)
+    
     result = await db.execute(stmt)
     return result.scalars().all()
+
 
 # ==========================================
 # 2. Crear período (usa get_tenant_db para usuarios normales)

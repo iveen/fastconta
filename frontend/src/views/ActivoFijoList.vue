@@ -1,9 +1,10 @@
+<!-- src/views/ActivoFijoList.vue -->
 <template>
   <div class="min-h-screen bg-gray-50 p-6">
     <div class="max-w-7xl mx-auto space-y-6">
       <h1 class="text-2xl font-bold text-gray-800">Activos Fijos</h1>
 
-      <!-- 🔹 1. SELECTOR DE TENANT (Solo Superadmin) -->
+      <!-- 🔹 SELECTOR DE TENANT (Solo Superadmin) -->
       <div v-if="authStore.isSuperAdmin" class="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <label class="block text-sm font-semibold text-blue-800 mb-1">🏢 Seleccionar Firma (Tenant)</label>
         <select
@@ -18,46 +19,37 @@
         </select>
       </div>
 
-      <!-- 🔹 2. SELECTOR DE EMPRESA (Superadmin y Tenant_*, pero NO para Cliente) -->
-      <div v-if="!esCliente" class="bg-white shadow-md rounded-lg p-4">
-        <label class="block text-gray-700 text-sm font-bold mb-2">Seleccionar Empresa</label>
-        <select
-          v-model="empresaSeleccionadaId"
-          class="w-full md:w-1/3 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">-- Seleccione una empresa --</option>
-          <option v-for="emp in empresas" :key="emp.id" :value="emp.id">
-            {{ emp.nombre }} ({{ emp.nit }})
-          </option>
-        </select>
+      <!-- ✅ MENSAJE SI NO HAY EMPRESA SELECCIONADA -->
+      <div v-if="!companyStore.selectedCompanyId" class="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-12 rounded-lg text-center">
+        <svg class="w-12 h-12 mx-auto mb-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+        <p class="text-lg font-semibold">Selecciona una empresa desde la barra superior para gestionar los activos fijos</p>
       </div>
 
-      <!-- Estado vacío: Esperando selección (Solo para roles que deben seleccionar) -->
-      <div v-if="!empresaSeleccionadaId && !esCliente" class="bg-white shadow-md rounded-lg p-8 text-center text-gray-500">
-        Seleccione una empresa para ver sus activos fijos.
-      </div>
-
-      <!-- 🔹 3. CONTENIDO PRINCIPAL (Visible si hay empresa seleccionada o si es cliente) -->
-      <div v-if="empresaSeleccionadaId || esCliente">
-        
+      <!-- ✅ CONTENIDO PRINCIPAL (solo si hay empresa seleccionada) -->
+      <div v-else>
         <!-- Barra de acciones -->
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
-          <div class="text-sm text-gray-600">
-            Empresa actual: <span class="font-semibold text-gray-800">{{ nombreEmpresaActual }}</span>
+          <div class="text-sm text-gray-600 flex items-center gap-2">
+            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+            <span>Empresa:</span>
+            <span class="font-semibold text-gray-800">{{ companyStore.currentCompany?.nombre || 'Sin seleccionar' }}</span>
           </div>
           <div class="flex gap-3">
             <button 
               @click="abrirModalDepreciacion"
               class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition flex items-center gap-2 text-sm shadow-sm"
             >
-              <span>⚙️</span> Procesar Depreciacion Mensual
+              <span>️</span> Procesar Depreciación Mensual
             </button>
             <button 
-                @click="irACrear"
-                :disabled="!empresaSeleccionadaId"
-                class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition flex items-center gap-2 text-sm shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              @click="irACrear"
+              class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition flex items-center gap-2 text-sm shadow-sm"
             >
-                <span>+</span> Nuevo Activo
+              <span>+</span> Nuevo Activo
             </button>
           </div>
         </div>
@@ -75,9 +67,9 @@
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Codigo</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripcion</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoria</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Valor Costo</th>
                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Valor en Libros</th>
                 <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado</th>
@@ -106,90 +98,55 @@
         </div>
       </div>
     </div>
+
     <!-- Modal de Procesamiento de Depreciación Mensual -->
     <ProcesarDepreciacionModal
       :is-open="modalDepreciacionAbierto"
-      :empresa-id="empresaSeleccionadaId"
-      :nombre-empresa="nombreEmpresaActual"
+      :empresa-id="companyStore.selectedCompanyId"
+      :nombre-empresa="companyStore.currentCompany?.nombre || ''"
       @close="modalDepreciacionAbierto = false"
-      @success="activosStore.fetchActivos(empresaSeleccionadaId)"
+      @success="activosStore.fetchActivos(companyStore.selectedCompanyId)"
     />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useCompanyStore } from '@/stores/company'  // ✅ NUEVO
 import { useActivosFijosStore } from '@/stores/activosFijos'
 import api from '@/services/api'
 import ProcesarDepreciacionModal from '../components/ActivosFijos/ProcesarDepreciacionModal.vue'
 import { toast } from 'vue3-toastify'
 
-const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const companyStore = useCompanyStore()  // ✅ NUEVO
 const activosStore = useActivosFijosStore()
 const modalDepreciacionAbierto = ref(false)
 
 const tenants = ref([])
 const selectedTenantId = ref('')
-const empresas = ref([])
-const empresaSeleccionadaId = ref('')
-
-// 🔹 Detectar si el usuario es cliente (Ajusta esta condición a tu lógica real de authStore)
-const esCliente = computed(() => {
-  return authStore.esCliente || authStore.user?.rol === 'cliente' || authStore.user?.role_id === 'ID_DEL_ROL_CLIENTE'
-})
-
-const nombreEmpresaActual = computed(() => {
-  const emp = empresas.value.find(e => e.id === empresaSeleccionadaId.value)
-  return emp ? emp.nombre : 'Sin seleccionar'
-})
 
 const fetchTenants = async () => {
   if (!authStore.isSuperAdmin) return
   try {
     const res = await api.get('/tenants/')
     tenants.value = res.data.filter(t => !['sistema', 'system', 'public'].includes(t.schema_name))
-    if (tenants.value.length > 0 && !selectedTenantId.value) {
-      selectedTenantId.value = tenants.value[0].id
-    }
   } catch (err) {
     console.error('Error cargando tenants:', err)
   }
 }
 
-const cargarEmpresas = async () => {
-  if (authStore.isSuperAdmin && !selectedTenantId.value) {
-    empresas.value = []
-    return
-  }
-  try {
-    // Si es superadmin, filtra por tenant_id. Si es tenant_*, trae las asignadas a su tenant.
-    const params = authStore.isSuperAdmin ? { tenant_id: selectedTenantId.value } : {}
-    const response = await api.get('/empresas/', { params })
-    empresas.value = response.data
-    
-    // 🔹 PATRÓN: Si es cliente, o si solo hay 1 empresa, se auto-selecciona
-    if (esCliente.value || empresas.value.length === 1) {
-      empresaSeleccionadaId.value = empresas.value[0].id
-    }
-  } catch (err) {
-    console.error('Error al cargar empresas:', err)
-  }
-}
-
 const handleTenantChange = () => {
-  empresaSeleccionadaId.value = ''
   activosStore.activos = []
-  cargarEmpresas()
 }
 
-// Observar cambios en la empresa seleccionada para cargar sus activos
-watch(empresaSeleccionadaId, async (nuevoId) => {
-  if (nuevoId) {
-    await activosStore.fetchActivos(nuevoId)
+// ✅ Watch: Recargar activos cuando cambie la empresa seleccionada
+watch(() => companyStore.selectedCompanyId, async (newId) => {
+  if (newId) {
+    await activosStore.fetchActivos(newId)
   } else {
     activosStore.activos = []
   }
@@ -198,9 +155,12 @@ watch(empresaSeleccionadaId, async (nuevoId) => {
 onMounted(async () => {
   await activosStore.fetchCategorias()
   await fetchTenants()
-  await cargarEmpresas()
-  if (route.query.empresa_id) {
-    empresaSeleccionadaId.value = route.query.empresa_id
+  if (authStore.isSuperAdmin && tenants.value.length > 0) {
+    selectedTenantId.value = tenants.value[0].id
+  }
+  // ✅ Cargar activos si ya hay empresa seleccionada
+  if (companyStore.selectedCompanyId) {
+    await activosStore.fetchActivos(companyStore.selectedCompanyId)
   }
 })
 
@@ -223,21 +183,30 @@ const getEstadoBadgeClass = (estado) => {
 }
 
 const irACrear = () => {
-  if (!empresaSeleccionadaId.value) {
+  if (!companyStore.selectedCompanyId) {
     toast.warning("Por favor, seleccione una empresa primero.")
     return
   }
   router.push({ 
     name: 'ActivosFijosCrear', 
-    query: { empresa_id: empresaSeleccionadaId.value } 
+    query: { empresa_id: companyStore.selectedCompanyId } 
   })
 }
 
-const editarActivo = (id) => router.push({ name: 'ActivosFijosEditar', params: { id }, query: { empresa_id: empresaSeleccionadaId.value } })
-const verProyeccion = (id) => router.push({ name: 'ActivosFijosProyeccion', params: { id }, query: { empresa_id: empresaSeleccionadaId.value } })
+const editarActivo = (id) => router.push({ 
+  name: 'ActivosFijosEditar', 
+  params: { id }, 
+  query: { empresa_id: companyStore.selectedCompanyId } 
+})
+
+const verProyeccion = (id) => router.push({ 
+  name: 'ActivosFijosProyeccion', 
+  params: { id }, 
+  query: { empresa_id: companyStore.selectedCompanyId } 
+})
 
 const abrirModalDepreciacion = () => {
-  if (!empresaSeleccionadaId.value) {
+  if (!companyStore.selectedCompanyId) {
     toast.warning("Seleccione una empresa primero.")
     return
   }

@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import DataScope, get_data_scope
 from app.db.base import AsyncSessionLocal  # ✅ CORRECCIÓN: Importar desde app.db.base
+from app.dependencies.empresa import get_active_empresa
+from app.models.tenant_models import Empresa
 from app.services.cierre_contable import ejecutar_cierre_anual
 from app.services.reversion_cierre import revertir_cierre_anual
 
@@ -74,10 +76,11 @@ async def get_tenant_db_for_cierre(
 # ==============================================================================
 @router.post("/cierre-anual", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def cierre_anual(
-    empresa_id: UUID = Query(..., description="ID de la empresa"),
+    empresa_id: UUID | None = Query(None, description="ID de la empresa"),
     periodo_id: UUID = Query(..., description="ID del período fiscal a cerrar"),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_tenant_db_for_cierre)
+    db: AsyncSession = Depends(get_tenant_db_for_cierre),
+    empresa_from_header: Empresa | None = Depends(get_active_empresa)  # Validación de empresa activa
 ):
     """
     Ejecuta el cierre contable anual.
@@ -85,10 +88,18 @@ async def cierre_anual(
     y db.info["current_user"]["schema"]. El servicio lo lee directamente de ahí.
     """
     try:
+        empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
+
+        if not empresa_id_final:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No se pudo determinar la empresa para el cierre. Proporcione 'empresa_id' o asegúrese de que el header X-Company-Id esté presente."
+            )
+        
         # Delegamos directamente. El servicio obtendrá el schema de db.info
         resultado = await ejecutar_cierre_anual(
             db=db,
-            empresa_id=empresa_id,
+            empresa_id=empresa_id_final,
             periodo_id=periodo_id
         )
         return resultado
@@ -105,10 +116,11 @@ async def cierre_anual(
 # =========================================================================
 @router.post("/revertir-cierre", response_model=dict, status_code=status.HTTP_200_OK)
 async def revertir_cierre(
-    empresa_id: UUID = Query(..., description="ID de la empresa"),
+    empresa_id: UUID | None = Query(None, description="ID de la empresa"),
     periodo_id: UUID = Query(..., description="ID del período fiscal a revertir"),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_tenant_db_for_cierre)
+    db: AsyncSession = Depends(get_tenant_db_for_cierre),
+    empresa_from_header: Empresa | None = Depends(get_active_empresa)  # Validación de empresa activa
 ):
     if scope.role_code not in ["superadmin", "tenant_manager"]:
         raise HTTPException(
@@ -117,10 +129,18 @@ async def revertir_cierre(
         )
 
     try:
+        empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
+
+        if not empresa_id_final:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No se pudo determinar la empresa para el cierre. Proporcione 'empresa_id' o asegúrese de que el header X-Company-Id esté presente."
+            )
+        
         # El servicio lee db.info["current_user"]["schema"] internamente
         resultado = await revertir_cierre_anual(
             db=db,
-            empresa_id=empresa_id,
+            empresa_id=empresa_id_final,
             periodo_id=periodo_id
         )
         return resultado

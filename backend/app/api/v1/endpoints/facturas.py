@@ -15,10 +15,12 @@ from sqlalchemy.orm import selectinload
 
 from app.core.security import DataScope, get_data_scope
 from app.db.session import get_public_db
+from app.dependencies.empresa import get_active_empresa  # ✅ NUEVO
 from app.models.global_models import CatalogoMoneda, TipoDTE
 from app.models.tenant_models import (
     CuentaContable,
     DetallePartida,
+    Empresa,  # ✅ NUEVO
     FacturaDetalle,
     FacturaElectronica,
     Partida,
@@ -37,17 +39,22 @@ router = APIRouter()
 async def _set_schema_for_query(db: AsyncSession, scope: DataScope, tenant_id: str | None = None):
     """Configura el search_path correcto según el rol del usuario."""
     schema_name = None
-    
     if scope.role_code == "superadmin":
         if not tenant_id:
             raise HTTPException(400, detail="Superadmin debe especificar un tenant_id")
-        res = await db.execute(text("SELECT schema_name FROM public.tenants WHERE id = :tid"), {"tid": tenant_id})
+        res = await db.execute(
+            text("SELECT schema_name FROM public.tenants WHERE id = :tid"),
+            {"tid": tenant_id}
+        )
         row = res.first()
         if not row:
             raise HTTPException(404, detail="Tenant no encontrado")
         schema_name = row[0]
     else:
-        res = await db.execute(text("SELECT schema_name FROM public.tenants WHERE id = :tid"), {"tid": str(scope.tenant_id)})
+        res = await db.execute(
+            text("SELECT schema_name FROM public.tenants WHERE id = :tid"),
+            {"tid": str(scope.tenant_id)}
+        )
         row = res.first()
         if not row:
             raise HTTPException(404, detail="Tenant no encontrado")
@@ -59,25 +66,24 @@ async def _set_schema_for_query(db: AsyncSession, scope: DataScope, tenant_id: s
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
     return schema_name
 
-# ==============================================================================
-# HELPER: Clasificación Automática de Gasto SAT
-# ==============================================================================
+
+# ==========================================
+# Helper: Clasificación Automática de Gasto SAT
+# ==========================================
 async def clasificar_gasto_sat(datos: dict) -> str:
     """Clasifica el gasto basado en las descripciones de los items."""
-
-    # 1. Clasificar por descripción de los items (solo relevante para compras)
     items = datos.get('items', [])
     descripcion_combinada = ' '.join([str(item.get('descripcion', '')).lower() for item in items])
-    
+
     if 'gasolina' in descripcion_combinada or 'diesel' in descripcion_combinada or 'combustible' in descripcion_combinada:
         return 'COMBUSTIBLE'
-    
+
     if 'medicamento' in descripcion_combinada or 'farmacia' in descripcion_combinada:
         return 'MEDICAMENTO'
-    
+
     if any(p in descripcion_combinada for p in ['vehiculo', 'computadora', 'laptop', 'mobiliario', 'maquinaria', 'equipo']):
         return 'ACTIVO_FIJO'
-    
+
     return 'NORMAL'
 
 
@@ -86,21 +92,28 @@ async def clasificar_gasto_sat(datos: dict) -> str:
 # ==========================================
 @router.post("/upload", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def upload_facturas(
-    empresa_id: str = Query(...),
+    empresa_id: str | None = Query(None, description="ID de la empresa (opcional, usa X-Company-Id)"),  # ✅ Cambiado a opcional
     tenant_id: str | None = Query(None, description="ID del tenant"),
     files: List[UploadFile] = File(...),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa | None = Depends(get_active_empresa)  # ✅ NUEVO
 ):
     await _set_schema_for_query(db, scope, tenant_id)
     
+    # ✅ Usar empresa_id del header si no se pasó como query param
+    empresa_id_final = empresa_id or (str(empresa_from_header.id) if empresa_from_header else None)
+    
+    if not empresa_id_final:
+        raise HTTPException(400, detail="Debe especificar una empresa (query param o header X-Company-Id)")
+    
     # Verificar empresa
-    emp = await db.execute(text("SELECT id FROM empresas WHERE id = :eid"), {"eid": empresa_id})
-    if not emp.first(): 
+    emp = await db.execute(text("SELECT id FROM empresas WHERE id = :eid"), {"eid": empresa_id_final})
+    if not emp.first():
         raise HTTPException(400, "Empresa no encontrada")
 
     # Obtener NIT de la empresa actual para determinar si es Venta o Compra
-    emp_nit_res = await db.execute(text("SELECT nit FROM empresas WHERE id = :eid"), {"eid": empresa_id})
+    emp_nit_res = await db.execute(text("SELECT nit FROM empresas WHERE id = :eid"), {"eid": empresa_id_final})
     empresa_nit = emp_nit_res.scalar_one().replace('-', '').strip()
 
     facturas_creadas = []
@@ -114,14 +127,14 @@ async def upload_facturas(
         try:
             xml_str = (await file.read()).decode('utf-8')
             datos = await parse_fel_xml(xml_str, db)
-            if not datos: 
+            if not datos:
                 rechazos.append(f"{file.filename}: Parse fallido")
                 continue
 
             # Evitar duplicados
             dup = await db.execute(
                 text("SELECT id FROM facturas_electronicas WHERE empresa_id = :e AND serie = :s AND numero_autorizacion = :n"),
-                {"e": empresa_id, "s": datos.get('serie'), "n": datos.get('numero_autorizacion')}
+                {"e": empresa_id_final, "s": datos.get('serie'), "n": datos.get('numero_autorizacion')}
             )
             if dup.first():
                 rechazos.append(f"{file.filename}: Duplicada")
@@ -131,8 +144,6 @@ async def upload_facturas(
             em = datos.get('emisor_nit','').replace('-','')
             rec = datos.get('receptor_nit','').replace('-','')
             
-            # Lógica simple: si el emisor es la empresa -> Venta. Si el receptor es la empresa -> Compra.
-            # Nota: En exportaciones el receptor puede no tener NIT guatemalteco, pero asumimos lógica general.
             if em == empresa_nit:
                 tipo_op = 'Venta'
             elif rec == empresa_nit:
@@ -154,81 +165,69 @@ async def upload_facturas(
 
             tc = Decimal("1.00000")
             if datos.get('moneda') != 'GTQ' and datos.get('fecha_emision'):
-                # Asumiendo que tienes esta función en banguat_ws o similar
                 tc = await obtener_tipo_cambio(datos['fecha_emision'].date(), datos['moneda'], db) or tc
 
             items = datos.pop('items', [])
 
             # Calcular montos en GTQ
-            tc = float(tc)  # Asegurar que es float para multiplicación
+            tc = float(tc)
             total_gravado_gtq = float(datos['total_gravado']) * tc
             total_iva_gtq = float(datos['total_iva']) * tc
             total_exento_gtq = float(datos.get('total_exento', 0)) * tc
             total_gtq = float(datos['total']) * tc
             
-            # 1. Clasificación preliminar (Solo por NIT)
             clasificacion_inicial = await clasificar_gasto_sat(datos)
 
             factura = FacturaElectronica(
-                empresa_id=empresa_id, 
+                empresa_id=empresa_id_final,
                 xml_original=xml_str,
-                numero_autorizacion=datos['numero_autorizacion'], 
-                serie=datos.get('serie'), 
-                numero=datos.get('numero'), 
-                fecha_emision=datos['fecha_emision'], 
-                emisor_nit=datos['emisor_nit'], 
+                numero_autorizacion=datos['numero_autorizacion'],
+                serie=datos.get('serie'),
+                numero=datos.get('numero'),
+                fecha_emision=datos['fecha_emision'],
+                emisor_nit=datos['emisor_nit'],
                 emisor_nombre=datos['emisor_nombre'],
-                receptor_nit=datos['receptor_nit'], 
+                receptor_nit=datos['receptor_nit'],
                 receptor_nombre=datos['receptor_nombre'],
-                # Montos en moneda original
-                total_gravado=datos['total_gravado'], 
-                total_iva=datos['total_iva'], 
-                total_exento=datos.get('total_exento', 0), 
+                total_gravado=datos['total_gravado'],
+                total_iva=datos['total_iva'],
+                total_exento=datos.get('total_exento', 0),
                 total=datos['total'],
-                tipo_documento_id=tipo_id, 
-                moneda_id=mon_id, 
+                tipo_documento_id=tipo_id,
+                moneda_id=mon_id,
                 tipo_cambio=tc,
                 pais_destino_exportacion=datos.get('pais_destino_exportacion'),
-
-                # 🔹 NUEVO: Montos convertidos a GTQ
                 total_gravado_gtq=total_gravado_gtq,
                 total_iva_gtq=total_iva_gtq,
                 total_exento_gtq=total_exento_gtq,
                 total_gtq=total_gtq,
-
-                # 🔹 NUEVOS: Totales separados
                 total_gravado_bienes=datos.get('total_gravado_bienes', 0),
                 total_iva_bienes=datos.get('total_iva_bienes', 0),
                 total_gravado_servicios=datos.get('total_gravado_servicios', 0),
                 total_iva_servicios=datos.get('total_iva_servicios', 0),
-
                 total_gravado_bienes_gtq=datos.get('total_gravado_bienes_gtq', 0),
                 total_iva_bienes_gtq=datos.get('total_iva_bienes_gtq', 0),
                 total_gravado_servicios_gtq=datos.get('total_gravado_servicios_gtq', 0),
                 total_iva_servicios_gtq=datos.get('total_iva_servicios_gtq', 0),
-
-                es_exportacion=datos.get('es_exportacion', False), 
-                tipo_operacion=tipo_op, 
-                estado='Activa', # Por defecto Activa, la Hoja Electrónica la marcará como Anulada si corresponde
-                tipo_documento=datos.get('tipo_documento'), 
-                moneda=datos.get('moneda'), 
+                es_exportacion=datos.get('es_exportacion', False),
+                tipo_operacion=tipo_op,
+                estado='Activa',
+                tipo_documento=datos.get('tipo_documento'),
+                moneda=datos.get('moneda'),
                 xml_filename=file.filename,
-                
-                # Campos nuevos
                 retencion_iva=Decimal(str(datos.get('retencion_iva', 0.0) or 0.0)),
                 retencion_isr=Decimal(str(datos.get('retencion_isr', 0.0) or 0.0)),
-                clasificacion_gasto_sat=clasificacion_inicial, # Se actualizará en la validación
+                clasificacion_gasto_sat=clasificacion_inicial,
                 es_importacion=bool(datos.get('es_importacion', False)),
             )
             db.add(factura)
             await db.flush()
 
             for it in items:
-                # 🔹 NUEVO: Calcular montos en GTQ para cada detalle
                 precio_unitario_gtq = float(it['precio_unitario']) * tc
                 total_linea_gtq = float(it['total_linea']) * tc
                 iva_linea_gtq = float(it.get('iva_linea', 0)) * tc
-    
+
                 db.add(FacturaDetalle(
                     factura_id=factura.id,
                     cantidad=it['cantidad'],
@@ -236,7 +235,6 @@ async def upload_facturas(
                     precio_unitario=it['precio_unitario'],
                     total_linea=it['total_linea'],
                     iva_linea=it.get('iva_linea', 0),
-                    # 🔹 NUEVOS CAMPOS
                     precio_unitario_gtq=precio_unitario_gtq,
                     total_linea_gtq=total_linea_gtq,
                     iva_linea_gtq=iva_linea_gtq,
@@ -259,15 +257,23 @@ async def upload_facturas(
 @router.post("/validar-hoja-electronica", status_code=status.HTTP_200_OK)
 async def validar_hoja_electronica(
     file: UploadFile = File(...),
-    empresa_id: str = Query(...),
+    empresa_id: str | None = Query(None, description="ID de la empresa (opcional, usa X-Company-Id)"),  # ✅ Cambiado a opcional
     tenant_id: str | None = Query(None, description="ID del tenant (requerido para superadmin)"),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa | None = Depends(get_active_empresa)  # ✅ NUEVO
 ):
     await _set_schema_for_query(db, scope, tenant_id)
     
+    # ✅ Usar empresa_id del header si no se pasó como query param
+    empresa_id_final = empresa_id or (str(empresa_from_header.id) if empresa_from_header else None)
+    
+    if not empresa_id_final:
+        raise HTTPException(400, detail="Debe especificar una empresa (query param o header X-Company-Id)")
+    
     if not file.filename.lower().endswith(('.xlsx', '.xls')):
         raise HTTPException(400, "Solo se permiten archivos Excel (.xlsx/.xls)")
+    
     try:
         content = await file.read()
         SHEET_NAME = "InformacionDTE-FEL"
@@ -305,7 +311,7 @@ async def validar_hoja_electronica(
 
         for row in rows:
             nueva_clasificacion = 'NORMAL'
-            if not row or not row[COL_AUTH]: 
+            if not row or not row[COL_AUTH]:
                 continue
             auth_raw = str(row[COL_AUTH]).strip()
             if not auth_raw:
@@ -328,7 +334,7 @@ async def validar_hoja_electronica(
                 )
 
             marca_anulado = str(row[COL_ANULADO]).strip() if row[COL_ANULADO] else "No"
-            if marca_anulado.lower() == "si" and factura_row[1] != "Anulada": # factura_row[1] es estado
+            if marca_anulado.lower() == "si" and factura_row[1] != "Anulada":
                 fecha_anul = row[COL_FECHA_ANULADO]
                 if isinstance(fecha_anul, str):
                     fecha_anul = datetime.fromisoformat(fecha_anul.replace("Z", "+00:00"))
@@ -345,57 +351,56 @@ async def validar_hoja_electronica(
                 if monto_val and float(monto_val) > 0:
                     monto_dec = Decimal(str(monto_val))
                     
-                    # Registrar el impuesto especial (tu lógica existente)
-                    # ... await db.execute(...) ...
-
-                    # 🔹 RECLASIFICAR AUTOMÁTICAMENTE
-                    # Mapeo de tipos de impuestos SAT a nuestra clasificación interna
-                    if tipo_codigo == 'COMBUSTIBLE': # Ajusta según tu clave en COLS_IMPUESTOS
+                    if tipo_codigo == 'COMBUSTIBLE':
                         nueva_clasificacion = 'COMBUSTIBLE'
-                    elif tipo_codigo == 'HOTELES': # O el código que uses para turismo/hospedaje
-                        nueva_clasificacion = 'HOTEL_SERVICIOS' # Si agregas esta categoría
-                    # Puedes agregar más mapeos aquí...
+                    elif tipo_codigo == 'HOTELES':
+                        nueva_clasificacion = 'HOTEL_SERVICIOS'
 
-            # Si la clasificación cambió, actualizamos la factura
             logger.info(f'Clasificación Gasto SAT: {factura_row.clasificacion_gasto_sat} -> {nueva_clasificacion}')
-            if  nueva_clasificacion != factura_row.clasificacion_gasto_sat:
+            if nueva_clasificacion != factura_row.clasificacion_gasto_sat:
                 await db.execute(
                     text("UPDATE facturas_electronicas SET clasificacion_gasto_sat = :clasif WHERE id = :id"),
                     {"clasif": nueva_clasificacion, "id": factura_row.id}
-        )
-
+                )
 
         await db.commit()
 
         if pendientes:
-            return {"success": False, "mensaje": "Validación rechazada. Faltan cargar los siguientes XML antes de validar: ", "pendientes": pendientes, "procesadas": actualizadas, "impuestos_registrados": impuestos_insertados}
+            return {"success": False, "mensaje": "Validación rechazada. Faltan cargar los siguientes XML antes de validar:", "pendientes": pendientes, "procesadas": actualizadas, "impuestos_registrados": impuestos_insertados}
 
-        return {"success": True, "mensaje": "Validación exitosa. Estados e impuestos sincronizados. ", "anulaciones_actualizadas": actualizadas, "impuestos_registrados": impuestos_insertados}
+        return {"success": True, "mensaje": "Validación exitosa. Estados e impuestos sincronizados.", "anulaciones_actualizadas": actualizadas, "impuestos_registrados": impuestos_insertados}
 
     except Exception as e:
         await db.rollback()
         raise HTTPException(500, f"Error procesando hoja electrónica: {str(e)}")
+
 
 # ==========================================
 # 3. Listar Facturas
 # ==========================================
 @router.get("/", response_model=List[FacturaOut])
 async def listar_facturas(
-    empresa_id: str = Query(None, description="Filtrar por empresa"),
+    empresa_id: str | None = Query(None, description="Filtrar por empresa (opcional, usa X-Company-Id)"),  # ✅ Cambiado a opcional
     tenant_id: str | None = Query(None, description="ID del tenant (requerido para superadmin)"),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa | None = Depends(get_active_empresa)  # ✅ NUEVO
 ):
     await _set_schema_for_query(db, scope, tenant_id)
+    
+    # ✅ Usar empresa_id del header si no se pasó como query param
+    empresa_id_final = empresa_id or (str(empresa_from_header.id) if empresa_from_header else None)
     
     stmt = (select(FacturaElectronica)
             .options(selectinload(FacturaElectronica.detalles))
             .order_by(FacturaElectronica.fecha_emision.desc()))
-    if empresa_id:
-        stmt = stmt.where(FacturaElectronica.empresa_id == empresa_id)
     
+    if empresa_id_final:
+        stmt = stmt.where(FacturaElectronica.empresa_id == empresa_id_final)
+
     result = await db.execute(stmt)
     return [FacturaOut.model_validate(f) for f in result.scalars().all()]
+
 
 # ==========================================
 # 4. Generar Partida desde Factura
@@ -403,26 +408,33 @@ async def listar_facturas(
 @router.post("/{factura_id}/generar-partida", response_model=PartidaOut, status_code=status.HTTP_201_CREATED)
 async def generar_partida_desde_factura(
     factura_id: str,
-    empresa_id: UUID = Query(..., description="ID de la empresa"),
+    empresa_id: UUID | None = Query(None, description="ID de la empresa (opcional, usa X-Company-Id)"),  # ✅ Cambiado a opcional
     tenant_id: str | None = Query(None, description="ID del tenant (requerido para superadmin)"),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa | None = Depends(get_active_empresa)  # ✅ NUEVO
 ):
     await _set_schema_for_query(db, scope, tenant_id)
     
-    stmt = select(FacturaElectronica).where(FacturaElectronica.id == factura_id, FacturaElectronica.empresa_id == empresa_id)
+    # ✅ Usar empresa_id del header si no se pasó como query param
+    empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
+    
+    if not empresa_id_final:
+        raise HTTPException(400, detail="Debe especificar una empresa (query param o header X-Company-Id)")
+    
+    stmt = select(FacturaElectronica).where(FacturaElectronica.id == factura_id, FacturaElectronica.empresa_id == empresa_id_final)
     result = await db.execute(stmt)
     factura = result.scalar_one_or_none()
     if not factura:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
 
-    cuenta_iva = await db.execute(select(CuentaContable).where(CuentaContable.empresa_id == empresa_id, CuentaContable.codigo == "1.1.4"))
+    cuenta_iva = await db.execute(select(CuentaContable).where(CuentaContable.empresa_id == empresa_id_final, CuentaContable.codigo == "1.1.4"))
     cuenta_iva = cuenta_iva.scalar_one_or_none()
 
-    cuenta_gasto = await db.execute(select(CuentaContable).where(CuentaContable.empresa_id == empresa_id, CuentaContable.codigo == "5.1"))
+    cuenta_gasto = await db.execute(select(CuentaContable).where(CuentaContable.empresa_id == empresa_id_final, CuentaContable.codigo == "5.1"))
     cuenta_gasto = cuenta_gasto.scalar_one_or_none()
 
-    cuenta_proveedor = await db.execute(select(CuentaContable).where(CuentaContable.empresa_id == empresa_id, CuentaContable.codigo == "2.1.1"))
+    cuenta_proveedor = await db.execute(select(CuentaContable).where(CuentaContable.empresa_id == empresa_id_final, CuentaContable.codigo == "2.1.1"))
     cuenta_proveedor = cuenta_proveedor.scalar_one_or_none()
 
     if not all([cuenta_iva, cuenta_gasto, cuenta_proveedor]):
@@ -455,6 +467,7 @@ async def generar_partida_desde_factura(
         detalles=[DetallePartidaOut(id=d.id, cuenta_id=d.cuenta_id, cuenta_codigo=d.cuenta.codigo if d.cuenta else "", cuenta_nombre=d.cuenta.nombre if d.cuenta else "", tipo_movimiento=d.tipo_movimiento, monto=d.monto) for d in partida.detalles]
     )
 
+
 # ==========================================
 # 5. Obtener Factura por ID
 # ==========================================
@@ -466,18 +479,18 @@ async def get_factura(
     db: AsyncSession = Depends(get_public_db)
 ):
     await _set_schema_for_query(db, scope, tenant_id)
-    
     try:
         uuid_obj = UUID(factura_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="ID de factura inválido. Formato esperado: UUID")
-    
+
     stmt = select(FacturaElectronica).where(FacturaElectronica.id == uuid_obj).options(selectinload(FacturaElectronica.detalles))
     result = await db.execute(stmt)
     factura = result.scalar_one_or_none()
     if not factura:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
     return factura
+
 
 # ==========================================
 # 6. Anular Factura
@@ -490,7 +503,6 @@ async def anular_factura(
     db: AsyncSession = Depends(get_public_db)
 ):
     await _set_schema_for_query(db, scope, tenant_id)
-    
     stmt = select(FacturaElectronica).where(FacturaElectronica.id == factura_id).options(selectinload(FacturaElectronica.detalles))
     result = await db.execute(stmt)
     factura = result.scalar_one_or_none()
@@ -498,11 +510,12 @@ async def anular_factura(
         raise HTTPException(status_code=404, detail="Factura no encontrada")
     if factura.estado == "Anulada":
         raise HTTPException(status_code=400, detail="La factura ya está anulada")
-    
+
     factura.estado = "Anulada"
     await db.commit()
     await db.refresh(factura)
     return FacturaOut.model_validate(factura)
+
 
 # ==========================================
 # 7. Corrección Manual de Clasificación
@@ -510,22 +523,19 @@ async def anular_factura(
 @router.patch("/{factura_id}/clasificacion", response_model=dict)
 async def actualizar_clasificacion_gasto(
     factura_id: UUID,
-    nueva_clasificacion: str,  # Ej: "COMBUSTIBLE", "ACTIVO_FIJO", "NORMAL"
+    nueva_clasificacion: str,
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_public_db)
 ):
     await _set_schema_for_query(db, scope)
-    
-    # Validar que sea una categoría permitida
     CATEGORIAS_VALIDAS = ['NORMAL', 'COMBUSTIBLE', 'ACTIVO_FIJO', 'MEDICAMENTO', 'PEQUENO_CONTRIBUYENTE', 'IMPORTACION']
     if nueva_clasificacion.upper() not in CATEGORIAS_VALIDAS:
         raise HTTPException(400, f"Categoría inválida. Use una de: {', '.join(CATEGORIAS_VALIDAS)}")
-    
-    # Actualizar
+
     await db.execute(
         text("UPDATE facturas_electronicas SET clasificacion_gasto_sat = :clasif WHERE id = :id"),
         {"clasif": nueva_clasificacion.upper(), "id": factura_id}
     )
     await db.commit()
-    
+
     return {"success": True, "mensaje": "Clasificación actualizada correctamente"}

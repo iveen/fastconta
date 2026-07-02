@@ -34,7 +34,7 @@ from app.models.global_models import (
 )
 
 
-class Empresa(Base):
+class Empresa(Base, AuditableFull):
     __tablename__ = "empresas"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -74,7 +74,7 @@ class Empresa(Base):
     )
 
     # Gestión de Fechas y Estado
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     is_active = Column(Boolean, default=True)
 
     # Relaciones (Estructura de Normalización)
@@ -114,7 +114,7 @@ class Empresa(Base):
         # Helper para obtener el fiscal fácilmente
         return next((d for d in self.domicilios if d.tipo_domicilio.nombre == 'FISCAL'), None)
 
-class Domicilio(Base):
+class Domicilio(Base, AuditableFull):
     __tablename__ = 'domicilios'
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -136,14 +136,15 @@ class Domicilio(Base):
     municipio = relationship("Municipio") # Podrás acceder a municipio.departamento.nombre
     empresa = relationship("Empresa", back_populates="domicilios")
 
-class RepresentanteLegal(Base):
+class RepresentanteLegal(Base, AuditableFull):
     __tablename__ = 'representantes_legales'
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     empresa_id = Column(UUID, ForeignKey('empresas.id'), nullable=False)
     
     nombre = Column(String(255), nullable=False)
-    dpi = Column(String(20), nullable=False)
+    tipo_identificacion = Column(String(20), nullable=False)  # Ej: DPI, Pasaporte, NIT
+    numero_identificacion = Column(String(20), nullable=False)
     fecha_nombramiento = Column(Date, nullable=False)
     email = Column(String(255))
     

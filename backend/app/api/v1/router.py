@@ -21,6 +21,7 @@ from app.api.v1.endpoints import (
     regimen_dte_config,
     regimenes_fiscales,
     reglas_filtrado,
+    representantes_legales,
     sat_libros,
     secciones_formulario,
     tenants,
@@ -56,3 +57,4 @@ api_router.include_router(geografia.router)
 api_router.include_router(tipo_persona.router)
 api_router.include_router(regimenes_fiscales.router)
 api_router.include_router(domicilios.router)
+api_router.include_router(representantes_legales.router)

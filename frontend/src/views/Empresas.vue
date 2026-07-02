@@ -140,6 +140,12 @@
                             class="text-red-600 hover:text-red-900 font-medium">
                       Desactivar
                     </button>
+                    <button 
+                      @click="empresaExpandidaRep = empresaExpandidaRep?.id === empresa.id ? null : empresa" 
+                      class="text-indigo-600 hover:text-indigo-900 font-medium"
+                    >
+                      {{ empresaExpandidaRep?.id === empresa.id ? 'Ocultar' : 'Representantes' }}
+                    </button>
                   </td>
                 </tr>
 
@@ -147,6 +153,16 @@
                 <tr v-if="empresaExpandida?.id === empresa.id">
                   <td colspan="6" class="px-6 py-4 bg-gray-50 border-t border-gray-200">
                     <DomicilioManager
+                      :empresa-id="empresa.id"
+                      :tenant-id="selectedTenantId"
+                      @updated="cargarEmpresas"
+                    />
+                  </td>
+                </tr>
+                <!-- Fila expandible de representantes legales -->
+                <tr v-if="empresaExpandidaRep?.id === empresa.id">
+                  <td colspan="6" class="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                    <RepresentanteManager
                       :empresa-id="empresa.id"
                       :tenant-id="selectedTenantId"
                       @updated="cargarEmpresas"
@@ -423,12 +439,14 @@ import { useCompanyStore } from '@/stores/company'
 import { Plus } from '@lucide/vue'
 import api from '@/services/api'
 import DomicilioManager from '@/components/empresas/DomicilioManager.vue'
+import RepresentanteManager from '@/components/empresas/RepresentanteManager.vue'
 
 const authStore = useAuthStore()
 const companyStore = useCompanyStore()
 
 // Estado para empresa expandida (domicilios)
 const empresaExpandida = ref(null)
+const empresaExpandidaRep = ref(null)
 
 // State General
 const empresas = ref([])

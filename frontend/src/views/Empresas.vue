@@ -9,9 +9,9 @@
           <h1 class="text-3xl font-bold text-gray-800 mb-1">Empresas</h1>
           <p class="text-gray-600">Gestiona las empresas de tu firma contable</p>
         </div>
-        <button 
+        <button
           v-if="!authStore.isSuperAdmin"
-          @click="abrirModalCrear" 
+          @click="abrirModalCrear"
           class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
         >
           <Plus class="w-5 h-5" />
@@ -67,9 +67,9 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
           </svg>
           <p class="mt-4 text-gray-500 text-lg">No hay empresas registradas</p>
-          <button 
+          <button
             v-if="!authStore.isSuperAdmin"
-            @click="abrirModalCrear" 
+            @click="abrirModalCrear"
             class="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
           >
             Crear Primera Empresa
@@ -90,49 +90,70 @@
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              <tr v-for="empresa in empresas" :key="empresa.id" class="hover:bg-gray-50">
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <div class="text-sm font-medium text-gray-900">{{ empresa.nombre }}</div>
-                  <div v-if="empresa.nombre_comercial" class="text-xs text-gray-500">{{ empresa.nombre_comercial }}</div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ empresa.nit }}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {{ empresa.regimen_fiscal?.nombre || '-' }}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm">
-                  <span v-if="empresa.cuenta_utilidad_periodo_id && empresa.cuenta_utilidades_acumuladas_id" 
-                        class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                    ✅ Configurada
-                  </span>
-                  <span v-else class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                    ⚠️ Pendiente
-                  </span>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm">
-                  <span v-if="empresa.is_active" 
-                        class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                    Activa
-                  </span>
-                  <span v-else class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                    Inactiva
-                  </span>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-right space-x-2">
-                  <button @click="abrirModalEditar(empresa)" 
-                          class="text-blue-600 hover:text-blue-900 font-medium">
-                    Editar
-                  </button>
-                  <button @click="abrirConfiguracion(empresa)" 
-                          class="text-green-600 hover:text-green-900 font-medium">
-                    Configurar
-                  </button>
-                  <button v-if="empresa.is_active"
-                          @click="confirmarEliminar(empresa)" 
-                          class="text-red-600 hover:text-red-900 font-medium">
-                    Desactivar
-                  </button>
-                </td>
-              </tr>
+              <!-- ✅ CORREGIDO: template v-for para que empresa esté disponible en ambas filas -->
+              <template v-for="empresa in empresas" :key="empresa.id">
+                <!-- Fila principal de la empresa -->
+                <tr class="hover:bg-gray-50">
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="text-sm font-medium text-gray-900">{{ empresa.nombre }}</div>
+                    <div v-if="empresa.nombre_comercial" class="text-xs text-gray-500">{{ empresa.nombre_comercial }}</div>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ empresa.nit }}</td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {{ empresa.regimen_fiscal?.nombre || '-' }}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm">
+                    <span v-if="empresa.cuenta_utilidad_periodo_id && empresa.cuenta_utilidades_acumuladas_id" 
+                          class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                      ✅ Configurada
+                    </span>
+                    <span v-else class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                      ⚠️ Pendiente
+                    </span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm">
+                    <span v-if="empresa.is_active" 
+                          class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                      Activa
+                    </span>
+                    <span v-else class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                      Inactiva
+                    </span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-right space-x-2">
+                    <button @click="abrirModalEditar(empresa)" 
+                            class="text-blue-600 hover:text-blue-900 font-medium">
+                      Editar
+                    </button>
+                    <button @click="abrirConfiguracion(empresa)" 
+                            class="text-green-600 hover:text-green-900 font-medium">
+                      Configurar
+                    </button>
+                    <button 
+                      @click="empresaExpandida = empresaExpandida?.id === empresa.id ? null : empresa" 
+                      class="text-purple-600 hover:text-purple-900 font-medium"
+                    >
+                      {{ empresaExpandida?.id === empresa.id ? 'Ocultar' : 'Domicilios' }}
+                    </button>
+                    <button v-if="empresa.is_active"
+                            @click="confirmarEliminar(empresa)" 
+                            class="text-red-600 hover:text-red-900 font-medium">
+                      Desactivar
+                    </button>
+                  </td>
+                </tr>
+
+                <!-- ✅ Fila expandible de domicilios (DENTRO del template v-for) -->
+                <tr v-if="empresaExpandida?.id === empresa.id">
+                  <td colspan="6" class="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                    <DomicilioManager
+                      :empresa-id="empresa.id"
+                      :tenant-id="selectedTenantId"
+                      @updated="cargarEmpresas"
+                    />
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
         </div>
@@ -289,17 +310,6 @@
                   </li>
                 </ul>
               </div>
-
-              <!-- Dirección -->
-              <div class="md:col-span-2">
-                <label class="block text-gray-700 text-sm font-bold mb-1">Dirección</label>
-                <textarea 
-                  v-model="formEmpresa.direccion" 
-                  rows="3"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Dirección actual (en la siguiente iteración se asociará con Municipio/Departamento)"
-                ></textarea>
-              </div>
             </div>
 
             <div class="flex justify-end space-x-3 pt-4 border-t">
@@ -412,9 +422,13 @@ import { useAuthStore } from '@/stores/auth'
 import { useCompanyStore } from '@/stores/company'
 import { Plus } from '@lucide/vue'
 import api from '@/services/api'
+import DomicilioManager from '@/components/empresas/DomicilioManager.vue'
 
 const authStore = useAuthStore()
 const companyStore = useCompanyStore()
+
+// Estado para empresa expandida (domicilios)
+const empresaExpandida = ref(null)
 
 // State General
 const empresas = ref([])
@@ -424,6 +438,7 @@ const cargandoLista = ref(false)
 const error = ref('')
 const successMsg = ref('')
 
+// Validación NIT
 const nitValido = ref(true)
 const nitMensaje = ref('')
 const validandoNit = ref(false)
@@ -433,7 +448,7 @@ const showModalEmpresa = ref(false)
 const modoEdicion = ref(false)
 const empresaEditando = ref(null)
 const cargandoModal = ref(false)
-const cargandoCatalogos = ref(false) // ✅ NUEVO: loading de catálogos
+const cargandoCatalogos = ref(false)
 const errorModal = ref('')
 const formEmpresa = ref({
   nit: '',
@@ -444,8 +459,7 @@ const formEmpresa = ref({
   fecha_constitucion_display: '',
   regimen_fiscal_id: '',
   tipo_persona_id: '',
-  actividad_economica_id: '',
-  direccion: ''
+  actividad_economica_id: ''
 })
 
 // Catálogos
@@ -478,7 +492,7 @@ const regimenesFiltrados = computed(() => {
   const termino = busquedaRegimen.value.toLowerCase()
   if (!termino) return regimenes.value
   return regimenes.value.filter(r =>
-    r.nombre.toLowerCase().includes(termino) || 
+    r.nombre.toLowerCase().includes(termino) ||
     (r.codigo && r.codigo.toLowerCase().includes(termino))
   )
 })
@@ -495,7 +509,7 @@ const actividadesFiltradas = computed(() => {
   const termino = busquedaActividad.value.toLowerCase()
   if (!termino) return actividadesEconomicas.value
   return actividadesEconomicas.value.filter(a =>
-    a.nombre_actividad.toLowerCase().includes(termino) || 
+    a.nombre_actividad.toLowerCase().includes(termino) ||
     (a.codigo_sat && a.codigo_sat.toLowerCase().includes(termino))
   )
 })
@@ -511,7 +525,6 @@ const validarNitEnTiempoReal = async (nit) => {
   validandoNit.value = true
   
   try {
-    // Llamada al backend para validar formato + unicidad
     const params = authStore.isSuperAdmin && selectedTenantId.value 
       ? { tenant_id: selectedTenantId.value } 
       : {}
@@ -566,19 +579,17 @@ const cuentasFiltradasAcumulada = computed(() => {
 })
 
 // ============================================
-// ✅ CORREGIDO: Cargar catálogos (usando endpoints de dropdown)
+// Cargar catálogos
 // ============================================
 const cargarCatalogos = async () => {
   cargandoCatalogos.value = true
   try {
-    // ✅ Usar los endpoints que devuelven arrays directos (para dropdowns)
     const [resRegimenes, resTipos, resActividades] = await Promise.all([
-      api.get('/regimenes-fiscales/activos'),      // ← Array directo
-      api.get('/tipos-persona/lista'),             // ← Array directo
-      api.get('/actividades-economicas/activas')   // ← Array directo
+      api.get('/regimenes-fiscales/activos'),
+      api.get('/tipos-persona/lista'),
+      api.get('/actividades-economicas/activas')
     ])
     
-    // ✅ Ahora sí podemos hacer .filter() porque son arrays
     regimenes.value = (resRegimenes.data || []).filter(r => 
       r.is_active !== false && r.activo !== false
     )
@@ -705,7 +716,7 @@ const handleTenantChange = () => {
 }
 
 // ============================================
-// ✅ CORREGIDO: Modal Crear
+// Modal Crear
 // ============================================
 const abrirModalCrear = async () => {
   modoEdicion.value = false
@@ -719,29 +730,26 @@ const abrirModalCrear = async () => {
     fecha_constitucion_display: '',
     regimen_fiscal_id: '',
     tipo_persona_id: '',
-    actividad_economica_id: '',
-    direccion: ''
+    actividad_economica_id: ''
   }
   busquedaRegimen.value = ''
   busquedaTipoPersona.value = ''
   busquedaActividad.value = ''
+  nitValido.value = true
+  nitMensaje.value = ''
   errorModal.value = ''
   
-  // ✅ Mostrar modal primero, luego cargar catálogos
   showModalEmpresa.value = true
-  
-  // ✅ Esperar a que los catálogos carguen ANTES de interactuar
   await cargarCatalogos()
 }
 
 // ============================================
-// ✅ CORREGIDO: Modal Editar (await en cargarCatalogos)
+// Modal Editar
 // ============================================
 const abrirModalEditar = async (empresa) => {
   modoEdicion.value = true
   empresaEditando.value = empresa
   
-  // Formatear fecha
   let fechaDisplay = ''
   if (empresa.fecha_constitucion) {
     const [anio, mes, dia] = empresa.fecha_constitucion.split('-')
@@ -759,17 +767,16 @@ const abrirModalEditar = async (empresa) => {
     fecha_constitucion_display: fechaDisplay,
     regimen_fiscal_id: empresa.regimen_fiscal_id || '',
     tipo_persona_id: empresa.tipo_persona_id || '',
-    actividad_economica_id: empresa.actividad_economica_id || '',
-    direccion: empresa.direccion || ''
+    actividad_economica_id: empresa.actividad_economica_id || ''
   }
   
   errorModal.value = ''
+  nitValido.value = true
+  nitMensaje.value = ''
   showModalEmpresa.value = true
   
-  // ✅ ESPERAR a que carguen los catálogos ANTES de pre-llenar
   await cargarCatalogos()
   
-  // ✅ AHORA sí pre-llenar los campos de búsqueda (los catálogos ya están cargados)
   if (empresa.regimen_fiscal_id) {
     const r = regimenes.value.find(r => r.id === empresa.regimen_fiscal_id)
     if (r) busquedaRegimen.value = `${r.codigo || ''} - ${r.nombre}`.replace(/^ - /, '')
@@ -794,7 +801,6 @@ const cerrarModalEmpresa = () => {
 // Guardar Empresa
 // ============================================
 const guardarEmpresa = async () => {
-    
   if (!nitValido.value && formEmpresa.value.nit) {
     errorModal.value = 'El NIT ingresado no es válido o ya está en uso.'
     return
@@ -812,8 +818,7 @@ const guardarEmpresa = async () => {
       fecha_constitucion: formEmpresa.value.fecha_constitucion || null,
       regimen_fiscal_id: formEmpresa.value.regimen_fiscal_id || null,
       tipo_persona_id: formEmpresa.value.tipo_persona_id || null,
-      actividad_economica_id: formEmpresa.value.actividad_economica_id || null,
-      direccion: formEmpresa.value.direccion || null
+      actividad_economica_id: formEmpresa.value.actividad_economica_id || null
     }
 
     if (modoEdicion.value && empresaEditando.value) {

@@ -9,6 +9,7 @@ from app.api.v1.endpoints import (
     categorias_activos,
     cierre,
     declaraciones,
+    domicilios,
     empresas,
     facturas,
     formularios_sat,
@@ -54,3 +55,4 @@ api_router.include_router(monedas.router)
 api_router.include_router(geografia.router)
 api_router.include_router(tipo_persona.router)
 api_router.include_router(regimenes_fiscales.router)
+api_router.include_router(domicilios.router)

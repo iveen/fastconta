@@ -281,6 +281,8 @@ watch(
         requiere_justificacion: val.requiere_justificacion || false,
         es_visible_usuario: val.es_visible_usuario !== undefined ? val.es_visible_usuario : true,
       })
+    } else {
+      form.orden_seccion = props.siguienteOrden || 0
     }
   },
   { immediate: true }

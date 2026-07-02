@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
+from app.models.global_models import TipoDomicilio
 from app.schemas.configuracion_fiscal.geografia import (
     DepartamentoConMunicipiosResponse,
     DepartamentoCreate,
@@ -19,6 +20,7 @@ from app.schemas.configuracion_fiscal.geografia import (
     MunicipioResponse,
     MunicipioUpdate,
 )
+from app.schemas.domicilio import TipoDomicilioOut
 from app.services.configuracion_fiscal.geografia_service import GeografiaService
 
 router = APIRouter(
@@ -251,3 +253,14 @@ async def importar_excel(
         return resultado
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    
+@router.get("/tipos-domicilio", response_model=list[TipoDomicilioOut])
+async def listar_tipos_domicilio(
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista todos los tipos de domicilio (Fiscal, Sucursal, Operativo, etc.)"""
+    from sqlalchemy import select
+    result = await db.execute(
+        select(TipoDomicilio).order_by(TipoDomicilio.nombre)
+    )
+    return result.scalars().all()

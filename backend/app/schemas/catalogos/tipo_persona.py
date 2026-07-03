@@ -33,3 +33,15 @@ class TipoPersonaResponse(TipoPersonaBase):
     updated_by: UUID | None = None
 
     model_config = {"from_attributes": True}
+
+# ============================================================
+# LIST RESPONSE (versión ligera para listas paginadas)
+# ============================================================
+class TipoPersonaListResponse(BaseModel):
+    id: UUID
+    nombre: str
+    descripcion: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    model_config = {"from_attributes": True}

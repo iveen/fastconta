@@ -14,15 +14,39 @@ class TipoPersonaService:
         self.db = db
 
     async def obtener_todos(self) -> list[TipoPersona]:
-        print("🔥 DEBUG: obtener_todos() fue llamado", flush=True)
-        logger.debug("🔥 DEBUG: obtener_todos() fue llamado")
         query = select(TipoPersona).order_by(TipoPersona.nombre)
-        result = await self.db.execute(query)
-
-        logger.info(f"Tipos de persona obtenidos: {result.scalars().all()}")
-        print(f"Tipos de persona obtenidos: {result.scalars().all()}")  # Debug print statement
         
-        return list(result.scalars().all())
+        print(f"🔥 SQL: {str(query.compile(compile_kwargs={'literal_binds': True}))}")
+        
+        result = await self.db.execute(query)
+        
+        # 🔥 PRUEBA 1: scalars().all() (original)
+        print(f"🔥 PRUEBA 1 - scalars().all(): {len(result.scalars().all())} objetos")
+        
+        # 🔥 PRUEBA 2: all() sin scalars
+        result2 = await self.db.execute(query)
+        rows = result2.all()
+        print(f"🔥 PRUEBA 2 - all(): {len(rows)} filas")
+        if rows:
+            print(f"🔥 Primera fila tipo: {type(rows[0])}")
+            print(f"🔥 Primera fila: {rows[0]}")
+        
+        # 🔥 PRUEBA 3: iterar manualmente
+        result3 = await self.db.execute(query)
+        count = 0
+        for row in result3:
+            count += 1
+            print(f"🔥 PRUEBA 3 - Fila {count}: {row}")
+        print(f"🔥 PRUEBA 3 - Total iterando: {count}")
+        
+        # 🔥 PRUEBA 4: first()
+        result4 = await self.db.execute(query)
+        first = result4.scalars().first()
+        print(f"🔥 PRUEBA 4 - first(): {first}")
+        
+        # Retornar usando el método que funcione
+        result5 = await self.db.execute(query)
+        return [row[0] for row in result5.all()]  # ← Usar all() en lugar de scalars()
 
     async def obtener_por_id(self, tipo_id: UUID) -> TipoPersona | None:
         query = select(TipoPersona).where(TipoPersona.id == tipo_id)

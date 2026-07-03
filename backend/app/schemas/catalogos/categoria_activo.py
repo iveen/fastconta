@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 # ============================================================
 # BASE
 # ============================================================
-class CategoriaActivoBase(BaseModel):
+class CategoriaActivoFijoBase(BaseModel):
     nombre: str = Field(..., min_length=1, max_length=100, examples=["Vehículos"])
     descripcion: str | None = Field(None, examples=["Vehículos de transporte terrestre"])
     tasa_minima_anual: Decimal = Field(..., ge=0, le=100, examples=[Decimal("10.00")])
@@ -19,11 +19,11 @@ class CategoriaActivoBase(BaseModel):
     is_active: bool = True
 
 
-class CategoriaActivoCreate(CategoriaActivoBase):
+class CategoriaActivoFijoCreate(CategoriaActivoFijoBase):
     pass
 
 
-class CategoriaActivoUpdate(BaseModel):
+class CategoriaActivoFijoUpdate(BaseModel):
     nombre: str | None = None
     descripcion: str | None = None
     tasa_minima_anual: Decimal | None = None
@@ -35,7 +35,7 @@ class CategoriaActivoUpdate(BaseModel):
 # ============================================================
 # RESPONSE
 # ============================================================
-class CategoriaActivoResponse(CategoriaActivoBase):
+class CategoriaActivoFijoResponse(CategoriaActivoFijoBase):
     id: UUID
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -45,7 +45,7 @@ class CategoriaActivoResponse(CategoriaActivoBase):
     model_config = {"from_attributes": True}
 
 
-class CategoriaActivoListResponse(BaseModel):
+class CategoriaActivoFijoListResponse(BaseModel):
     id: UUID
     nombre: str
     codigo_prefijo: str

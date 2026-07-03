@@ -5,9 +5,10 @@ export function useGeografiaApi() {
   const loading = ref(false)
   const error = ref(null)
 
+  // Departamentos
   const listarDepartamentos = async () => {
     const { data } = await api.get('/geografia/departamentos')
-    return data.data
+    return data
   }
 
   const crearDepartamento = async (payload) => {
@@ -24,12 +25,13 @@ export function useGeografiaApi() {
     await api.delete(`/geografia/departamentos/${id}`)
   }
 
+  // Municipios
   const listarMunicipios = async (departamentoId = null) => {
     loading.value = true
     try {
       const params = departamentoId ? { departamento_id: departamentoId } : {}
       const { data } = await api.get('/geografia/municipios', { params })
-      return data.data
+      return data
     } catch (e) {
       error.value = e.response?.data?.detail || 'Error al cargar municipios'
       throw e
@@ -53,8 +55,15 @@ export function useGeografiaApi() {
   }
 
   return {
-    loading, error,
-    listarDepartamentos, crearDepartamento, actualizarDepartamento, eliminarDepartamento,
-    listarMunicipios, crearMunicipio, actualizarMunicipio, eliminarMunicipio
+    loading,
+    error,
+    listarDepartamentos,
+    crearDepartamento,
+    actualizarDepartamento,
+    eliminarDepartamento,
+    listarMunicipios,
+    crearMunicipio,
+    actualizarMunicipio,
+    eliminarMunicipio
   }
 }

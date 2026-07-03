@@ -1,6 +1,9 @@
 """Endpoint para Tipos de Persona"""
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.db.session import get_db
 from app.schemas.catalogos.tipo_persona import (
     TipoPersonaCreate,
@@ -8,11 +11,8 @@ from app.schemas.catalogos.tipo_persona import (
     TipoPersonaUpdate,
 )
 from app.services.catalogos.tipo_persona_service import TipoPersonaService
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/tipos-persona", tags=["Catálogos - Tipos de Persona"])
-
 
 def get_service(db: AsyncSession = Depends(get_db)) -> TipoPersonaService:
     return TipoPersonaService(db)
@@ -20,13 +20,22 @@ def get_service(db: AsyncSession = Depends(get_db)) -> TipoPersonaService:
 
 @router.get("/", response_model=dict)
 async def listar_tipos_persona(service: TipoPersonaService = Depends(get_service)):
-    tipos = await service.obtener_todos()
+    """Lista tipos de persona con estructura paginada"""
+    print("🔥 ENDPOINT EJECUTÁNDOSE")
     
-    # ✅ Validar y forzar serialización
-    data = [
-        TipoPersonaResponse.model_validate(t).model_dump(exclude_none=False, by_alias=False) 
-        for t in tipos
-    ]
+    tipos = await service.obtener_todos()
+    print(f" Service retornó {len(tipos)} objetos")
+    
+    # Forzar serialización explícita
+    data = []
+    for t in tipos:
+        try:
+            validated = TipoPersonaResponse.model_validate(t)
+            dumped = validated.model_dump(exclude_none=False)
+            print(f"🔥 Objeto serializado: {dumped}")
+            data.append(dumped)
+        except Exception as e:
+            print(f"🔥 ERROR serializando: {e}")
     
     return {
         "data": data,

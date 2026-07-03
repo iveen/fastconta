@@ -1,20 +1,16 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
-    actividades_economicas,
     activos_fijos,
     auth,
     balances,
     casillas_sat,
-    categorias_activos,
     cierre,
     declaraciones,
     domicilios,
     empresas,
     facturas,
     formularios_sat,
-    geografia,
-    monedas,
     partidas,
     periodos_fiscales,
     plan_cuentas,
@@ -25,9 +21,15 @@ from app.api.v1.endpoints import (
     sat_libros,
     secciones_formulario,
     tenants,
-    tipo_persona,
     tipos_dte,
     users,
+)
+from app.api.v1.endpoints.catalogos import (
+    actividades,
+    categorias_activos,
+    geografia,
+    monedas,
+    tipo_persona,
 )
 
 api_router = APIRouter()
@@ -49,7 +51,7 @@ api_router.include_router(secciones_formulario.router)
 api_router.include_router(casillas_sat.router)
 api_router.include_router(tipos_dte.router)
 api_router.include_router(regimen_dte_config.router)
-api_router.include_router(actividades_economicas.router)
+api_router.include_router(actividades.router)
 api_router.include_router(reglas_filtrado.router)
 api_router.include_router(categorias_activos.router)
 api_router.include_router(monedas.router)

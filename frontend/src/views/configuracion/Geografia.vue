@@ -12,7 +12,11 @@
       <div class="bg-white rounded-lg shadow-sm border">
         <div class="p-4 border-b flex justify-between items-center">
           <h2 class="font-semibold text-gray-800">Departamentos ({{ departamentos.length }})</h2>
-          <button v-if="authStore.isSuperAdmin" @click="abrirModalDepto" class="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">+ Nuevo</button>
+          <button
+            v-if="authStore.isSuperAdmin"
+            @click="abrirModalDepto"
+            class="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+          >+ Nuevo</button>
         </div>
         <ul class="divide-y max-h-[600px] overflow-y-auto">
           <li
@@ -27,11 +31,9 @@
               <p class="text-sm font-medium">{{ d.nombre }}</p>
               <p class="text-xs text-gray-500">{{ d.municipios?.length || 0 }} municipios</p>
             </div>
-            <div class="flex gap-1">
-              <div v-if="authStore.isSuperAdmin" class="flex gap-1">
-                <button @click.stop="editarDepartamento(d)" class="text-blue-600 text-xs hover:underline">✏️</button>
-                <button @click.stop="handleEliminarDepartamento(d)" class="text-red-600 text-xs hover:underline">🗑️</button>
-              </div>
+            <div v-if="authStore.isSuperAdmin" class="flex gap-1">
+              <button @click.stop="editarDepartamento(d)" class="text-blue-600 text-xs hover:underline">✏️</button>
+              <button @click.stop="handleEliminarDepartamento(d)" class="text-red-600 text-xs hover:underline">🗑️</button>
             </div>
           </li>
         </ul>
@@ -41,37 +43,40 @@
       <div class="lg:col-span-2 bg-white rounded-lg shadow-sm border">
         <div class="p-4 border-b flex justify-between items-center">
           <div>
-            <h2 class="font-semibold text-gray-800">Municipios de {{ deptoSeleccionado?.nombre || '...' }}</h2>
+            <h2 class="font-semibold text-gray-800">
+              Municipios de {{ deptoSeleccionado?.nombre || '...' }}
+            </h2>
             <p class="text-xs text-gray-500">{{ municipios.length }} registrados</p>
           </div>
-          <button v-if="deptoSeleccionado && authStore.isSuperAdmin" @click="abrirModalMuni" class="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">+ Nuevo</button>
+          <button
+            v-if="authStore.isSuperAdmin && deptoSeleccionado"
+            @click="abrirModalMuni"
+            class="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+          >+ Nuevo</button>
         </div>
-        <div v-if="!deptoSeleccionado" class="p-12 text-center text-gray-500">Selecciona un departamento para ver sus municipios</div>
+        <div v-if="!deptoSeleccionado" class="p-12 text-center text-gray-500">
+          Selecciona un departamento para ver sus municipios
+        </div>
         <div v-else-if="loadingMunis" class="p-8 text-center text-gray-500">Cargando...</div>
         <table v-else class="w-full">
           <thead class="bg-gray-50 border-b">
             <tr>
               <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Código</th>
               <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Nombre</th>
-              <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Acciones</th>
+              <th v-if="authStore.isSuperAdmin" class="px-4 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Acciones</th>
             </tr>
           </thead>
           <tbody class="divide-y">
             <tr v-for="m in municipios" :key="m.id" class="hover:bg-gray-50">
               <td class="px-4 py-2 text-sm font-mono text-blue-600">{{ m.codigo_iso }}</td>
               <td class="px-4 py-2 text-sm">{{ m.nombre }}</td>
-              <td class="px-4 py-2 text-right space-x-2">
-                <template v-if="authStore.isSuperAdmin">
-                    <button @click="editarMunicipio(m)" class="text-blue-600 text-sm">Editar</button>
-                    <button @click="handleEliminarMunicipio(m)" class="text-red-600 text-sm">Eliminar</button>
-                    <button @click="editarMunicipio(m)" class="text-blue-600 text-sm">Editar</button>
-                    <button @click="handleEliminarMunicipio(m)" class="text-red-600 text-sm">Eliminar</button>
-                </template>
-                <span v-else class="text-xs text-gray-400">Solo lectura</span>
+              <td v-if="authStore.isSuperAdmin" class="px-4 py-2 text-right space-x-2">
+                <button @click="editarMunicipio(m)" class="text-blue-600 text-sm">Editar</button>
+                <button @click="handleEliminarMunicipio(m)" class="text-red-600 text-sm">Eliminar</button>
               </td>
             </tr>
             <tr v-if="!municipios.length">
-              <td colspan="3" class="px-4 py-8 text-center text-gray-500">No hay municipios registrados</td>
+              <td :colspan="authStore.isSuperAdmin ? 3 : 2" class="px-4 py-8 text-center text-gray-500">No hay municipios registrados</td>
             </tr>
           </tbody>
         </table>
@@ -135,12 +140,10 @@ import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
-
 const {
   listarDepartamentos, crearDepartamento, actualizarDepartamento, eliminarDepartamento,
   listarMunicipios, crearMunicipio, actualizarMunicipio, eliminarMunicipio
 } = useGeografiaApi()
-
 const toast = useToast()
 
 const departamentos = ref([])
@@ -161,7 +164,6 @@ const errorMuni = ref(null)
 const cargarDepartamentos = async () => {
   try {
     departamentos.value = await listarDepartamentos()
-    console.log('Departamentos cargados:', departamentos.value)
   } catch (e) {
     toast.error('Error al cargar departamentos')
   }
@@ -261,6 +263,7 @@ const guardarMuni = async () => {
     }
     modalMuni.abierto = false
     await seleccionarDepartamento(deptoSeleccionado.value)
+    await cargarDepartamentos()
   } catch (e) {
     errorMuni.value = e.response?.data?.detail || 'Error al guardar'
   } finally {

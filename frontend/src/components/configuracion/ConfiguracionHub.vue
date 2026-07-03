@@ -66,12 +66,7 @@
             description="Versionado de formularios (2237, 2046, 1311, etc.)"
             to="/configuracion/formularios-sat"
           />
-          <ConfigCard
-            icon="📑"
-            title="Secciones y Casillas"
-            description="Estructura de formularios y sus campos"
-            to="/configuracion/secciones"
-          />
+
           <ConfigCard
             icon="🔍"
             title="Reglas de Filtrado"

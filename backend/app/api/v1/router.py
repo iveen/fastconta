@@ -4,7 +4,6 @@ from app.api.v1.endpoints import (
     activos_fijos,
     auth,
     balances,
-    casillas_sat,
     cierre,
     declaraciones,
     domicilios,
@@ -19,7 +18,6 @@ from app.api.v1.endpoints import (
     reglas_filtrado,
     representantes_legales,
     sat_libros,
-    secciones_formulario,
     tenants,
     tipos_dte,
     users,
@@ -47,8 +45,7 @@ api_router.include_router(users.router)
 api_router.include_router(activos_fijos.router)
 api_router.include_router(declaraciones.router)
 api_router.include_router(formularios_sat.router)
-api_router.include_router(secciones_formulario.router)
-api_router.include_router(casillas_sat.router)
+
 api_router.include_router(tipos_dte.router)
 api_router.include_router(regimen_dte_config.router)
 api_router.include_router(actividades.router)

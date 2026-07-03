@@ -1,33 +1,22 @@
-"""Servicio para gestión de Tipos DTE"""
-
-from io import BytesIO
-from typing import Any
+"""Service para Tipos DTE"""
+import io
 from uuid import UUID
 
 from app.models.global_models import TipoDTE
-from app.utils.excel_handler import ExcelHandler
+from app.schemas.configuracion_fiscal.tipo_dte import (
+    TipoDTEImportResult,
+)
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-# Columnas para exportación
-COLUMNAS_EXPORT = [
-    {"key": "codigo", "header": "Código", "width": 12},
-    {"key": "descripcion", "header": "Descripción", "width": 40},
-    {"key": "requiere_complemento", "header": "Requiere Complemento", "width": 20},
-    {"key": "es_factura", "header": "Es Factura", "width": 12},
-    {"key": "activo", "header": "Activo", "width": 10},
-]
-
-COLUMNAS_IMPORT_REQUERIDAS = ["codigo", "descripcion", "requiere_complemento", "es_factura"]
 
 
 class TipoDTEService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    # ============================================================
-    # QUERIES
-    # ============================================================
+    # ---------------------------------------------------------------
+    # LISTAR CON PAGINACIÓN Y FILTROS
+    # ---------------------------------------------------------------
     async def obtener_todos(
         self,
         activo: bool | None = None,
@@ -35,35 +24,26 @@ class TipoDTEService:
         skip: int = 0,
         limit: int = 50,
     ) -> tuple[list[TipoDTE], int]:
-        """Lista tipos DTE con filtros"""
         query = select(TipoDTE)
+        count_query = select(func.count()).select_from(TipoDTE)
 
         if activo is not None:
-            query = query.where(TipoDTE.activo.is_(activo))
+            query = query.where(TipoDTE.activo == activo)
+            count_query = count_query.where(TipoDTE.activo == activo)
+
         if es_factura is not None:
-            query = query.where(TipoDTE.es_factura.is_(es_factura))
+            query = query.where(TipoDTE.es_factura == es_factura)
+            count_query = count_query.where(TipoDTE.es_factura == es_factura)
 
-        count_query = select(func.count()).select_from(query.subquery())
-        total = (await self.db.execute(count_query)).scalar() or 0
-
+        total = (await self.db.execute(count_query)).scalar_one()
         query = query.order_by(TipoDTE.codigo).offset(skip).limit(limit)
         result = await self.db.execute(query)
         return list(result.scalars().all()), total
 
-    async def obtener_por_id(self, dte_id: UUID) -> TipoDTE | None:
-        """Obtiene un tipo DTE por ID"""
-        query = select(TipoDTE).where(TipoDTE.id == dte_id)
-        result = await self.db.execute(query)
-        return result.scalars().first()
-
-    async def obtener_por_codigo(self, codigo: str) -> TipoDTE | None:
-        """Obtiene un tipo DTE por código"""
-        query = select(TipoDTE).where(TipoDTE.codigo == codigo)
-        result = await self.db.execute(query)
-        return result.scalars().first()
-
+    # ---------------------------------------------------------------
+    # LISTAR ACTIVOS (para dropdowns)
+    # ---------------------------------------------------------------
     async def obtener_todos_activos(self) -> list[TipoDTE]:
-        """Obtiene todos los tipos DTE activos (para dropdowns)"""
         query = (
             select(TipoDTE)
             .where(TipoDTE.activo.is_(True))
@@ -72,161 +52,130 @@ class TipoDTEService:
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
-    # ============================================================
-    # CRUD
-    # ============================================================
+    # ---------------------------------------------------------------
+    # OBTENER POR ID
+    # ---------------------------------------------------------------
+    async def obtener_por_id(self, dte_id: UUID) -> TipoDTE | None:
+        query = select(TipoDTE).where(TipoDTE.id == dte_id)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    # ---------------------------------------------------------------
+    # CREAR
+    # ---------------------------------------------------------------
     async def crear(self, data: dict) -> TipoDTE:
-        """Crea un nuevo tipo DTE"""
-        # Validar código único
-        existente = await self.obtener_por_codigo(data["codigo"])
-        if existente is not None:
-            raise ValueError(f"Ya existe un tipo DTE con código '{data['codigo']}'")
+        existente = await self.db.execute(
+            select(TipoDTE).where(TipoDTE.codigo == data["codigo"])
+        )
+        if existente.scalar_one_or_none():
+            raise ValueError(f"Ya existe un Tipo DTE con código '{data['codigo']}'")
 
         dte = TipoDTE(**data)
         self.db.add(dte)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(dte)
         return dte
 
-    async def actualizar(
-        self, dte_id: UUID, data: dict
-    ) -> TipoDTE | None:
-        """Actualiza un tipo DTE"""
+    # ---------------------------------------------------------------
+    # ACTUALIZAR
+    # ---------------------------------------------------------------
+    async def actualizar(self, dte_id: UUID, data: dict) -> TipoDTE | None:
         dte = await self.obtener_por_id(dte_id)
-        if dte is None:
+        if not dte:
             return None
 
-        for key, value in data.items():
-            if hasattr(dte, key):
-                setattr(dte, key, value)
+        for campo, valor in data.items():
+            setattr(dte, campo, valor)
 
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(dte)
         return dte
 
+    # ---------------------------------------------------------------
+    # ELIMINAR (soft delete)
+    # ---------------------------------------------------------------
     async def eliminar(self, dte_id: UUID) -> bool:
-        """Soft delete (activo = False)"""
         dte = await self.obtener_por_id(dte_id)
-        if dte is None:
+        if not dte:
             return False
-
         dte.activo = False
-        await self.db.flush()
+        await self.db.commit()
         return True
 
-    # ============================================================
-    # IMPORT/EXPORT
-    # ============================================================
-    async def exportar_excel(self) -> BytesIO:
-        """Exporta todos los tipos DTE a Excel"""
-        dtes = await self.obtener_todos_activos()
-        
-        datos = [
-            {
-                "codigo": dte.codigo,
-                "descripcion": dte.descripcion,
-                "requiere_complemento": "Sí" if dte.requiere_complemento else "No",
-                "es_factura": "Sí" if dte.es_factura else "No",
-                "activo": "Sí" if dte.activo else "No",
-            }
-            for dte in dtes
-        ]
-
-        return ExcelHandler.exportar_a_excel(
-            datos=datos,
-            columnas=COLUMNAS_EXPORT,
-            nombre_hoja="Tipos DTE",
-            titulo="Catálogo de Tipos de Documentos Tributarios Electrónicos",
-        )
-
-    async def importar_excel(
-        self,
-        archivo_bytes: bytes,
-        sobrescribir: bool = False,
-    ) -> dict:
-        """
-        Importa tipos DTE desde Excel.
-        
-        Returns:
-            Dict con estadísticas de importación
-        """
+    # ---------------------------------------------------------------
+    # EXPORTAR A EXCEL
+    # ---------------------------------------------------------------
+    async def exportar_excel(self) -> io.BytesIO:
         try:
-            filas = ExcelHandler.importar_desde_excel(
-                archivo_bytes=archivo_bytes,
-                columnas_requeridas=COLUMNAS_IMPORT_REQUERIDAS,
-            )
-        except ValueError as e:
-            raise ValueError(str(e))
+            import openpyxl
+        except ImportError:
+            raise ValueError("openpyxl no está instalado")
 
-        creados = 0
-        actualizados = 0
-        omitidos = 0
-        errores: list[str] = []
+        query = select(TipoDTE).order_by(TipoDTE.codigo)
+        result = await self.db.execute(query)
+        dtes = result.scalars().all()
 
-        for idx, fila in enumerate(filas, 2):  # Empezar en 2 (fila 1 = encabezados)
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Tipos DTE"
+        ws.append(["Código", "Descripción", "Requiere Complemento", "Es Factura", "Activo"])
+
+        for dte in dtes:
+            ws.append([dte.codigo, dte.descripcion, dte.requiere_complemento, dte.es_factura, dte.activo])
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output
+
+    # ---------------------------------------------------------------
+    # IMPORTAR DESDE EXCEL
+    # ---------------------------------------------------------------
+    async def importar_excel(
+        self, archivo_bytes: bytes, sobrescribir: bool = False
+    ) -> TipoDTEImportResult:
+        try:
+            import openpyxl
+        except ImportError:
+            raise ValueError("openpyxl no está instalado")
+
+        wb = openpyxl.load_workbook(io.BytesIO(archivo_bytes))
+        ws = wb.active
+
+        resultado = TipoDTEImportResult()
+        filas = list(ws.iter_rows(min_row=2, values_only=True))  # saltar encabezado
+
+        for fila in filas:
             try:
-                codigo = str(fila.get("codigo", "")).strip()
-                descripcion = str(fila.get("descripcion", "")).strip()
-                
-                # Parsear booleanos
-                requiere_complemento = self._parse_bool(fila.get("requiere_complemento", False))
-                es_factura = self._parse_bool(fila.get("es_factura", True))
-
+                codigo, descripcion, req_comp, es_factura = fila[:4]
                 if not codigo or not descripcion:
-                    errores.append(f"Fila {idx}: Código y descripción son obligatorios")
+                    resultado.omitidos += 1
                     continue
 
-                # Validar longitud
-                if len(codigo) > 10:
-                    errores.append(f"Fila {idx}: Código '{codigo}' excede 10 caracteres")
-                    continue
+                existente = await self.db.execute(
+                    select(TipoDTE).where(TipoDTE.codigo == codigo)
+                )
+                dte = existente.scalar_one_or_none()
 
-                if len(descripcion) > 100:
-                    errores.append(f"Fila {idx}: Descripción excede 100 caracteres")
-                    continue
-
-                # Buscar existente
-                existente = await self.obtener_por_codigo(codigo)
-
-                if existente is not None:
+                if dte:
                     if sobrescribir:
-                        existente.descripcion = descripcion
-                        existente.requiere_complemento = requiere_complemento
-                        existente.es_factura = es_factura
-                        existente.activo = True
-                        actualizados += 1
+                        dte.descripcion = descripcion
+                        dte.requiere_complemento = bool(req_comp)
+                        dte.es_factura = bool(es_factura)
+                        resultado.actualizados += 1
                     else:
-                        omitidos += 1
+                        resultado.omitidos += 1
                 else:
-                    dte = TipoDTE(
+                    nuevo = TipoDTE(
                         codigo=codigo,
                         descripcion=descripcion,
-                        requiere_complemento=requiere_complemento,
-                        es_factura=es_factura,
-                        activo=True,
+                        requiere_complemento=bool(req_comp),
+                        es_factura=bool(es_factura),
                     )
-                    self.db.add(dte)
-                    creados += 1
-
+                    self.db.add(nuevo)
+                    resultado.creados += 1
             except Exception as e:
-                errores.append(f"Fila {idx}: {str(e)}")
+                resultado.errores.append(f"Fila {fila}: {str(e)}")
 
-        await self.db.flush()
-
-        return {
-            "creados": creados,
-            "actualizados": actualizados,
-            "omitidos": omitidos,
-            "errores": errores,
-        }
-
-    @staticmethod
-    def _parse_bool(valor: Any) -> bool:
-        """Parsea valores booleanos desde Excel"""
-        if isinstance(valor, bool):
-            return valor
-        if isinstance(valor, str):
-            return valor.lower() in ("sí", "si", "true", "1", "yes", "s")
-        if isinstance(valor, (int, float)):
-            return bool(valor)
-        return False
+        await self.db.commit()
+        return resultado

@@ -480,8 +480,7 @@ class ActivoFijo(Base):
     
     # FK al catalogo global (esquema public). 
     # Nota: Usamos "public." explicitamente para evitar conflictos de esquema en PostgreSQL.
-    categoria_id = Column(UUID(as_uuid=True), ForeignKey("categorias_activos_fijos.id"), nullable=False)
-    
+    categoria_id = Column(UUID(as_uuid=True), ForeignKey("public.categorias_activos_fijos.id"), nullable=False)
     # Identificacion
     codigo_interno = Column(String(50), nullable=False) # Ej: VEH-001, COMP-045
     descripcion = Column(String(255), nullable=False)

@@ -1,9 +1,8 @@
-"""Servicio para Configuración Régimen-DTE"""
-
+"""Service para Configuración Régimen-DTE"""
 from uuid import UUID
 
 from app.models.global_models import RegimenDteConfig, RegimenFiscal, TipoDTE
-from sqlalchemy import select
+from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -13,96 +12,113 @@ class RegimenDteService:
         self.db = db
 
     # ============================================================
-    # QUERIES
+    # LISTAR POR RÉGIMEN (con datos enriquecidos)
     # ============================================================
-    async def obtener_por_regimen(
-        self, regimen_id: UUID
-    ) -> list[RegimenDteConfig]:
-        """Lista DTE configurados para un régimen"""
+    async def obtener_por_regimen(self, regimen_id: UUID) -> list[dict]:
         query = (
             select(RegimenDteConfig)
+            .options(
+                selectinload(RegimenDteConfig.regimen),
+                selectinload(RegimenDteConfig.dte),
+            )
             .where(RegimenDteConfig.regimen_id == regimen_id)
-            .options(
-                selectinload(RegimenDteConfig.regimen),
-                selectinload(RegimenDteConfig.dte),
-            )
-            .order_by(RegimenDteConfig.es_exclusivo.desc())
         )
         result = await self.db.execute(query)
-        return list(result.scalars().all())
+        configs = result.scalars().all()
 
-    async def obtener_por_dte(self, dte_id: UUID) -> list[RegimenDteConfig]:
-        """Lista regímenes configurados para un DTE"""
+        return [
+            {
+                "id": c.id,
+                "regimen_id": c.regimen_id,
+                "dte_id": c.dte_id,
+                "es_exclusivo": c.es_exclusivo,
+                "regimen_codigo": c.regimen.codigo if c.regimen else None,
+                "regimen_nombre": c.regimen.nombre if c.regimen else None,
+                "dte_codigo": c.dte.codigo if c.dte else None,
+                "dte_descripcion": c.dte.descripcion if c.dte else None,
+                "created_at": c.created_at,
+                "updated_at": c.updated_at,
+                "created_by": c.created_by,
+                "updated_by": c.updated_by,
+            }
+            for c in configs
+        ]
+
+    # ============================================================
+    # LISTAR POR DTE (con datos enriquecidos)
+    # ============================================================
+    async def obtener_por_dte(self, dte_id: UUID) -> list[dict]:
         query = (
             select(RegimenDteConfig)
-            .where(RegimenDteConfig.dte_id == dte_id)
             .options(
                 selectinload(RegimenDteConfig.regimen),
                 selectinload(RegimenDteConfig.dte),
             )
+            .where(RegimenDteConfig.dte_id == dte_id)
         )
         result = await self.db.execute(query)
-        return list(result.scalars().all())
+        configs = result.scalars().all()
 
-    async def obtener_configuracion(
-        self, regimen_id: UUID, dte_id: UUID
-    ) -> RegimenDteConfig | None:
-        """Obtiene una configuración específica"""
-        query = select(RegimenDteConfig).where(
-            RegimenDteConfig.regimen_id == regimen_id,
-            RegimenDteConfig.dte_id == dte_id,
-        )
-        result = await self.db.execute(query)
-        return result.scalars().first()
+        return [
+            {
+                "id": c.id,
+                "regimen_id": c.regimen_id,
+                "dte_id": c.dte_id,
+                "es_exclusivo": c.es_exclusivo,
+                "regimen_codigo": c.regimen.codigo if c.regimen else None,
+                "regimen_nombre": c.regimen.nombre if c.regimen else None,
+                "dte_codigo": c.dte.codigo if c.dte else None,
+                "dte_descripcion": c.dte.descripcion if c.dte else None,
+                "created_at": c.created_at,
+                "updated_at": c.updated_at,
+                "created_by": c.created_by,
+                "updated_by": c.updated_by,
+            }
+            for c in configs
+        ]
 
-    async def obtener_dte_permitidos(
-        self, regimen_id: UUID
-    ) -> list[TipoDTE]:
-        """Obtiene los DTE permitidos para un régimen (con info del DTE)"""
+    # ============================================================
+    # DTE PERMITIDOS PARA RÉGIMEN
+    # ============================================================
+    async def obtener_dte_permitidos(self, regimen_id: UUID) -> list[dict]:
         query = (
             select(TipoDTE)
-            .join(RegimenDteConfig, TipoDTE.id == RegimenDteConfig.dte_id)
-            .where(
-                RegimenDteConfig.regimen_id == regimen_id,
-                TipoDTE.activo.is_(True),
-            )
+            .join(RegimenDteConfig, RegimenDteConfig.dte_id == TipoDTE.id)
+            .where(RegimenDteConfig.regimen_id == regimen_id)
+            .where(TipoDTE.activo.is_(True))
             .order_by(TipoDTE.codigo)
         )
         result = await self.db.execute(query)
-        return list(result.scalars().all())
+        dtes = result.scalars().all()
+        return [
+            {"id": d.id, "codigo": d.codigo, "descripcion": d.descripcion}
+            for d in dtes
+        ]
 
     # ============================================================
-    # CRUD
+    # ASOCIAR UN DTE A UN RÉGIMEN
     # ============================================================
     async def asociar(
-        self,
-        regimen_id: UUID,
-        dte_id: UUID,
-        es_exclusivo: bool = False,
+        self, regimen_id: UUID, dte_id: UUID, es_exclusivo: bool = False
     ) -> RegimenDteConfig:
-        """Asocia un DTE a un régimen"""
-        # Validar régimen activo
-        regimen_query = select(RegimenFiscal).where(
-            RegimenFiscal.id == regimen_id,
-            RegimenFiscal.is_active.is_(True),
-        )
-        regimen_result = await self.db.execute(regimen_query)
-        if regimen_result.scalars().first() is None:
-            raise ValueError("Régimen no encontrado o inactivo")
+        regimen = await self.db.get(RegimenFiscal, regimen_id)
+        if not regimen:
+            raise ValueError("Régimen fiscal no encontrado")
 
-        # Validar DTE activo
-        dte_query = select(TipoDTE).where(
-            TipoDTE.id == dte_id,
-            TipoDTE.activo.is_(True),
-        )
-        dte_result = await self.db.execute(dte_query)
-        if dte_result.scalars().first() is None:
-            raise ValueError("Tipo DTE no encontrado o inactivo")
+        dte = await self.db.get(TipoDTE, dte_id)
+        if not dte:
+            raise ValueError("Tipo DTE no encontrado")
 
-        # Verificar si ya existe
-        existente = await self.obtener_configuracion(regimen_id, dte_id)
-        if existente is not None:
-            raise ValueError("El DTE ya está asociado al régimen")
+        existente = await self.db.execute(
+            select(RegimenDteConfig).where(
+                and_(
+                    RegimenDteConfig.regimen_id == regimen_id,
+                    RegimenDteConfig.dte_id == dte_id,
+                )
+            )
+        )
+        if existente.scalar_one_or_none():
+            raise ValueError("Esta asociación ya existe")
 
         config = RegimenDteConfig(
             regimen_id=regimen_id,
@@ -110,77 +126,80 @@ class RegimenDteService:
             es_exclusivo=es_exclusivo,
         )
         self.db.add(config)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(config)
         return config
 
+    # ============================================================
+    # ACTUALIZAR CONFIGURACIÓN
+    # ============================================================
     async def actualizar_configuracion(
-        self,
-        regimen_id: UUID,
-        dte_id: UUID,
-        es_exclusivo: bool | None = None,
+        self, regimen_id: UUID, dte_id: UUID, es_exclusivo: bool
     ) -> RegimenDteConfig | None:
-        """Actualiza una configuración existente"""
-        config = await self.obtener_configuracion(regimen_id, dte_id)
-        if config is None:
+        query = select(RegimenDteConfig).where(
+            and_(
+                RegimenDteConfig.regimen_id == regimen_id,
+                RegimenDteConfig.dte_id == dte_id,
+            )
+        )
+        result = await self.db.execute(query)
+        config = result.scalar_one_or_none()
+        if not config:
             return None
 
-        if es_exclusivo is not None:
-            config.es_exclusivo = es_exclusivo
-
-        await self.db.flush()
+        config.es_exclusivo = es_exclusivo
+        await self.db.commit()
         await self.db.refresh(config)
         return config
 
+    # ============================================================
+    # DESASOCIAR
+    # ============================================================
     async def desasociar(self, regimen_id: UUID, dte_id: UUID) -> bool:
-        """Elimina la asociación entre régimen y DTE"""
-        config = await self.obtener_configuracion(regimen_id, dte_id)
-        if config is None:
-            return False
+        query = delete(RegimenDteConfig).where(
+            and_(
+                RegimenDteConfig.regimen_id == regimen_id,
+                RegimenDteConfig.dte_id == dte_id,
+            )
+        )
+        result = await self.db.execute(query)
+        await self.db.commit()
+        return result.rowcount > 0
 
-        await self.db.delete(config)
-        await self.db.flush()
-        return True
-
+    # ============================================================
+    # ASOCIACIÓN MASIVA (bulk)
+    # ============================================================
     async def asociar_bulk(
-        self,
-        regimen_id: UUID,
-        dte_ids: list[UUID],
-        es_exclusivo: bool = False,
+        self, regimen_id: UUID, dte_ids: list[UUID], es_exclusivo: bool = False
     ) -> list[RegimenDteConfig]:
-        """Asocia múltiples DTE a un régimen"""
-        # Validar régimen
-        regimen_query = select(RegimenFiscal).where(
-            RegimenFiscal.id == regimen_id,
-            RegimenFiscal.is_active.is_(True),
+        regimen = await self.db.get(RegimenFiscal, regimen_id)
+        if not regimen:
+            raise ValueError("Régimen fiscal no encontrado")
+
+        existentes_query = select(RegimenDteConfig.dte_id).where(
+            RegimenDteConfig.regimen_id == regimen_id
         )
-        regimen_result = await self.db.execute(regimen_query)
-        if regimen_result.scalars().first() is None:
-            raise ValueError("Régimen no encontrado o inactivo")
+        existentes_result = await self.db.execute(existentes_query)
+        existentes = set(existentes_result.scalars().all())
 
-        # Validar DTEs
-        dte_query = select(TipoDTE).where(
-            TipoDTE.id.in_(dte_ids),
-            TipoDTE.activo.is_(True),
-        )
-        dte_result = await self.db.execute(dte_query)
-        dtes_validos = dte_result.scalars().all()
-
-        if len(dtes_validos) != len(dte_ids):
-            raise ValueError("Algunos DTE no existen o están inactivos")
-
-        # Crear asociaciones
-        configs_creadas = []
+        configs = []
         for dte_id in dte_ids:
-            existente = await self.obtener_configuracion(regimen_id, dte_id)
-            if existente is None:
-                config = RegimenDteConfig(
-                    regimen_id=regimen_id,
-                    dte_id=dte_id,
-                    es_exclusivo=es_exclusivo,
-                )
-                self.db.add(config)
-                configs_creadas.append(config)
+            if dte_id in existentes:
+                continue
 
-        await self.db.flush()
-        return configs_creadas
+            dte = await self.db.get(TipoDTE, dte_id)
+            if not dte:
+                raise ValueError(f"Tipo DTE con id {dte_id} no encontrado")
+
+            config = RegimenDteConfig(
+                regimen_id=regimen_id,
+                dte_id=dte_id,
+                es_exclusivo=es_exclusivo,
+            )
+            self.db.add(config)
+            configs.append(config)
+
+        await self.db.commit()
+        for c in configs:
+            await self.db.refresh(c)
+        return configs

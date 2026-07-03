@@ -65,7 +65,7 @@
               </span>
             </div>
           </div>
-          <div v-if="rep.es_activo" class="flex gap-2 flex-shrink-0">
+          <div v-if="rep.es_activo" class="flex gap-2 shrink-0">
             <button
               @click="editarRepresentante(rep)"
               class="text-blue-600 hover:text-blue-800 text-sm font-medium px-2 py-1 rounded hover:bg-blue-50"

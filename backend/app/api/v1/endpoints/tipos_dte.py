@@ -1,4 +1,5 @@
 """Router para gestión de Tipos DTE"""
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
@@ -60,7 +61,7 @@ async def listar_tipos_dte_activos(
 # ============================================================
 @router.get("/{dte_id}", response_model=TipoDTEResponse)
 async def obtener_tipo_dte(
-    dte_id: str,
+    dte_id: UUID,  
     service: TipoDTEService = Depends(get_service),
 ):
     """Obtiene un tipo DTE por ID"""
@@ -94,7 +95,7 @@ async def crear_tipo_dte(
 # ============================================================
 @router.patch("/{dte_id}", response_model=TipoDTEResponse)
 async def actualizar_tipo_dte(
-    dte_id: str,
+    dte_id: UUID,  # ✅ Corregido: str → UUID
     data: TipoDTEUpdate,
     service: TipoDTEService = Depends(get_service),
 ):
@@ -113,7 +114,7 @@ async def actualizar_tipo_dte(
 # ============================================================
 @router.delete("/{dte_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_tipo_dte(
-    dte_id: str,
+    dte_id: UUID,  # ✅ Corregido: str → UUID
     service: TipoDTEService = Depends(get_service),
 ):
     """Desactiva un tipo DTE (soft delete)"""
@@ -134,7 +135,6 @@ async def exportar_excel(
 ):
     """Exporta catálogo de tipos DTE a Excel"""
     archivo = await service.exportar_excel()
-    
     return StreamingResponse(
         archivo,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -153,7 +153,6 @@ async def importar_excel(
 ):
     """
     Importa tipos DTE desde Excel.
-    
     El archivo debe tener las columnas: codigo, descripcion, requiere_complemento, es_factura
     """
     if not archivo.filename or not archivo.filename.endswith((".xlsx", ".xls")):
@@ -161,9 +160,7 @@ async def importar_excel(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Solo se aceptan archivos Excel (.xlsx, .xls)",
         )
-
     contenido = await archivo.read()
-    
     try:
         resultado = await service.importar_excel(
             archivo_bytes=contenido,

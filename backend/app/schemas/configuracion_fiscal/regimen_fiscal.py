@@ -1,13 +1,13 @@
 """Schemas para Regímenes Fiscales"""
-
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+
 # ============================================================
 # BASE
 # ============================================================
-
 class RegimenFiscalBase(BaseModel):
     codigo: str = Field(..., min_length=1, max_length=50, examples=["PC_FEL"])
     nombre: str = Field(..., min_length=1, max_length=100, examples=["Pequeño Contribuyente Electrónico (FEL)"])
@@ -26,11 +26,15 @@ class RegimenFiscalUpdate(BaseModel):
 
 
 # ============================================================
-# RESPONSE
+# RESPONSE (con auditoría completa)
 # ============================================================
-
 class RegimenFiscalResponse(RegimenFiscalBase):
     id: UUID
+    # Auditoría completa
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    created_by: UUID | None = None
+    updated_by: UUID | None = None
 
     model_config = {"from_attributes": True}
 
@@ -41,14 +45,16 @@ class RegimenFiscalListResponse(BaseModel):
     nombre: str
     descripcion: str | None = None
     is_active: bool
+    # Auditoría mínima para listados
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
 
 # ============================================================
-# RESPONSE CON FORMULARIOS ASOCIADOS (para vista detallada)
+# RESPONSE CON FORMULARIOS ASOCIADOS
 # ============================================================
-
 class FormularioAsociadoBrief(BaseModel):
     id: UUID
     codigo: str

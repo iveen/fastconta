@@ -1,5 +1,5 @@
 """Schemas para Tipos DTE"""
-
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -28,12 +28,15 @@ class TipoDTEUpdate(BaseModel):
 
 
 # ============================================================
-# TIPO DTE - RESPONSE
+# TIPO DTE - RESPONSE (con auditoría completa)
 # ============================================================
 class TipoDTEResponse(TipoDTEBase):
     id: UUID
-    created_at: str | None = None
-    updated_at: str | None = None
+    # Auditoría completa (heredada de AuditableFull)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    created_by: UUID | None = None
+    updated_by: UUID | None = None
 
     model_config = {"from_attributes": True}
 
@@ -45,6 +48,9 @@ class TipoDTEListResponse(BaseModel):
     requiere_complemento: bool
     es_factura: bool
     activo: bool
+    # Auditoría mínima para listados
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -60,7 +66,6 @@ class TipoDTEImportItem(BaseModel):
 
 
 class TipoDTEImportRequest(BaseModel):
-    """Request para importación masiva"""
     items: list[TipoDTEImportItem]
     sobrescribir: bool = Field(
         False,
@@ -69,7 +74,6 @@ class TipoDTEImportRequest(BaseModel):
 
 
 class TipoDTEImportResult(BaseModel):
-    """Resultado de importación"""
     creados: int = 0
     actualizados: int = 0
     omitidos: int = 0
@@ -90,10 +94,16 @@ class RegimenDteConfigResponse(BaseModel):
     regimen_id: UUID
     dte_id: UUID
     es_exclusivo: bool
+    # Datos enriquecidos de las relaciones
     regimen_codigo: str | None = None
     regimen_nombre: str | None = None
     dte_codigo: str | None = None
     dte_descripcion: str | None = None
+    # Auditoría
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    created_by: UUID | None = None
+    updated_by: UUID | None = None
 
     model_config = {"from_attributes": True}
 
@@ -103,6 +113,5 @@ class RegimenDteConfigUpdate(BaseModel):
 
 
 class RegimenDteBulkRequest(BaseModel):
-    """Request para asociar/desasociar múltiples DTE a un régimen"""
     dte_ids: list[UUID] = Field(..., min_length=1)
     es_exclusivo: bool = False

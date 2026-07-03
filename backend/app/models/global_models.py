@@ -56,7 +56,7 @@ class RegistrationAttempt(Base):
     ip_address = Column(String(45), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class TipoDTE(Base):
+class TipoDTE(Base, AuditableFull):
     __tablename__ = "tipos_dte"
     __table_args__ = {'schema': 'public'}
 
@@ -66,10 +66,8 @@ class TipoDTE(Base):
     requiere_complemento = Column(Boolean, default=False, nullable=False)
     es_factura = Column(Boolean, default=True, nullable=False)
     activo = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-class CatalogoMoneda(Base):
+class CatalogoMoneda(AuditableFull, Base):
     __tablename__ = "catalogo_monedas"
     __table_args__ = {'schema': 'public'}
 
@@ -80,8 +78,7 @@ class CatalogoMoneda(Base):
     simbolo = Column(String(5), nullable=True)
     decimales = Column(Integer, default=2, nullable=False)
     activo = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    # ✅ created_at, updated_at, created_by, updated_by → heredados
 
 class CatalogoImpuestoEspecial(Base):
     __tablename__ = "catalogo_impuestos_especiales"
@@ -107,7 +104,7 @@ class EstadoLibro(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     nombre = Column(String(50), nullable=False)
 
-class RegimenDteConfig(Base):
+class RegimenDteConfig(Base, AuditableFull):
     __tablename__ = 'regimen_dte_config'
     __table_args__ = {'schema': 'public'}
 
@@ -121,12 +118,14 @@ class RegimenDteConfig(Base):
     dte = relationship("TipoDTE")
 
 
-class TipoPersona(Base):
+class TipoPersona(AuditableFull, Base):
     __tablename__ = 'tipos_persona'
     __table_args__ = {'schema': 'public'}
-    
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
-    nombre = Column(String(50), nullable=False) # NATURAL, JURIDICA, etc.
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    nombre = Column(String(50), nullable=False, unique=True)  # NATURAL, JURIDICA
+    descripcion = Column(String(200), nullable=True)
+    # ✅ Los 4 campos de auditoría → heredados
     
 class TipoDomicilio(Base):
     __tablename__ = 'tipos_domicilio'
@@ -134,33 +133,42 @@ class TipoDomicilio(Base):
     id = Column(UUID, primary_key=True, default=uuid.uuid4)
     nombre = Column(String(50), nullable=False, unique=True) # "Fiscal", "Operativo", "Sucursal"
 
-class Departamento(Base):
+class Departamento(AuditableFull, Base):
     __tablename__ = 'departamentos'
     __table_args__ = {'schema': 'public'}
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
-    codigo_iso = Column(String(2), nullable=False)
-    nombre = Column(String(100))
+
+    # ✅ Corregido: UUID → UUID(as_uuid=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    codigo_iso = Column(String(2), unique=True, nullable=False)
+    nombre = Column(String(100), nullable=False)
+    # ✅ Los 4 campos de auditoría → heredados
+
     municipios = relationship("Municipio", back_populates="departamento")
 
-class Municipio(Base):
+class Municipio(AuditableFull, Base):
     __tablename__ = 'municipios'
     __table_args__ = {'schema': 'public'}
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
-    codigo_iso = Column(String(4), nullable=False)
+
+    # ✅ Corregido: UUID → UUID(as_uuid=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    codigo_iso = Column(String(4), unique=True, nullable=False)
     nombre = Column(String(100), nullable=False)
-    departamento_id = Column(UUID, ForeignKey("public.departamentos.id"), nullable=False)
+    departamento_id = Column(UUID(as_uuid=True), ForeignKey("public.departamentos.id"), nullable=False)
+    # ✅ Los 4 campos de auditoría → heredados
+
     departamento = relationship("Departamento", back_populates="municipios")
 
-class ActividadEconomicaSAT(Base):
+
+class ActividadEconomicaSAT(AuditableFull, Base):
     __tablename__ = "actividades_economicas_sat"
     __table_args__ = {"schema": "public"}
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     codigo_sat = Column(String(20), unique=True, nullable=False, index=True)
     nombre_actividad = Column(String(255), nullable=False)
     seccion = Column(String(255), nullable=True)
     activa = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # ✅ created_at heredado; updated_at, created_by, updated_by → nuevos
 
 # ---- RBAC
 class User(Base):
@@ -223,37 +231,29 @@ class EstadoActivoFijoEnum(str, enum.Enum):
     dado_baja = "dado_baja"
     vendido = "vendido"
 
-class CategoriaActivoFijo(Base):
+class CategoriaActivoFijo(AuditableFull, Base):
     __tablename__ = "categorias_activos_fijos"
-    __table_args__ = {"schema": "public"}
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    
-    # Nombre del tipo de activo (Ej: "Vehiculos", "Equipo de Computo", "Edificios")
-    nombre = Column(String(100), nullable=False, unique=True)
+    __table_args__ = (
+        CheckConstraint("tasa_maxima_anual >= tasa_minima_anual", name="chk_categoria_tasa_valida"),
+        {"schema": "public"}
+    )
 
-    # ✅ NUEVO CAMPO: Descripción legal basada en la Ley de ISR / Decreto 10-2012
-    descripcion = Column(Text, nullable=True) 
-    
-    # Porcentajes anuales segun limites de la SAT (Decreto 10-2012 y AG 142-2013)
-    # Se almacenan como decimales (Ej: 20.00 para 20%)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    nombre = Column(String(100), nullable=False, unique=True)
+    descripcion = Column(Text, nullable=True)
     tasa_minima_anual = Column(Numeric(5, 2), nullable=False, server_default="0.00")
     tasa_maxima_anual = Column(Numeric(5, 2), nullable=False)
     vida_util_meses_default = Column(Integer, nullable=False)
-    codigo_prefijo = Column(String(10), nullable=False, unique=True, index=True, comment="Prefijo para código interno (ej: VEH, COMP)")
-    
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    codigo_prefijo = Column(String(10), nullable=False, unique=True, index=True,
+                            comment="Prefijo para código interno (ej: VEH, COMP)")
     is_active = Column(Boolean, default=True)
-
-    __table_args__ = (
-        CheckConstraint("tasa_maxima_anual >= tasa_minima_anual", name="chk_categoria_tasa_valida"),
-    )
+    # ✅ created_at heredado; updated_at, created_by, updated_by → nuevos
 
 #------------------------------------------------------
 # Catálogos Motor Tributario
 #------------------------------------------------------
 
-class RegimenFiscal(Base):
+class RegimenFiscal(Base, AuditableFull):
     __tablename__ = "regimenes_fiscales"
     __table_args__ = {"schema": "public"}
     

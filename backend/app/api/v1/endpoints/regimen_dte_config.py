@@ -1,5 +1,4 @@
 """Router para Configuración Régimen-DTE"""
-
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -27,25 +26,27 @@ def get_service(db: AsyncSession = Depends(get_db)) -> RegimenDteService:
 # ============================================================
 # LISTAR POR RÉGIMEN
 # ============================================================
-@router.get("/regimen/{regimen_id}", response_model=list[RegimenDteConfigResponse])
+@router.get("/regimen/{regimen_id}")
 async def listar_por_regimen(
     regimen_id: UUID,
     service: RegimenDteService = Depends(get_service),
 ):
     """Lista DTE configurados para un régimen"""
-    return await service.obtener_por_regimen(regimen_id)
+    data = await service.obtener_por_regimen(regimen_id)
+    return [RegimenDteConfigResponse.model_validate(d) for d in data]
 
 
 # ============================================================
 # LISTAR POR DTE
 # ============================================================
-@router.get("/dte/{dte_id}", response_model=list[RegimenDteConfigResponse])
+@router.get("/dte/{dte_id}")
 async def listar_por_dte(
     dte_id: UUID,
     service: RegimenDteService = Depends(get_service),
 ):
     """Lista regímenes configurados para un DTE"""
-    return await service.obtener_por_dte(dte_id)
+    data = await service.obtener_por_dte(dte_id)
+    return [RegimenDteConfigResponse.model_validate(d) for d in data]
 
 
 # ============================================================
@@ -65,7 +66,6 @@ async def obtener_dte_permitidos(
 # ============================================================
 @router.post(
     "/regimen/{regimen_id}/dte",
-    response_model=RegimenDteConfigResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def asociar_dte(
@@ -80,7 +80,7 @@ async def asociar_dte(
             dte_id=data.dte_id,
             es_exclusivo=data.es_exclusivo,
         )
-        return config
+        return RegimenDteConfigResponse.model_validate(config)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -90,7 +90,6 @@ async def asociar_dte(
 # ============================================================
 @router.patch(
     "/regimen/{regimen_id}/dte/{dte_id}",
-    response_model=RegimenDteConfigResponse,
 )
 async def actualizar_configuracion(
     regimen_id: UUID,
@@ -109,7 +108,7 @@ async def actualizar_configuracion(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Configuración no encontrada",
         )
-    return config
+    return RegimenDteConfigResponse.model_validate(config)
 
 
 # ============================================================
@@ -138,7 +137,6 @@ async def desasociar_dte(
 # ============================================================
 @router.post(
     "/regimen/{regimen_id}/dte/bulk",
-    response_model=list[RegimenDteConfigResponse],
     status_code=status.HTTP_201_CREATED,
 )
 async def asociar_dte_bulk(
@@ -153,6 +151,6 @@ async def asociar_dte_bulk(
             dte_ids=data.dte_ids,
             es_exclusivo=data.es_exclusivo,
         )
-        return configs
+        return [RegimenDteConfigResponse.model_validate(c) for c in configs]
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

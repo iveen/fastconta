@@ -11,6 +11,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!token.value)
 
+  // ✅ NUEVO: Verificar si es SuperAdmin
+  const isSuperAdmin = computed(() => {
+    return user.value?.role === 'superadmin'
+  })
+
   // ✅ NUEVO: Iniciales del usuario para el avatar
   const initials = computed(() => {
     if (!user.value) return 'U'
@@ -124,6 +129,7 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     loading,
     isAuthenticated,
+    isSuperAdmin,        // ✅ NUEVO
     initials,
     roleLabel,
     canManageUsers,

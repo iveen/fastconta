@@ -182,9 +182,14 @@ async def upload_facturas(
             
             clasificacion_inicial = await clasificar_gasto_sat(datos)
 
+            # ============================================
+            # XML original (extraerlo del FileContent)
+            # ============================================
+            xml_original = content.parsed_data.get("xml_text", "") if content.parsed_data else None
+
             factura = FacturaElectronica(
                 empresa_id=empresa_id_final,
-                xml_original="",
+                xml_original=xml_original,
                 numero_autorizacion=datos['numero_autorizacion'],
                 serie=datos.get('serie'),
                 numero=datos.get('numero'),

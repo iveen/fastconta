@@ -13,6 +13,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.file_handlers import FileHandlerRegistry
 from app.core.security import DataScope, get_data_scope
 from app.db.session import get_public_db
 from app.dependencies.empresa import get_active_empresa  # ✅ NUEVO
@@ -28,7 +29,7 @@ from app.models.tenant_models import (
 from app.schemas.factura import FacturaOut
 from app.schemas.partida import DetallePartidaOut, PartidaOut
 from app.services.banguat_ws import obtener_tipo_cambio
-from app.services.fel_parser import parse_fel_xml
+from app.services.fel.context import FelIngestionContext
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -120,16 +121,19 @@ async def upload_facturas(
     rechazos = []
 
     for file in files:
-        if not file.filename.lower().endswith('.xml'):
-            rechazos.append(f"{file.filename}: No es XML")
-            continue
-        
         try:
-            xml_str = (await file.read()).decode('utf-8')
-            datos = await parse_fel_xml(xml_str, db)
-            if not datos:
-                rechazos.append(f"{file.filename}: Parse fallido")
+            # 1. Leer con handler genérico
+            handler = FileHandlerRegistry.resolve(file.filename, file.content_type)
+            content = await handler.read(file)
+            
+            # 2. Parsear con estrategia FEL
+            result = await FelIngestionContext.ingest(content, db)
+            
+            if not result.success:
+                rechazos.append(f"{file.filename}: {result.error}")
                 continue
+            
+            datos = result.data
 
             # Evitar duplicados
             dup = await db.execute(
@@ -180,7 +184,7 @@ async def upload_facturas(
 
             factura = FacturaElectronica(
                 empresa_id=empresa_id_final,
-                xml_original=xml_str,
+                xml_original="",
                 numero_autorizacion=datos['numero_autorizacion'],
                 serie=datos.get('serie'),
                 numero=datos.get('numero'),

@@ -1,12 +1,14 @@
 from app.core.file_handlers import FileContent
 
 from .strategies.base import FelIngestionStrategy, FelParsedResult
+from .strategies.pdf_strategy import PdfFelStrategy
 from .strategies.xml_strategy import XmlFelStrategy
 
 
 class FelIngestionContext:
     STRATEGIES: list[type[FelIngestionStrategy]] = [
         XmlFelStrategy,
+        PdfFelStrategy,  # ← NUEVO
     ]
 
     @classmethod

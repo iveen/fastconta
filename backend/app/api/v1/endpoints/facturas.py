@@ -119,6 +119,7 @@ async def upload_facturas(
 
     facturas_creadas = []
     rechazos = []
+    requieren_revision_manual = []
 
     for file in files:
         try:
@@ -130,6 +131,12 @@ async def upload_facturas(
             result = await FelIngestionContext.ingest(content, db)
             
             if not result.success:
+                rechazos.append(f"{file.filename}: {result.error}")
+                continue
+
+            if result.requires_manual_review:
+                requieren_revision_manual.append(file.filename)
+                # Decide si lo agregas a rechazos o a una lista separada
                 rechazos.append(f"{file.filename}: {result.error}")
                 continue
             
@@ -257,7 +264,12 @@ async def upload_facturas(
             rechazos.append(f"{file.filename}: {str(e)}")
 
     await db.commit()
-    return {"cargadas": len(facturas_creadas), "rechazadas": rechazos}
+    
+    return {
+        "cargadas": len(facturas_creadas),
+        "rechazadas": rechazos,
+        "requieren_revision_manual": requieren_revision_manual,  
+    }
 
 
 # ==========================================

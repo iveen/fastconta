@@ -1,11 +1,12 @@
 """
 Estrategia FEL para PDFs.
 - Si tiene XML embebido → reutiliza parse_fel_xml (100% preciso)
-- Si solo tiene texto → marca para revisión manual (no intenta adivinar)
+- Si solo tiene texto → usa parse_fel_texto (regex)
 """
 import logging
 
 from app.core.file_handlers import FileContent
+from app.services.fel.strategies.pdf_text_parser import parse_fel_texto
 from app.services.fel_parser import parse_fel_xml
 
 from .base import FelIngestionStrategy, FelParsedResult
@@ -38,11 +39,29 @@ class PdfFelStrategy(FelIngestionStrategy):
                 source_format="pdf_embedded",
             )
 
-        # Caso B: Solo texto → marcar para revisión manual
-        # NO intentamos regex aquí porque es propenso a errores en NITs y montos
+        # Caso B: Solo texto → intentar parsear con regex
+        text = content.parsed_data.get("text", "")
+        if not text or len(text) < 100:
+            return FelParsedResult(
+                success=False,
+                error="PDF sin contenido legible",
+                source_format="pdf_text",
+                requires_manual_review=True,
+            )
+
+        data = await parse_fel_texto(text)
+        if not data:
+            return FelParsedResult(
+                success=False,
+                error="No se pudo extraer datos del PDF. Formato no reconocido.",
+                source_format="pdf_text",
+                requires_manual_review=True,
+            )
+
+        # Éxito pero marcar para revisión (los datos vienen de regex, no son 100% confiables)
         return FelParsedResult(
-            success=False,
-            error="PDF sin XML embebido. Requiere revisión manual o OCR.",
+            success=True,
+            data=data,
             source_format="pdf_text",
-            requires_manual_review=True,
+            requires_manual_review=True,  # ⚠️ IMPORTANTE: siempre requiere revisión
         )

@@ -1,8 +1,9 @@
 """
 PDF Handler para FEL Guatemala.
-Estrategia en 2 pasos:
+Estrategia en 3 pasos:
   1. Intentar extraer XML embebido (adjunto o XFA).
   2. Si no hay XML, extraer texto plano con pdfplumber.
+  3. Si pdfplumber falla, usar Tesseract OCR.
 """
 import io
 import logging
@@ -10,6 +11,14 @@ import logging
 import pdfplumber
 import pikepdf
 from fastapi import UploadFile
+
+try:
+    import pytesseract
+    from PIL import Image
+    HAS_TESSERACT = True
+except ImportError:
+    HAS_TESSERACT = False
+    pytesseract = None
 
 from .base import FileContent, FileHandler, FileHandlerRegistry
 
@@ -37,15 +46,39 @@ class PdfFileHandler(FileHandler):
                 parsed_data={"xml_text": embedded_xml, "source": "embedded"},
             )
 
-        # Paso 2: Texto plano (sin OCR por ahora)
+        # Paso 2: Texto plano con pdfplumber
         text = self._extract_text(raw)
-        logger.info(f"⚠️ PDF sin XML embebido: {filename}, extrayendo texto plano")
+        if text and len(text) > 100:
+            logger.info(f"📄 Texto extraído con pdfplumber: {len(text)} caracteres")
+            return FileContent(
+                raw_bytes=raw,
+                filename=filename,
+                mime_type="application/pdf",
+                extension="pdf",
+                parsed_data={"text": text, "source": "text", "method": "pdfplumber"},
+            )
+
+        # Paso 3: Fallback a Tesseract OCR (si está disponible)
+        if HAS_TESSERACT:
+            logger.warning("⚠️ pdfplumber no extrajo suficiente texto, intentando OCR...")
+            ocr_text = self._extract_text_ocr(raw)
+            if ocr_text and len(ocr_text) > 100:
+                logger.info(f"🔍 Texto extraído con Tesseract OCR: {len(ocr_text)} caracteres")
+                return FileContent(
+                    raw_bytes=raw,
+                    filename=filename,
+                    mime_type="application/pdf",
+                    extension="pdf",
+                    parsed_data={"text": ocr_text, "source": "text", "method": "ocr"},
+                )
+
+        logger.error(f"❌ No se pudo extraer texto del PDF: {filename}")
         return FileContent(
             raw_bytes=raw,
             filename=filename,
             mime_type="application/pdf",
             extension="pdf",
-            parsed_data={"text": text, "source": "text"},
+            parsed_data={"text": "", "source": "text", "method": "failed"},
         )
 
     def _extract_embedded_xml(self, pdf_bytes: bytes) -> str | None:
@@ -92,8 +125,43 @@ class PdfFileHandler(FileHandler):
     def _extract_text(self, pdf_bytes: bytes) -> str:
         """Extracción de texto plano con pdfplumber."""
         chunks = []
-        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-            for page in pdf.pages:
-                t = page.extract_text() or ""
-                chunks.append(t)
+        try:
+            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                for page in pdf.pages:
+                    t = page.extract_text() or ""
+                    chunks.append(t)
+        except Exception as e:
+            logger.warning(f"Error en pdfplumber: {e}")
+        
         return "\n".join(chunks)
+
+    def _extract_text_ocr(self, pdf_bytes: bytes) -> str:
+        """Extracción de texto con Tesseract OCR (fallback)."""
+        if not HAS_TESSERACT:
+            return ""
+
+        try:
+            import fitz  # PyMuPDF para convertir PDF a imagen
+            
+            text_chunks = []
+            pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            
+            for page_num in range(len(pdf_doc)):
+                page = pdf_doc[page_num]
+                # Convertir página a imagen (300 DPI)
+                pix = page.get_pixmap(matrix=fitz.Matrix(300/72, 300/72))
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                
+                # OCR con Tesseract (español)
+                text = pytesseract.image_to_string(img, lang='spa')
+                text_chunks.append(text)
+            
+            pdf_doc.close()
+            return "\n".join(text_chunks)
+            
+        except ImportError:
+            logger.error("PyMuPDF no está instalado. Instala: pip install PyMuPDF")
+            return ""
+        except Exception as e:
+            logger.error(f"Error en OCR: {e}")
+            return ""

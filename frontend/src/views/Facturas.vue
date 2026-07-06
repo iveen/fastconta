@@ -6,9 +6,17 @@
       <div class="flex justify-between items-center mb-6">
         <h1 class="text-2xl font-bold text-gray-800">Facturas Electrónicas (FEL)</h1>
         <div class="flex gap-3">
-          <input ref="fileXML" type="file" multiple accept=".xml" @change="handleFileSelect" class="hidden" />
-          <button @click="$refs.fileXML.click()" :disabled="!companyStore.selectedCompanyId || uploading" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow transition flex items-center gap-2 disabled:opacity-50">
-            <span>+</span> {{ uploading ? 'Subiendo...' : 'Cargar XML' }}
+          <input ref="fileXML" type="file" multiple accept=".xml,.pdf" @change="handleFileSelect" class="hidden" />
+          <button
+            @click="$refs.fileXML.click()"
+            :disabled="!companyStore.selectedCompanyId || uploading"
+            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow transition flex items-center gap-2 disabled:opacity-50 relative group"
+            title="Soporta XML y PDF (con XML embebido)"
+          >
+            <span>+</span> {{ uploading ? 'Subiendo...' : 'Cargar FEL' }}
+            <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs bg-gray-800 text-white rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap pointer-events-none">
+              Formatos: XML, PDF
+            </span>
           </button>
           <input ref="fileXLS" type="file" accept=".xlsx,.xls" @change="validarXLS" class="hidden" />
           <button @click="$refs.fileXLS.click()" :disabled="!companyStore.selectedCompanyId || validando" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg shadow transition flex items-center gap-2 disabled:opacity-50">
@@ -52,9 +60,66 @@
           <span class="font-semibold text-gray-800">{{ companyStore.currentCompany?.nombre || 'Desconocida' }}</span>
         </div>
 
+        <!--  TARJETAS DE RESUMEN -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p class="text-sm text-blue-600 font-medium">Compras del Período</p>
+            <p class="text-2xl font-bold text-blue-700">{{ formatCurrency(totalesCompras, 'GTQ') }}</p>
+            <p class="text-xs text-blue-600 mt-1">{{ facturasFiltradas.filter(f => f.tipo_operacion === 'Compra').length }} facturas recibidas</p>
+          </div>
+          
+          <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+            <p class="text-sm text-green-600 font-medium">Ventas del Período</p>
+            <p class="text-2xl font-bold text-green-700">{{ formatCurrency(totalesVentas, 'GTQ') }}</p>
+            <p class="text-xs text-green-600 mt-1">{{ facturasFiltradas.filter(f => f.tipo_operacion === 'Venta').length }} facturas emitidas</p>
+          </div>
+          
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <p class="text-sm text-gray-600 font-medium">Balance Neto</p>
+            <p class="text-2xl font-bold" :class="totalesVentas - totalesCompras >= 0 ? 'text-green-700' : 'text-red-700'">
+              {{ formatCurrency(totalesVentas - totalesCompras, 'GTQ') }}
+            </p>
+            <p class="text-xs text-gray-600 mt-1">Ventas - Compras</p>
+          </div>
+        </div>
+
+        <!-- 🆕 FILTROS DE PERÍODO -->
+        <div class="bg-white p-4 rounded-lg shadow mb-6 flex flex-wrap items-center gap-4">
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-medium text-gray-700">Período:</label>
+            <select v-model="filtroMes" @change="aplicarFiltros" class="border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2 border text-sm">
+              <option value="">Todos los meses</option>
+              <option v-for="m in meses" :key="m.value" :value="m.value">{{ m.label }}</option>
+            </select>
+          </div>
+          
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-medium text-gray-700">Año:</label>
+            <select v-model="filtroAnio" @change="aplicarFiltros" class="border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2 border text-sm">
+              <option value="">Todos los años</option>
+              <option v-for="a in anios" :key="a" :value="a">{{ a }}</option>
+            </select>
+          </div>
+          
+          <button 
+            v-if="filtroMes || filtroAnio" 
+            @click="limpiarFiltros" 
+            class="text-sm text-blue-600 hover:text-blue-800 underline"
+          >
+            Limpiar filtros
+          </button>
+          
+          <div class="ml-auto text-sm text-gray-600">
+            Mostrando {{ facturasFiltradas.length }} de {{ facturas.length }} facturas
+          </div>
+        </div>
+
         <!-- Tabla de resultados -->
         <div class="bg-white rounded-lg shadow overflow-hidden">
-          <div v-if="loading" class="p-8 text-center"><div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div><p class="mt-2 text-sm text-gray-500">Cargando facturas...</p></div>
+          <div v-if="loading" class="p-8 text-center">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p class="mt-2 text-sm text-gray-500">Cargando facturas...</p>
+          </div>
           <div v-else class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
               <thead class="bg-gray-50">
@@ -68,7 +133,8 @@
                   <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">IVA</th>
                   <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">T/C</th>
                   <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Moneda</th>
-                  <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                  <th class="px-4 py-3 text-right text-xs font-medium text-blue-600 uppercase tracking-wider">Compras</th>
+                  <th class="px-4 py-3 text-right text-xs font-medium text-green-600 uppercase tracking-wider">Ventas</th>
                   <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Validación</th>
                 </tr>
               </thead>
@@ -90,7 +156,12 @@
                   <td class="px-4 py-3 text-sm font-mono text-right">{{ formatCurrency(f.total_iva, f.moneda) }}</td>
                   <td class="px-4 py-3 text-sm font-mono text-gray-600">{{ formatTipoCambio(f.tipo_cambio, f.moneda) }}</td>
                   <td class="px-4 py-3 text-sm font-bold text-gray-700">{{ f.moneda }}</td>
-                  <td class="px-4 py-3 text-sm font-bold text-right text-gray-900">{{ formatCurrency(f.total, f.moneda) }}</td>
+                  <td class="px-4 py-3 text-sm font-bold text-right text-blue-700">
+                    {{ f.tipo_operacion === 'Compra' ? formatCurrency(f.total, f.moneda) : '-' }}
+                  </td>
+                  <td class="px-4 py-3 text-sm font-bold text-right text-green-700">
+                    {{ f.tipo_operacion === 'Venta' ? formatCurrency(f.total, f.moneda) : '-' }}
+                  </td>
                   <td class="px-4 py-3 text-sm">
                     <div v-if="f.validado" class="flex flex-col items-start gap-1">
                       <span class="px-2 py-1 rounded text-xs font-bold bg-green-100 text-green-700 border border-green-200">✅ Validada</span>
@@ -99,8 +170,23 @@
                     <span v-else class="px-2 py-1 rounded text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200">❌ Pendiente</span>
                   </td>
                 </tr>
-                <tr v-if="sortedFacturas.length === 0"><td colspan="11" class="px-4 py-8 text-center text-gray-500">No se encontraron facturas para esta empresa.</td></tr>
+                <tr v-if="sortedFacturas.length === 0">
+                  <td colspan="12" class="px-4 py-8 text-center text-gray-500">No se encontraron facturas para esta empresa.</td>
+                </tr>
               </tbody>
+              <!-- 🆕 FOOTER CON TOTALES -->
+              <tfoot v-if="facturasFiltradas.length > 0" class="bg-gray-100 font-semibold">
+                <tr>
+                  <td colspan="9" class="px-4 py-3 text-right text-sm text-gray-700">TOTALES DEL PERÍODO:</td>
+                  <td class="px-4 py-3 text-right text-sm font-mono text-blue-700">
+                    {{ formatCurrency(totalesCompras, 'GTQ') }}
+                  </td>
+                  <td class="px-4 py-3 text-right text-sm font-mono text-green-700">
+                    {{ formatCurrency(totalesVentas, 'GTQ') }}
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
@@ -125,14 +211,14 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { useCompanyStore } from '@/stores/company'  // ✅ NUEVO
+import { useCompanyStore } from '@/stores/company'
 import api from '@/services/api'
 import { formatDateGT, formatDateTimeGT } from '@/utils/dates'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
-const companyStore = useCompanyStore()  // ✅ NUEVO
+const companyStore = useCompanyStore()
 
 const facturas = ref([])
 const loading = ref(false)
@@ -144,6 +230,75 @@ const fileXLS = ref(null)
 const validando = ref(false)
 const resultadoXLS = ref(null)
 const sortConfig = ref({ field: 'fecha_emision', direction: 'desc' })
+
+// 🆕 Filtros de período
+const filtroMes = ref('')
+const filtroAnio = ref('')
+
+const meses = [
+  { value: '1', label: 'Enero' },
+  { value: '2', label: 'Febrero' },
+  { value: '3', label: 'Marzo' },
+  { value: '4', label: 'Abril' },
+  { value: '5', label: 'Mayo' },
+  { value: '6', label: 'Junio' },
+  { value: '7', label: 'Julio' },
+  { value: '8', label: 'Agosto' },
+  { value: '9', label: 'Septiembre' },
+  { value: '10', label: 'Octubre' },
+  { value: '11', label: 'Noviembre' },
+  { value: '12', label: 'Diciembre' }
+]
+
+const anios = computed(() => {
+  const aniosUnicos = [...new Set(facturas.value.map(f => new Date(f.fecha_emision).getFullYear()))]
+  return aniosUnicos.sort((a, b) => b - a)
+})
+
+// 🆕 Facturas filtradas por período
+const facturasFiltradas = computed(() => {
+  let filtradas = [...facturas.value]
+  
+  if (filtroAnio.value) {
+    filtradas = filtradas.filter(f => new Date(f.fecha_emision).getFullYear() === parseInt(filtroAnio.value))
+  }
+  
+  if (filtroMes.value) {
+    filtradas = filtradas.filter(f => (new Date(f.fecha_emision).getMonth() + 1) === parseInt(filtroMes.value))
+  }
+  
+  return filtradas
+})
+
+// 🆕 Totales calculados (corregidos para manejar strings y usar total_gtq)
+const totalesCompras = computed(() => {
+  return facturasFiltradas.value
+    .filter(f => f.tipo_operacion === 'Compra')
+    .reduce((sum, f) => {
+      // Usar total_gtq si existe (ya convertido), sino convertir total
+      const monto = f.total_gtq ? parseFloat(f.total_gtq) : parseFloat(f.total) || 0
+      return sum + monto
+    }, 0)
+})
+
+const totalesVentas = computed(() => {
+  return facturasFiltradas.value
+    .filter(f => f.tipo_operacion === 'Venta')
+    .reduce((sum, f) => {
+      // Usar total_gtq si existe (ya convertido con tipo de cambio), sino convertir total
+      const monto = f.total_gtq ? parseFloat(f.total_gtq) : parseFloat(f.total) || 0
+      return sum + monto
+    }, 0)
+})
+
+const aplicarFiltros = () => {
+  // Los filtros se aplican automáticamente por el computed
+}
+
+const limpiarFiltros = () => {
+  filtroMes.value = ''
+  filtroAnio.value = ''
+}
 
 // 🔹 Tenants para superadmin
 const tenants = ref([])
@@ -165,16 +320,20 @@ const handleTenantChange = () => {
 }
 
 const formatDate = (dateStr) => dateStr ? new Date(dateStr).toLocaleDateString('es-GT', { year: 'numeric', month: 'short', day: '2-digit' }) : '-'
+
 const formatTipoCambio = (tc, moneda) => moneda === 'GTQ' ? '1.00000' : (tc ? Number(tc).toFixed(5) : 'N/A')
+
 const formatCurrency = (amount, moneda) => {
-  if (!amount) return '0.00'
+  if (!amount || isNaN(amount)) return '0.00'  // ✅ Agregar validación NaN
   const symbol = moneda === 'GTQ' ? 'Q' : (moneda === 'USD' ? '$' : moneda)
   return `${symbol} ${Number(amount).toLocaleString('es-GT', { minimumFractionDigits: 2 })}`
 }
+
 const getTipoDTEClass = (codigo) => {
   const map = { FACT: 'bg-blue-100 text-blue-700', FCAM: 'bg-indigo-100 text-indigo-700', NCRE: 'bg-orange-100 text-orange-700', NDEB: 'bg-red-100 text-red-700', CIVA: 'bg-teal-100 text-teal-700', FESP: 'bg-pink-100 text-pink-700' }
   return `px-2 py-1 rounded text-xs font-semibold ${map[codigo] || 'bg-gray-100 text-gray-700'}`
 }
+
 const handleSort = (field) => {
   if (sortConfig.value.field === field) {
     sortConfig.value.direction = sortConfig.value.direction === 'asc' ? 'desc' : 'asc'
@@ -183,9 +342,11 @@ const handleSort = (field) => {
     sortConfig.value.direction = 'asc'
   }
 }
+
 const sortArrow = (field) => sortConfig.value.field === field ? (sortConfig.value.direction === 'asc' ? '▲' : '▼') : ''
+
 const sortedFacturas = computed(() => {
-  const sorted = [...facturas.value]
+  const sorted = [...facturasFiltradas.value]
   const { field, direction } = sortConfig.value
   if (!field) return sorted
   sorted.sort((a, b) => {
@@ -198,6 +359,7 @@ const sortedFacturas = computed(() => {
   })
   return sorted
 })
+
 const formFechaValidacion = (d) => d ? new Date(d).toLocaleString('es-GT', { dateStyle: 'short', timeStyle: 'short' }) : ''
 
 const cargarFacturas = async () => {
@@ -205,14 +367,12 @@ const cargarFacturas = async () => {
     facturas.value = []
     return
   }
-  
   loading.value = true
   try {
     const params = {}
     if (authStore.isSuperAdmin && selectedTenantId.value) {
       params.tenant_id = selectedTenantId.value
     }
-    // ✅ No pasamos empresa_id, el interceptor lo inyecta automáticamente
     const { data } = await api.get('/facturas/', { params })
     facturas.value = data
   } catch (err) {
@@ -223,9 +383,21 @@ const cargarFacturas = async () => {
 }
 
 const handleFileSelect = async (event) => {
-  const files = Array.from(event.target.files).filter(f => f.name.toLowerCase().endsWith('.xml'))
-  if (!files.length) return
-  if (!companyStore.selectedCompanyId) { statusMsg.value = '⚠️ Selecciona una empresa antes de cargar'; statusType.value = 'error'; return }
+  const files = Array.from(event.target.files).filter(f => {
+    const ext = f.name.toLowerCase().split('.').pop()
+    return ext === 'xml' || ext === 'pdf'
+  })
+  if (!files.length) {
+    statusMsg.value = '⚠️ Solo se permiten archivos XML o PDF'
+    statusType.value = 'error'
+    event.target.value = ''
+    return
+  }
+  if (!companyStore.selectedCompanyId) {
+    statusMsg.value = '⚠️ Selecciona una empresa antes de cargar'
+    statusType.value = 'error'
+    return
+  }
   await uploadFacturas(files)
   event.target.value = ''
 }
@@ -237,9 +409,15 @@ const uploadFacturas = async (files) => {
     files.forEach(file => formData.append('files', file))
     const params = {}
     if (authStore.isSuperAdmin && selectedTenantId.value) params.tenant_id = selectedTenantId.value
-    // ✅ No pasamos empresa_id, el interceptor lo inyecta automáticamente
     const { data } = await api.post('/facturas/upload', formData, { params, headers: {'Content-Type': undefined} })
-    const msg = data.rechazadas?.length ? `✅ ${data.cargadas} cargadas. ⚠️ ${data.rechazadas.length} rechazadas.` : `✅ ${data.cargadas} facturas cargadas correctamente.`
+    const revisionManual = data.requieren_revision_manual?.length || 0
+    let msg = `✅ ${data.cargadas} facturas cargadas.`
+    if (revisionManual > 0) {
+      msg += ` ⚠️ ${revisionManual} requieren revisión manual (PDF sin XML embebido).`
+    }
+    if (data.rechazadas?.length) {
+      msg += ` ❌ ${data.rechazadas.length} rechazadas.`
+    }
     statusMsg.value = msg; statusType.value = 'success'
     await cargarFacturas()
   } catch (err) {
@@ -258,7 +436,6 @@ const validarXLS = async (e) => {
     fd.append('file', file)
     const params = {}
     if (authStore.isSuperAdmin && selectedTenantId.value) params.tenant_id = selectedTenantId.value
-    // ✅ No pasamos empresa_id, el interceptor lo inyecta automáticamente
     const { data } = await api.post('/facturas/validar-hoja-electronica', fd, { params, headers: {'Content-Type': undefined} })
     resultadoXLS.value = data
     if (data.success) await cargarFacturas()
@@ -269,7 +446,6 @@ const validarXLS = async (e) => {
   }
 }
 
-// ✅ Watch: Recargar facturas cuando cambie la empresa seleccionada
 watch(() => companyStore.selectedCompanyId, async (newId) => {
   if (newId) {
     await cargarFacturas()
@@ -283,7 +459,6 @@ onMounted(async () => {
   if (authStore.isSuperAdmin && tenants.value.length > 0) {
     selectedTenantId.value = tenants.value[0].id
   }
-  // ✅ Cargar facturas si ya hay empresa seleccionada
   if (companyStore.selectedCompanyId) {
     await cargarFacturas()
   }

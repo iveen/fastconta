@@ -13,6 +13,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.file_handlers import FileHandlerRegistry
 from app.core.security import DataScope, get_data_scope
 from app.db.session import get_public_db
 from app.dependencies.empresa import get_active_empresa  # ✅ NUEVO
@@ -28,7 +29,7 @@ from app.models.tenant_models import (
 from app.schemas.factura import FacturaOut
 from app.schemas.partida import DetallePartidaOut, PartidaOut
 from app.services.banguat_ws import obtener_tipo_cambio
-from app.services.fel_parser import parse_fel_xml
+from app.services.fel.context import FelIngestionContext
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -118,18 +119,30 @@ async def upload_facturas(
 
     facturas_creadas = []
     rechazos = []
+    requieren_revision_manual = []
 
     for file in files:
-        if not file.filename.lower().endswith('.xml'):
-            rechazos.append(f"{file.filename}: No es XML")
-            continue
-        
         try:
-            xml_str = (await file.read()).decode('utf-8')
-            datos = await parse_fel_xml(xml_str, db)
-            if not datos:
-                rechazos.append(f"{file.filename}: Parse fallido")
+            # 1. Leer con handler genérico
+            handler = FileHandlerRegistry.resolve(file.filename, file.content_type)
+            content = await handler.read(file)
+            logger.info(f"📄 Archivo leído: {file.filename}, extensión: {content.extension}")
+            
+            # 2. Parsear con estrategia FEL
+            result = await FelIngestionContext.ingest(content, db)
+            logger.info(f"🔍 Resultado del parse: success={result.success}, error={result.error}, review={result.requires_manual_review}")
+            
+            if not result.success:
+                logger.warning(f"❌ Parse falló: {result.error}")
+                rechazos.append(f"{file.filename}: {result.error}")
                 continue
+
+            if result.requires_manual_review:
+                requieren_revision_manual.append(file.filename)
+                logger.info(f"⚠️ {file.filename} requiere revisión manual, pero se guardará")
+            
+            datos = result.data
+            logger.info(f"✅ Datos extraídos: {datos.get('numero_autorizacion')}, total={datos.get('total')}")
 
             # Evitar duplicados
             dup = await db.execute(
@@ -178,9 +191,14 @@ async def upload_facturas(
             
             clasificacion_inicial = await clasificar_gasto_sat(datos)
 
+            # ============================================
+            # XML original (extraerlo del FileContent)
+            # ============================================
+            xml_original = content.parsed_data.get("xml_text", "") if content.parsed_data else None
+
             factura = FacturaElectronica(
                 empresa_id=empresa_id_final,
-                xml_original=xml_str,
+                xml_original=xml_original,
                 numero_autorizacion=datos['numero_autorizacion'],
                 serie=datos.get('serie'),
                 numero=datos.get('numero'),
@@ -219,6 +237,7 @@ async def upload_facturas(
                 retencion_isr=Decimal(str(datos.get('retencion_isr', 0.0) or 0.0)),
                 clasificacion_gasto_sat=clasificacion_inicial,
                 es_importacion=bool(datos.get('es_importacion', False)),
+                requiere_revision_manual=result.requires_manual_review,
             )
             db.add(factura)
             await db.flush()
@@ -248,7 +267,12 @@ async def upload_facturas(
             rechazos.append(f"{file.filename}: {str(e)}")
 
     await db.commit()
-    return {"cargadas": len(facturas_creadas), "rechazadas": rechazos}
+    
+    return {
+        "cargadas": len(facturas_creadas),
+        "rechazadas": rechazos,
+        "requieren_revision_manual": requieren_revision_manual,  
+    }
 
 
 # ==========================================

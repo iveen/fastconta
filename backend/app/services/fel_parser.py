@@ -48,6 +48,7 @@ async def parse_fel_xml(xml_content: str, db: AsyncSession = None) -> Dict | Non
 
         # 2. Datos Generales (Fecha, Moneda, Exportación)
         dg_el = first(root.xpath('//dte:DatosGenerales', namespaces=ns))
+        numero_dte = dg_el.get('Numero', '') if dg_el is not None else ''
         fecha_emision = None
         moneda = 'GTQ'
         es_exportacion = False
@@ -199,7 +200,7 @@ async def parse_fel_xml(xml_content: str, db: AsyncSession = None) -> Dict | Non
         return {
             'numero_autorizacion': numero_autorizacion,
             'serie': serie,
-            'numero': numero_autorizacion,
+            'numero': numero_dte or numero_autorizacion[:8],
             'fecha_emision': fecha_emision,
             'emisor_nit': emisor_nit,
             'emisor_nombre': emisor_nombre,

@@ -126,21 +126,23 @@ async def upload_facturas(
             # 1. Leer con handler genérico
             handler = FileHandlerRegistry.resolve(file.filename, file.content_type)
             content = await handler.read(file)
+            logger.info(f"📄 Archivo leído: {file.filename}, extensión: {content.extension}")
             
             # 2. Parsear con estrategia FEL
             result = await FelIngestionContext.ingest(content, db)
+            logger.info(f"🔍 Resultado del parse: success={result.success}, error={result.error}, review={result.requires_manual_review}")
             
             if not result.success:
+                logger.warning(f"❌ Parse falló: {result.error}")
                 rechazos.append(f"{file.filename}: {result.error}")
                 continue
 
             if result.requires_manual_review:
                 requieren_revision_manual.append(file.filename)
-                # Decide si lo agregas a rechazos o a una lista separada
-                rechazos.append(f"{file.filename}: {result.error}")
-                continue
+                logger.info(f"⚠️ {file.filename} requiere revisión manual, pero se guardará")
             
             datos = result.data
+            logger.info(f"✅ Datos extraídos: {datos.get('numero_autorizacion')}, total={datos.get('total')}")
 
             # Evitar duplicados
             dup = await db.execute(
@@ -235,6 +237,7 @@ async def upload_facturas(
                 retencion_isr=Decimal(str(datos.get('retencion_isr', 0.0) or 0.0)),
                 clasificacion_gasto_sat=clasificacion_inicial,
                 es_importacion=bool(datos.get('es_importacion', False)),
+                requiere_revision_manual=result.requires_manual_review,
             )
             db.add(factura)
             await db.flush()

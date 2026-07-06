@@ -201,6 +201,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
+import { formatDateGT, formatDateTimeGT } from '@/utils/dates'
 
 const route = useRoute()
 const router = useRouter()
@@ -230,7 +231,7 @@ const tipoOpBadgeClass = computed(() => {
 
 const formatearFecha = (fecha) => {
   if (!fecha) return 'N/A'
-  return fecha.includes('T') ? fecha.split('T')[0] : fecha.substring(0, 10)
+  return formatDateTimeGT(fecha)
 }
 
 const formatearNit = (nit) => {

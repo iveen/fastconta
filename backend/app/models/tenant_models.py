@@ -269,6 +269,9 @@ class FacturaElectronica(Base):  # 🔹 CRÍTICO: Debe ser TenantBase, no Base
 
     # 3. Indicadores de Importación (Sección 5 y 6)
     es_importacion = Column(Boolean, default=False, server_default="false")
+    
+    # Para facturas extraídas con OCR - 80% de confianza o menos, se marca para revisión
+    requiere_revision_manual = Column(Boolean, default=False, server_default="false", nullable=False)
 
 
     # 🔹 FKs simplificadas (sin "public." ni use_alter)

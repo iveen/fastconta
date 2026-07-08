@@ -6,8 +6,8 @@ Estrategia FEL para PDFs.
 import logging
 
 from app.core.file_handlers import FileContent
+from app.services.facturas.parser_xml_service import parse_fel_xml
 from app.services.fel.strategies.pdf_text_parser import parse_fel_texto
-from app.services.fel_parser import parse_fel_xml
 
 from .base import FelIngestionStrategy, FelParsedResult
 

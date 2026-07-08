@@ -1,0 +1,103 @@
+# app/api/v1/endpoints/sat_libros.py
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.security import DataScope, get_data_scope
+from app.core.tenant_utils import set_tenant_search_path
+from app.db.session import get_public_db
+from app.dependencies.empresa import get_active_empresa
+from app.models.tenant_models import Empresa
+from app.schemas.sat.sat_libros import (
+    SatLibroCreate,
+    SatLibroDetailResponse,
+    SatLibroResponse,
+)
+from app.services.sat.sat_libros_service import (
+    finalizar_libro_sat,
+    obtener_libro_detallado,
+    procesar_y_generar_libro_sat,
+)
+
+router = APIRouter()
+
+
+# ==========================================
+# 1. Generar Libro IVA
+# ==========================================
+@router.post("/generar", response_model=SatLibroResponse, status_code=status.HTTP_201_CREATED)
+async def generar_libro_iva(
+    payload: SatLibroCreate,
+    tenant_id: int | None = Query(None, description="ID del tenant (requerido para superadmin)"),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa | None = Depends(get_active_empresa)
+):
+    await set_tenant_search_path(db, scope, tenant_id)
+    
+    if empresa_from_header:
+        payload.empresa_id = empresa_from_header.id
+        
+    if not payload.empresa_id:
+        raise HTTPException(status_code=400, detail="Debe especificar una empresa")
+        
+    return await procesar_y_generar_libro_sat(db=db, payload=payload)
+
+
+# ==========================================
+# 2. Consultar Libro IVA
+# ==========================================
+@router.get("/consultar", response_model=SatLibroDetailResponse)
+async def consultar_libro_iva(
+    empresa_id: int | None = Query(None, description="ID de la empresa"),
+    tipo_libro_id: int = Query(..., description="ID del tipo de libro"),
+    anio: int = Query(..., ge=2020, le=2100),
+    mes: int = Query(..., ge=1, le=12),
+    tenant_id: int | None = Query(None, description="ID del tenant"),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db),
+    empresa_from_header: Empresa | None = Depends(get_active_empresa)
+):
+    await set_tenant_search_path(db, scope, tenant_id)
+    
+    empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
+    if not empresa_id_final:
+        raise HTTPException(status_code=400, detail="Debe especificar una empresa")
+
+    libro = await obtener_libro_detallado(
+        db=db, 
+        empresa_id=empresa_id_final,
+        tipo_libro_id=tipo_libro_id, 
+        anio=anio, 
+        mes=mes
+    )
+    
+    if not libro:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No se encontró registro para este periodo.")
+        
+    return libro
+
+
+# ==========================================
+# 3. Finalizar Libro IVA
+# ==========================================
+@router.patch("/{libro_id}/finalizar", response_model=SatLibroResponse)
+async def cerrar_libro_iva(
+    libro_id: int,  # ✅ BIGINT
+    tenant_id: int | None = Query(None, description="ID del tenant"),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
+):
+    await set_tenant_search_path(db, scope, tenant_id)
+    
+    user_info = db.info.get("current_user") or {}
+    # ✅ CORRECCIÓN CRÍTICA: El 'sub' del JWT es string, debe ser int para la FK
+    usuario_id_str = user_info.get("sub")
+    if not usuario_id_str:
+        raise HTTPException(status_code=401, detail="Usuario no autenticado.")
+        
+    try:
+        usuario_id = int(usuario_id_str)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=401, detail="Formato de usuario inválido.")
+
+    return await finalizar_libro_sat(db=db, libro_id=libro_id, usuario_id=usuario_id)

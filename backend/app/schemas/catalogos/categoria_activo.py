@@ -36,17 +36,19 @@ class CategoriaActivoFijoUpdate(BaseModel):
 # RESPONSE
 # ============================================================
 class CategoriaActivoFijoResponse(CategoriaActivoFijoBase):
-    id: UUID
+    id: int  # ✅ BIGINT
+    public_id: UUID  # ✅ UUID como string
     created_at: datetime | None = None
     updated_at: datetime | None = None
-    created_by: UUID | None = None
-    updated_by: UUID | None = None
+    created_by: int | None = None
+    updated_by: int | None = None
 
     model_config = {"from_attributes": True}
 
 
 class CategoriaActivoFijoListResponse(BaseModel):
-    id: UUID
+    id: int  # ✅ BIGINT
+    public_id: UUID  # ✅ UUID como string
     nombre: str
     codigo_prefijo: str
     tasa_minima_anual: Decimal

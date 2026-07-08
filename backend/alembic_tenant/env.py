@@ -28,6 +28,10 @@ target_metadata = Base.metadata
 def get_tenant_schema():
     return os.environ.get("TENANT_SCHEMA", "public")
 
+def is_system_tenant():
+    """Verifica si estamos migrando el tenant 'system' (inmutable)."""
+    return get_tenant_schema() == "system"
+
 def include_object(object, name, type_, reflected, compare_to):
     tenant_schema = get_tenant_schema()
     
@@ -64,6 +68,8 @@ def include_object(object, name, type_, reflected, compare_to):
     return True
 
 def run_migrations_offline():
+    if is_system_tenant():
+        return  # No migrar el tenant 'system' en modo offline
     url = config.get_main_option("sqlalchemy.url")
     tenant_schema = get_tenant_schema()
     
@@ -81,6 +87,8 @@ def run_migrations_offline():
         context.run_migrations()
 
 def run_migrations_online():
+    if is_system_tenant():
+        return  # No migrar el tenant 'system' en modo online
     # Asegurar que se asigne la URL dinámica antes de levantar el engine
     config.set_main_option("sqlalchemy.url", settings.SYNC_DATABASE_URL)
 

@@ -9,27 +9,23 @@ export const useCompanyStore = defineStore('company', () => {
   const availableCompanies = ref([])
   const loading = ref(false)
   const error = ref(null)
-
+  
   // Computed
   const currentCompany = computed(() => {
     return availableCompanies.value.find(c => c.id === selectedCompanyId.value) || null
   })
-
+  
   const hasCompanies = computed(() => availableCompanies.value.length > 0)
-
+  
   // Cargar empresas desde el backend
   const loadCompanies = async () => {
     loading.value = true
     error.value = null
     
     try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 segundos de timeout
-      const response = await api.get('/empresas/mis-empresas', {
-        signal: controller.signal
-      })
-
-      clearTimeout(timeoutId)
+      // ✅ CORREGIDO: Eliminar timeout agresivo que causa CanceledError
+      // Si el backend tarda, que tarde, pero no cancelar la petición
+      const response = await api.get('/empresas/mis-empresas')
       
       availableCompanies.value = response.data
       
@@ -46,8 +42,12 @@ export const useCompanyStore = defineStore('company', () => {
       return response.data
     } catch (err) {
       console.error('Error al cargar empresas:', err)
-      if (err.name === 'AbortError') {
-        error.value = 'La solicitud de empresas ha sido cancelada por timeout. Intenta nuevamente.'
+      
+      // ✅ CORREGIDO: Manejar errores de red sin cancelar
+      if (err.code === 'ERR_CANCELED' || err.name === 'CanceledError') {
+        error.value = 'La solicitud fue cancelada. Intenta nuevamente.'
+      } else if (err.response?.status === 401) {
+        error.value = 'Sesión expirada. Por favor inicia sesión nuevamente.'
       } else {
         error.value = err.response?.data?.detail || 'Error al cargar empresas'
       }
@@ -58,7 +58,7 @@ export const useCompanyStore = defineStore('company', () => {
       loading.value = false
     }
   }
-
+  
   // Cambiar empresa actual
   const setCompany = (companyId) => {
     if (companyId) {
@@ -69,7 +69,7 @@ export const useCompanyStore = defineStore('company', () => {
       localStorage.removeItem('selectedCompanyId')
     }
   }
-
+  
   // Limpiar estado (logout)
   const clearCompany = () => {
     selectedCompanyId.value = null
@@ -77,7 +77,7 @@ export const useCompanyStore = defineStore('company', () => {
     error.value = null
     localStorage.removeItem('selectedCompanyId')
   }
-
+  
   return {
     selectedCompanyId,
     availableCompanies,

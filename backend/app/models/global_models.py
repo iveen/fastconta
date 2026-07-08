@@ -1,7 +1,7 @@
 import enum
-import uuid
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Column,
@@ -15,261 +15,282 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import JSON, JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSON, JSONB
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func, text
+from sqlalchemy.sql import text
 
 from app.db.base import Base
-from app.db.mixins import AuditableFull
+from app.db.mixins import AuditableFull, BigIntPKMixin, SoftDelete
 
 
-class Tenant(Base):
+# ============================================================
+# TENANT (Firma Contable) - CON SoftDelete
+# ============================================================
+class Tenant(BigIntPKMixin, AuditableFull, SoftDelete, Base):
     __tablename__ = "tenants"
     __table_args__ = {"schema": "public"}
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    
-    # 1. Datos de Identidad de la Firma
     name = Column(String(255), nullable=False)
-    nit = Column(String(15), unique=True, nullable=False)       # NIT de la firma contable
-    schema_name = Column(String(63), unique=True, nullable=False) # Ej: tenant_firma_x
-    
-    # 3. Configuración Comercial (Planes y Límites)
+    nit = Column(String(15), unique=True, nullable=False)
+    schema_name = Column(String(63), unique=True, nullable=False)
     admin_email = Column(String(255), nullable=True)
     plan = Column(String(20), default="freemium", nullable=False)
-    max_empresas = Column(Integer, default=5, nullable=False)     # Límite de empresas clientes
-    max_usuarios = Column(Integer, default=3, nullable=False)     # Límite de contadores en la firma
+    max_usuarios = Column(Integer, default=3, nullable=False)
+
+    # Campos de Trial
+    trial_until = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+        comment="Fecha de expiración del trial (si aplica)"
+    )
+    trial_max_usuarios = Column(
+        Integer,
+        nullable=True,
+        comment="Máximo de usuarios durante el trial (si aplica)"
+    )
+
+
+    users = relationship(
+        "User",
+        back_populates="tenant",
+        foreign_keys="[User.tenant_id]",
+    )
+    empresas = relationship(
+        "Empresa",
+        back_populates="tenant",
+        foreign_keys="[Empresa.tenant_id]",
+        cascade="all, delete-orphan"
+    )
+
+    # ============================================================
+    # MÉTODOS HELPER
+    # ============================================================
     
-    # 4. Estado
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    def get_effective_user_limit(self) -> int:
+        """
+        Retorna el límite efectivo de usuarios considerando el trial.
+        
+        Lógica:
+        - Si trial_until existe Y no ha expirado → usa trial_max_usuarios
+        - Si no → usa max_usuarios del plan
+        
+        Returns:
+            int: Límite máximo de usuarios permitidos
+        """
+        from datetime import datetime
+        
+        if self.trial_until and self.trial_max_usuarios:
+            now = datetime.utcnow()
+            if self.trial_until > now:
+                return self.trial_max_usuarios
+        
+        return self.max_usuarios
+    
+    def is_trial_active(self) -> bool:
+        """Verifica si el tenant tiene un trial activo."""
+        from datetime import datetime
+        
+        if not self.trial_until or not self.trial_max_usuarios:
+            return False
+        
+        return self.trial_until > datetime.utcnow()
+    
+    def trial_days_remaining(self) -> int | None:
+        """Retorna los días restantes del trial, o None si no hay trial activo."""
+        from datetime import datetime
+        
+        if not self.is_trial_active():
+            return None
+        
+        delta = self.trial_until - datetime.utcnow()
+        return max(0, delta.days)
 
-    # Relaciones
-    users = relationship("User", back_populates="tenant")
-    empresas = relationship("Empresa", back_populates="tenant", cascade="all, delete-orphan")
-
-class RegistrationAttempt(Base):
+class RegistrationAttempt(BigIntPKMixin, Base):
     __tablename__ = "registration_attempts"
     __table_args__ = {"schema": "public"}
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     ip_address = Column(String(45), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-class TipoDTE(Base, AuditableFull):
+# ============================================================
+# CATÁLOGOS SIMPLES - CON SoftDelete
+# ============================================================
+class TipoDTE(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "tipos_dte"
     __table_args__ = {'schema': 'public'}
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     codigo = Column(String(10), unique=True, nullable=False, index=True)
     descripcion = Column(String(100), nullable=False)
     requiere_complemento = Column(Boolean, default=False, nullable=False)
     es_factura = Column(Boolean, default=True, nullable=False)
-    activo = Column(Boolean, default=True, nullable=False)
 
-class CatalogoMoneda(AuditableFull, Base):
+
+class CatalogoMoneda(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "catalogo_monedas"
     __table_args__ = {'schema': 'public'}
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     codigo_banguat = Column(String(5), unique=True, nullable=False, index=True)
     codigo_iso = Column(String(3), unique=True, nullable=False, index=True)
     nombre = Column(String(50), nullable=False)
     simbolo = Column(String(5), nullable=True)
     decimales = Column(Integer, default=2, nullable=False)
-    activo = Column(Boolean, default=True, nullable=False)
-    # ✅ created_at, updated_at, created_by, updated_by → heredados
 
-class CatalogoImpuestoEspecial(Base):
+
+class CatalogoImpuestoEspecial(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "catalogo_impuestos_especiales"
     __table_args__ = {'schema': 'public'}
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    codigo = Column(String(50), unique=True, nullable=False, index=True)  # ej: 'petroleo'
+    codigo = Column(String(50), unique=True, nullable=False, index=True)
     nombre = Column(String(100), nullable=False)
     descripcion = Column(Text, nullable=True)
-    activo = Column(Boolean, default=True)
-    creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
-class TipoLibro(Base):
+
+class TipoLibro(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "tipos_libro"
-    __table_args__ = {"schema": "public"} # <--- Clave
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    __table_args__ = {"schema": "public"}
     codigo = Column(String(50), nullable=False)
     nombre = Column(String(255), nullable=False, unique=True)
 
-class EstadoLibro(Base):
+
+class EstadoLibro(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "estados_libro"
     __table_args__ = {"schema": "public"}
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     nombre = Column(String(50), nullable=False)
 
-class RegimenDteConfig(Base, AuditableFull):
-    __tablename__ = 'regimen_dte_config'
-    __table_args__ = {'schema': 'public'}
 
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
-    regimen_id = Column(UUID, ForeignKey('public.regimenes_fiscales.id'), nullable=False)
-    dte_id = Column(UUID, ForeignKey('public.tipos_dte.id'), nullable=False)
-    es_exclusivo = Column(Boolean, default=False, nullable=False)
-
-    # Relaciones para facilidad de acceso
-    regimen = relationship("RegimenFiscal") 
-    dte = relationship("TipoDTE")
-
-
-class TipoPersona(AuditableFull, Base):
+class TipoPersona(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = 'tipos_persona'
     __table_args__ = {'schema': 'public'}
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    nombre = Column(String(50), nullable=False, unique=True)  # NATURAL, JURIDICA
+    nombre = Column(String(50), nullable=False, unique=True)
     descripcion = Column(String(200), nullable=True)
-    # ✅ Los 4 campos de auditoría → heredados
-    
-class TipoDomicilio(Base):
+
+
+class TipoDomicilio(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = 'tipos_domicilio'
     __table_args__ = {'schema': 'public'}
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)
-    nombre = Column(String(50), nullable=False, unique=True) # "Fiscal", "Operativo", "Sucursal"
+    nombre = Column(String(50), nullable=False, unique=True)
 
-class Departamento(AuditableFull, Base):
+
+class Departamento(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = 'departamentos'
     __table_args__ = {'schema': 'public'}
-
-    # ✅ Corregido: UUID → UUID(as_uuid=True)
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     codigo_iso = Column(String(2), unique=True, nullable=False)
     nombre = Column(String(100), nullable=False)
-    # ✅ Los 4 campos de auditoría → heredados
-
     municipios = relationship("Municipio", back_populates="departamento")
 
-class Municipio(AuditableFull, Base):
+
+class Municipio(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = 'municipios'
     __table_args__ = {'schema': 'public'}
-
-    # ✅ Corregido: UUID → UUID(as_uuid=True)
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     codigo_iso = Column(String(4), unique=True, nullable=False)
     nombre = Column(String(100), nullable=False)
-    departamento_id = Column(UUID(as_uuid=True), ForeignKey("public.departamentos.id"), nullable=False)
-    # ✅ Los 4 campos de auditoría → heredados
-
+    departamento_id = Column(BigInteger, ForeignKey("public.departamentos.id"), nullable=False)
     departamento = relationship("Departamento", back_populates="municipios")
 
 
-class ActividadEconomicaSAT(AuditableFull, Base):
+class ActividadEconomicaSAT(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "actividades_economicas_sat"
     __table_args__ = {"schema": "public"}
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     codigo_sat = Column(String(20), unique=True, nullable=False, index=True)
     nombre_actividad = Column(String(255), nullable=False)
     seccion = Column(String(255), nullable=True)
-    activa = Column(Boolean, default=True)
-    # ✅ created_at heredado; updated_at, created_by, updated_by → nuevos
 
-# ---- RBAC
-class User(Base):
+
+# ============================================================
+# RBAC - CON SoftDelete
+# ============================================================
+class Role(BigIntPKMixin, SoftDelete, AuditableFull, Base):
+    __tablename__ = "roles"
+    __table_args__ = {"schema": "public"}
+    codigo = Column(String(30), unique=True, nullable=False, index=True)
+    nombre = Column(String(100), nullable=False)
+    descripcion = Column(Text, nullable=True)
+    nivel_acceso = Column(Integer, nullable=False)
+
+
+class User(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "users"
     __table_args__ = {"schema": "public"}
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    # ✅ tenant_id ahora es NULLABLE para permitir superadmin sin tenant
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("public.tenants.id"), nullable=True)
+    tenant_id = Column(BigInteger, ForeignKey("public.tenants.id"), nullable=False, index=True)
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=False)
-    
-    # ✅ FK al catálogo de roles en lugar de String plano
-    role_id = Column(UUID(as_uuid=True), ForeignKey("public.roles.id"), nullable=False)
-    
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    role_id = Column(BigInteger, ForeignKey("public.roles.id"), nullable=False)
 
-    # Relaciones
-    tenant = relationship("Tenant", back_populates="users")
-    role = relationship("Role", lazy="selectin")
-    empresas_asignadas = relationship("UserEmpresa", back_populates="user", cascade="all, delete-orphan")
+    tenant = relationship(
+        "Tenant",
+        back_populates="users",
+        foreign_keys=[tenant_id]
+    )
+    role = relationship(
+        "Role",
+        foreign_keys=[role_id],
+        lazy="selectin"
+    )
+    empresas_asignadas = relationship(
+        "UserEmpresa",
+        back_populates="user",
+        foreign_keys="[UserEmpresa.user_id]",
+        cascade="all, delete-orphan"
+    )
 
-    tenant = relationship("Tenant", back_populates="users")
 
-class Role(Base):
-    __tablename__ = "roles"
-    __table_args__ = {"schema": "public"}
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    codigo = Column(String(30), unique=True, nullable=False, index=True)  # 'superadmin', 'tenant_manager', 'tenant_member', 'tenant_client'
-    nombre = Column(String(100), nullable=False)
-    descripcion = Column(Text, nullable=True)
-    nivel_acceso = Column(Integer, nullable=False)  # 100=global, 80=tenant_admin, 60=miembro_restringido, 20=cliente_solo_lectura
-
-class UserEmpresa(Base):
+class UserEmpresa(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "user_empresas"
     __table_args__ = (
         UniqueConstraint('user_id', 'tenant_id', 'empresa_id', name='uq_user_empresa_tenant'),
         {"schema": "public"}
     )
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("public.tenants.id", ondelete="CASCADE"), nullable=False)
-    
-    # 👇 Sin ForeignKey: validación se hace en capa de aplicación
-    empresa_id = Column(UUID(as_uuid=True), nullable=False)
-    
-    activo = Column(Boolean, default=True, server_default="true")
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    user_id = Column(
+        BigInteger,
+        ForeignKey("public.users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    tenant_id = Column(
+        BigInteger,
+        ForeignKey("public.tenants.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    empresa_id = Column(BigInteger, nullable=False)
 
-    user = relationship("User")
-    tenant = relationship("Tenant")
+    user = relationship("User", foreign_keys=[user_id])
+    tenant = relationship("Tenant", foreign_keys=[tenant_id])
 
+# ============================================================
+# ACTIVOS FIJOS - Catálogo CON SoftDelete
+# ============================================================
 class EstadoActivoFijoEnum(str, enum.Enum):
     activo = "activo"
     totalmente_depreciado = "totalmente_depreciado"
     dado_baja = "dado_baja"
     vendido = "vendido"
 
-class CategoriaActivoFijo(AuditableFull, Base):
+
+class CategoriaActivoFijo(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "categorias_activos_fijos"
     __table_args__ = (
         CheckConstraint("tasa_maxima_anual >= tasa_minima_anual", name="chk_categoria_tasa_valida"),
         {"schema": "public"}
     )
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     nombre = Column(String(100), nullable=False, unique=True)
     descripcion = Column(Text, nullable=True)
     tasa_minima_anual = Column(Numeric(5, 2), nullable=False, server_default="0.00")
     tasa_maxima_anual = Column(Numeric(5, 2), nullable=False)
     vida_util_meses_default = Column(Integer, nullable=False)
-    codigo_prefijo = Column(String(10), nullable=False, unique=True, index=True,
-                            comment="Prefijo para código interno (ej: VEH, COMP)")
-    is_active = Column(Boolean, default=True)
-    # ✅ created_at heredado; updated_at, created_by, updated_by → nuevos
+    codigo_prefijo = Column(String(10), nullable=False, unique=True, index=True)
 
-#------------------------------------------------------
-# Catálogos Motor Tributario
-#------------------------------------------------------
-
-class RegimenFiscal(Base, AuditableFull):
+# ============================================================
+# MOTOR TRIBUTARIO - CON SoftDelete
+# ============================================================
+class RegimenFiscal(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "regimenes_fiscales"
     __table_args__ = {"schema": "public"}
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    codigo = Column(String(50), unique=True, nullable=False, index=True) # Ej: 'PC_FEL', 'RG_UTILIDADES', 'ROS'
-    nombre = Column(String(100), nullable=False) # Ej: 'Pequeno Contribuyente Electronico (FEL)'
-    descripcion = Column(Text, nullable=True) # Ej: 'Art. 45 Dec. 10-2012. 4% mensual. No genera credito fiscal.'
-    is_active = Column(Boolean, default=True, nullable=False)
-    
-    # Relacion con la tabla puente
+    codigo = Column(String(50), unique=True, nullable=False, index=True)
+    nombre = Column(String(100), nullable=False)
+    descripcion = Column(Text, nullable=True)
+
     configuraciones_impuestos = relationship(
         "RegimenImpuestoConfig", 
         back_populates="regimen", 
         cascade="all, delete-orphan"
     )
-    # Dentro de class RegimenFiscal(Base):
     formularios_sat = relationship(
         "FormularioSat",
         secondary="public.regimenes_formularios_sat",
@@ -277,376 +298,211 @@ class RegimenFiscal(Base, AuditableFull):
     )
 
 
-class CatalogoImpuesto(Base):
+class CatalogoImpuesto(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "catalogo_impuestos"
     __table_args__ = {"schema": "public"}
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    
-    # Identificacion
-    codigo = Column(String(20), unique=True, nullable=False, index=True) # Ej: 'IVA', 'ISR_RG', 'ISR_ROS_1', 'ISO'
-    nombre = Column(String(100), nullable=False) # Ej: 'Impuesto sobre la Renta - Regimen General'
-    descripcion = Column(Text, nullable=False) # Ej: 'Art. 36 Ley 26-92. 25% sobre utilidades netas. Pagos trimestrales.'
-    
-    # Parametros de Calculo (Soporta tramos progresivos)
-    tasa_porcentaje = Column(Numeric(5, 2), nullable=True) # Ej: 25.00, 5.00, 1.00 (NULL si es monto fijo puro)
-    tasa_fija_monto = Column(Numeric(15, 2), nullable=True, server_default='0.00') # Ej: 1500.00 (para ROS > 30k)
-    
-    # Limites del tramo (Para impuestos progresivos como el ROS)
-    limite_inferior = Column(Numeric(15, 2), nullable=True, server_default='0.00') # Ej: 30000.01
-    limite_superior = Column(Numeric(15, 2), nullable=True) # Ej: NULL (infinito)
-    
-    # Frecuencias y Reglas Fiscales
-    frecuencia_pago = Column(String(20), nullable=False) # 'MENSUAL', 'TRIMESTRAL', 'ANUAL'
-    frecuencia_liquidacion = Column(String(20), nullable=False) # 'MENSUAL', 'TRIMESTRAL', 'ANUAL'
-    
-    # Reglas Especiales SAT
-    es_acreditable = Column(Boolean, default=False, nullable=False) # Ej: True para ISO (acreditable contra ISR)
-    requiere_autorizacion_sat = Column(Boolean, default=False, nullable=False) # Ej: True para ROS pago directo
-    
-    is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    codigo = Column(String(20), unique=True, nullable=False, index=True)
+    nombre = Column(String(100), nullable=False)
+    descripcion = Column(Text, nullable=False)
+    tasa_porcentaje = Column(Numeric(5, 2), nullable=True)
+    tasa_fija_monto = Column(Numeric(15, 2), nullable=True, server_default='0.00')
+    limite_inferior = Column(Numeric(15, 2), nullable=True, server_default='0.00')
+    limite_superior = Column(Numeric(15, 2), nullable=True)
+    frecuencia_pago = Column(String(20), nullable=False)
+    frecuencia_liquidacion = Column(String(20), nullable=False)
+    es_acreditable = Column(Boolean, default=False, nullable=False)
+    requiere_autorizacion_sat = Column(Boolean, default=False, nullable=False)
 
-class RegimenImpuestoConfig(Base):
+
+class RegimenImpuestoConfig(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "regimen_impuesto_config"
     __table_args__ = (
-        # Un regimen solo puede tener UNA configuracion por tipo de impuesto
         UniqueConstraint('regimen_id', 'impuesto_id', name='uq_regimen_impuesto_unico'),
         {"schema": "public"},
     )
+    regimen_id = Column(BigInteger, ForeignKey("public.regimenes_fiscales.id"), nullable=False, index=True)
+    impuesto_id = Column(BigInteger, ForeignKey("public.catalogo_impuestos.id"), nullable=False, index=True)
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    
-    # Llaves foraneas
-    regimen_id = Column(UUID(as_uuid=True), ForeignKey("public.regimenes_fiscales.id"), nullable=False, index=True)
-    impuesto_id = Column(UUID(as_uuid=True), ForeignKey("public.catalogo_impuestos.id"), nullable=False, index=True)
-    
-    # Parametros de calculo ESPECIFICOS para esta combinacion Regimen + Impuesto
-    # (Si son NULL, el sistema puede heredar los valores base del CatalogoImpuesto)
-    tasa_porcentaje = Column(Numeric(5, 2), nullable=True) # Ej: 4.00 para PC FEL, 25.00 para RG
-    tasa_fija_monto = Column(Numeric(15, 2), nullable=True, server_default='0.00') # Ej: 1500.00 para ROS > 30k
-    
-    limite_inferior = Column(Numeric(15, 2), nullable=True, server_default='0.00') # Ej: 30000.01
-    limite_superior = Column(Numeric(15, 2), nullable=True) # Ej: 300000.00 (Limite anual PC)
-    
-    # Banderas de comportamiento fiscal (CRITICAS para la logica de negocio)
-    es_acreditable = Column(Boolean, default=False, nullable=False) # ¿Genera credito fiscal para el comprador? (Falso para PC)
-    es_retencion_definitiva = Column(Boolean, default=False, nullable=False) # ¿El pago es definitivo? (Verdadero para PC)
-    requiere_autorizacion_sat = Column(Boolean, default=False, nullable=False) # Ej: ROS con pago directo
-    
-    # Relaciones
+    tasa_porcentaje = Column(Numeric(5, 2), nullable=True)
+    tasa_fija_monto = Column(Numeric(15, 2), nullable=True, server_default='0.00')
+    limite_inferior = Column(Numeric(15, 2), nullable=True, server_default='0.00')
+    limite_superior = Column(Numeric(15, 2), nullable=True)
+    es_acreditable = Column(Boolean, default=False, nullable=False)
+    es_retencion_definitiva = Column(Boolean, default=False, nullable=False)
+    requiere_autorizacion_sat = Column(Boolean, default=False, nullable=False)
+
     regimen = relationship("RegimenFiscal", back_populates="configuraciones_impuestos")
     impuesto = relationship("CatalogoImpuesto")
-    
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-#------------------------------------------------------
-# Catálogos Declaraciones SAT
-#------------------------------------------------------
-class FormularioSat(AuditableFull, Base):
-    """
-    Catálogo global de formularios de la SAT (2237, 2046, 2276, 1031, etc.)
-    SOPORTA VERSIONADO: Permite mantener múltiples versiones del mismo formulario
-    """
+
+class RegimenDteConfig(BigIntPKMixin, SoftDelete, AuditableFull, Base):
+    __tablename__ = 'regimen_dte_config'
+    __table_args__ = {'schema': 'public'}
+    regimen_id = Column(BigInteger, ForeignKey('public.regimenes_fiscales.id'), nullable=False)
+    dte_id = Column(BigInteger, ForeignKey('public.tipos_dte.id'), nullable=False)
+    es_exclusivo = Column(Boolean, default=False, nullable=False)
+
+    regimen = relationship("RegimenFiscal")
+    dte = relationship("TipoDTE")
+
+
+# ============================================================
+# FORMULARIOS SAT - CON SoftDelete
+# ============================================================
+class FormularioSat(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "formularios_sat"
     __table_args__ = (
         UniqueConstraint('codigo', 'version', name='uq_formulario_codigo_version'),
         Index('idx_formularios_vigencia', 'codigo', 'fecha_vigencia_desde', 'fecha_vigencia_hasta'),
         {"schema": "public"}
     )
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    codigo = Column(String(20), nullable=False, index=True)  # Ej: 'SAT-2237' (sin unique)
-    version = Column(String(10), nullable=False, default='1.0')  # Ej: '1.0', '2.0'
-    
+    codigo = Column(String(20), nullable=False, index=True)
+    version = Column(String(10), nullable=False, default='1.0')
     nombre = Column(String(255), nullable=False)
     descripcion = Column(Text)
-    
-    # Versionado y Vigencia
     fecha_vigencia_desde = Column(Date, nullable=False, server_default=text("CURRENT_DATE"))
-    fecha_vigencia_hasta = Column(Date, nullable=True)  # NULL = vigente actualmente
+    fecha_vigencia_hasta = Column(Date, nullable=True)
     es_version_activa = Column(Boolean, default=True, server_default="true")
-    
     editable = Column(Boolean, default=True, server_default="true", nullable=False)
+    formulario_padre_id = Column(BigInteger, ForeignKey("public.formularios_sat.id"), nullable=True)
     
-    # Auto-referencia para versionado
-    formulario_padre_id = Column(
-        UUID(as_uuid=True), 
-        ForeignKey("public.formularios_sat.id"), 
-        nullable=True,
-        comment="ID del formulario versión anterior (para duplicación)"
-    )
-    
-    # Relaciones
-    #============================================================================
-    # La relación uno a muchos de Formulario a Casillas fue eliminada
-    # por cambios en el diseño, y la creación de una tabla Sección
-    # que contendrá casillas, mientras el formulario contendrá Secciones
-    #============================================================================
-    # casillas = relationship("CasillaSat", back_populates="formulario", cascade="all, delete-orphan")
-    #============================================================================
     secciones = relationship("SeccionFormulario", back_populates="formulario", cascade="all, delete-orphan")
-    
-    # Relación N:M con Regimenes
     regimenes = relationship(
         "RegimenFiscal",
         secondary="public.regimenes_formularios_sat",
         back_populates="formularios_sat"
     )
-    
-    # Auto-relación para versionado
     version_hija = relationship(
         "FormularioSat",
         back_populates="version_padre",
         foreign_keys=[formulario_padre_id],
         remote_side=[formulario_padre_id]
     )
-
+    # ✅ CORREGIDO: Usar string en lugar de referencia directa
     version_padre = relationship(
         "FormularioSat",
         back_populates="version_hija",
         foreign_keys=[formulario_padre_id],
-        remote_side=[id]
+        remote_side="FormularioSat.id"  # ✅ String en lugar de [id]
     )
     
     @property
     def nombre_completo(self):
         return f"{self.codigo} v{self.version}"
+    
 
-class CasillaSat(AuditableFull, Base):
-    """
-    Catálogo global de cada fila/casilla de los formularios SAT.
-    Cada versión de formulario tiene sus propias casillas.
-    """
-    __tablename__ = "casillas_sat"
-    __table_args__ = (
-        UniqueConstraint('seccion_id', 'codigo', name='uq_casilla_seccion_codigo'),
-        {"schema": "public"}
-    )
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    #============================================================================
-    # formulario_id ha sido eliminado al no ser necesario
-    # por cambios en el diseño, y la creación de una tabla Sección
-    # que contendrá casillas, mientras el formulario contendrá Secciones
-    #============================================================================
-    # formulario_id = Column(UUID(as_uuid=True), ForeignKey("public.formularios_sat.id"), nullable=False)
-    #============================================================================
-    seccion_id = Column(UUID(as_uuid=True), ForeignKey("public.secciones_formulario.id"), nullable=True)
-
-    
-    # Identificación
-    codigo = Column(String(50), nullable=False)  # Ej: '3.1', '4.2' (no unique global)
-    codigo_visual = Column(String(20), nullable=True)
-    nombre = Column(String(255), nullable=False)
-    descripcion = Column(Text)
-    
-    # Ubicación
-    @property
-    def seccion(self) -> str | None:
-        """Retorna el número de sección al que pertenece esta casilla"""
-        if self.seccion_rel:  # Asumiendo que la relación se llama seccion_rel
-            return self.seccion_rel.numero_seccion
-        return None
-    orden_seccion = Column(Integer, default=0)
-    
-    # Configuración
-    tipo_casilla = Column(String(30), nullable=False, default='CALCULO')
-    naturaleza = Column(String(20), nullable=True)
-    formula_calculo = Column(Text, nullable=True)
-    porcentaje_aplicable = Column(Numeric(5, 2), nullable=True)
-    campo_origen_factura = Column(String(50), nullable=True)
-    
-    # Banderas
-    es_editable = Column(Boolean, default=False, server_default="false")
-    requiere_justificacion = Column(Boolean, default=False, server_default="false")
-    es_visible_usuario = Column(Boolean, default=True, server_default="true")
-    es_automatica = Column(Boolean, nullable=False, default=False, server_default="false")
-
-    dependencias = Column(
-        JSON, nullable=True,
-        comment="Lista de códigos de casillas de las que depende ['3.1','3.2']"
-    )
-
-    funcion_calculo = Column(
-        String(50), nullable=True,
-        comment="Nombre de funcion especializada: 'isr_progresivo', 'max_cero', etc."
-    )
-
-    parametros_funcion = Column(
-        JSON, nullable=True,
-        comment="Parámetros: {'tramos': [{'hasta': 30000, 'tasa': 0.05}, ...]}"
-    )
-    
-    # Relaciones
-    seccion_rel = relationship("SeccionFormulario", back_populates="casillas")
-    reglas_filtrado = relationship("ReglaFiltradoFactura", back_populates="casilla", cascade="all, delete-orphan")
-    exclusiones = relationship("ExclusionCasilla", back_populates="casilla", cascade="all, delete-orphan")
-    detalles = relationship("DetalleDeclaracionImpuesto", back_populates="casilla")
-    
-    # ✅ Propiedad para obtener formulario_id vía seccion
-    @property
-    def formulario_id(self):
-        return self.seccion_rel.formulario_id if self.seccion_rel else None
-
-class RegimenFormularioSat(AuditableFull, Base):
-    """
-    TABLA PUENTE: Define qué formularios debe presentar cada régimen fiscal.
-    Esto permite que el sistema sepa automáticamente qué declaraciones 
-    generar al seleccionar una empresa.
-    """
-    __tablename__ = "regimenes_formularios_sat"
-    __table_args__ = (
-        UniqueConstraint('regimen_id', 'formulario_id', name='uq_regimen_formulario'),
-        {"schema": "public"}
-    )
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    regimen_id = Column(UUID(as_uuid=True), ForeignKey("public.regimenes_fiscales.id"), nullable=False)
-    formulario_id = Column(UUID(as_uuid=True), ForeignKey("public.formularios_sat.id"), nullable=False)
-    
-    # Banderas de control
-    es_obligatorio = Column(Boolean, default=True, server_default="true")
-    # Ej: El SAT-2237 es obligatorio para RG, pero el SAT-1031 es anual.
-    # El frontend puede usar esto para filtrar qué mostrar en el dashboard mensual.
-    
-    # Relaciones
-    regimen = relationship("RegimenFiscal", overlaps="formularios_sat,regimenes")
-    formulario = relationship("FormularioSat", overlaps="formularios_sat,regimenes")
-
-# =============================================================
-# REDISEÑO: Configuración Avanzada de Formularios SAT
-# Permite configurar dinámicamente cualquier formulario SAT
-# sin tocar código (solo datos). Soporta fórmulas, filtros,
-# exclusiones (ej: FYDUCA Honduras) y mapeo contable.
-# =============================================================
-
-class SeccionFormulario(AuditableFull, Base):
-    """
-    Representa una sección lógica del formulario SAT.
-    Ejemplo: "Sección 3: Débito Fiscal por Operaciones Locales"
-    
-    Esto permite:
-    - Agrupar casillas visualmente
-    - Aplicar lógica de negocio por sección
-    - Reordenar secciones sin tocar código
-    """
+class SeccionFormulario(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "secciones_formulario"
     __table_args__ = (
         UniqueConstraint('formulario_id', 'numero_seccion', name='uq_seccion_formulario'),
         {"schema": "public"}
     )
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    formulario_id = Column(UUID(as_uuid=True), ForeignKey("public.formularios_sat.id"), nullable=False)
-    
-    # Identificación
-    numero_seccion = Column(String(10), nullable=False)  # '3', '4', '5', '7'
+    formulario_id = Column(BigInteger, ForeignKey("public.formularios_sat.id"), nullable=False)
+    numero_seccion = Column(String(10), nullable=False)
     titulo = Column(String(255), nullable=False)
     descripcion = Column(Text)
     orden = Column(Integer, nullable=False, default=0)
-    
-    # Tipo de sección para lógica de negocio
     tipo_seccion = Column(String(30), nullable=False)
-    # Valores: 'IDENTIFICACION', 'PERIODO', 'DEBITO_FISCAL', 'CREDITO_FISCAL',
-    #          'EXPORTACIONES', 'DETERMINACION', 'INFORMATIVA', 'DOCUMENTOS'
-    
-    # Banderas de control
     es_obligatoria = Column(Boolean, default=True, server_default="true")
     requiere_exportador = Column(Boolean, default=False, server_default="false")
     es_automatica = Column(Boolean, default=False, nullable=False, server_default="false")
-    
-    # Relaciones
+
     formulario = relationship("FormularioSat", back_populates="secciones")
     casillas = relationship("CasillaSat", back_populates="seccion_rel", cascade="all, delete-orphan")
 
 
-class ReglaFiltradoFactura(AuditableFull, Base):
-    """
-    Define qué facturas alimentan una casilla específica.
-    
-    Ejemplo: "Casilla 3.2 solo recibe facturas de tipo 'Venta',
-    que NO sean exentas, y que NO sean exportaciones."
-    
-    Los criterios se guardan como JSON para máxima flexibilidad:
-    {"tipo_operacion": "Venta", "es_exento": false, "es_exportacion": false}
-    """
-    __tablename__ = "reglas_filtrado_factura"
-    __table_args__ = {"schema": "public"}
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    casilla_id = Column(UUID(as_uuid=True), ForeignKey("public.casillas_sat.id"), nullable=False)
-    
+class CasillaSat(BigIntPKMixin, SoftDelete, AuditableFull, Base):
+    __tablename__ = "casillas_sat"
+    __table_args__ = (
+        UniqueConstraint('seccion_id', 'codigo', name='uq_casilla_seccion_codigo'),
+        {"schema": "public"}
+    )
+    seccion_id = Column(BigInteger, ForeignKey("public.secciones_formulario.id"), nullable=True)
+    codigo = Column(String(50), nullable=False)
+    codigo_visual = Column(String(20), nullable=True)
     nombre = Column(String(255), nullable=False)
     descripcion = Column(Text)
-    
-    # Criterios de filtrado en JSON
+    orden_seccion = Column(Integer, default=0)
+    tipo_casilla = Column(String(30), nullable=False, default='CALCULO')
+    naturaleza = Column(String(20), nullable=True)
+    formula_calculo = Column(Text, nullable=True)
+    porcentaje_aplicable = Column(Numeric(5, 2), nullable=True)
+    campo_origen_factura = Column(String(50), nullable=True)
+    es_editable = Column(Boolean, default=False, server_default="false")
+    requiere_justificacion = Column(Boolean, default=False, server_default="false")
+    es_visible_usuario = Column(Boolean, default=True, server_default="true")
+    es_automatica = Column(Boolean, nullable=False, default=False, server_default="false")
+    dependencias = Column(JSON, nullable=True)
+    funcion_calculo = Column(String(50), nullable=True)
+    parametros_funcion = Column(JSON, nullable=True)
+
+    seccion_rel = relationship("SeccionFormulario", back_populates="casillas")
+    reglas_filtrado = relationship("ReglaFiltradoFactura", back_populates="casilla", cascade="all, delete-orphan")
+    exclusiones = relationship("ExclusionCasilla", back_populates="casilla", cascade="all, delete-orphan")
+    detalles = relationship("DetalleDeclaracionImpuesto", back_populates="casilla")
+
+    @property
+    def seccion(self) -> str | None:
+        if self.seccion_rel:
+            return self.seccion_rel.numero_seccion
+        return None
+
+    @property
+    def formulario_id(self):
+        return self.seccion_rel.formulario_id if self.seccion_rel else None
+
+
+class ReglaFiltradoFactura(BigIntPKMixin, SoftDelete, AuditableFull, Base):
+    __tablename__ = "reglas_filtrado_factura"
+    __table_args__ = {"schema": "public"}
+    casilla_id = Column(BigInteger, ForeignKey("public.casillas_sat.id"), nullable=False)
+    nombre = Column(String(255), nullable=False)
+    descripcion = Column(Text)
     criterios_json = Column(JSONB, nullable=False)
-    
-    # Campo de la factura a sumar
-    campo_factura = Column(String(50), nullable=False)  # 'total_gravado_gtq', 'total_iva_gtq'
-    
-    operacion = Column(String(20), nullable=False, default='SUMA')  # SUMA, COUNT, PROMEDIO
+    campo_factura = Column(String(50), nullable=False)
+    operacion = Column(String(20), nullable=False, default='SUMA')
     orden = Column(Integer, default=0)
-    es_activa = Column(Boolean, default=True, server_default="true")
-    
-    # Relaciones
+
     casilla = relationship("CasillaSat", back_populates="reglas_filtrado")
 
 
-class ExclusionCasilla(AuditableFull, Base):
-    """
-    Define exclusiones específicas para una casilla.
-    
-    Caso de uso crítico: FYDUCA Honduras debe ir en casilla separada
-    de "Exportaciones Centroamérica", así que excluimos de 4.1.
-    
-    Criterios en JSON:
-    {"tipo_documento": "FYDUCA", "pais_destino": "HND"}
-    """
+class ExclusionCasilla(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "exclusiones_casilla"
     __table_args__ = {"schema": "public"}
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    casilla_id = Column(UUID(as_uuid=True), ForeignKey("public.casillas_sat.id"), nullable=False)
-    
+    casilla_id = Column(BigInteger, ForeignKey("public.casillas_sat.id"), nullable=False)
     nombre = Column(String(255), nullable=False)
     descripcion = Column(Text)
-    
-    # Criterios de exclusión en JSON
     criterios_exclusion_json = Column(JSONB, nullable=False)
-    
-    es_activa = Column(Boolean, default=True, server_default="true")
-    
-    # Relaciones
+
     casilla = relationship("CasillaSat", back_populates="exclusiones")
 
 
-class MapeoCasillaCuenta(AuditableFull, Base):
-    """
-    Mapea casillas SAT a cuentas contables del tenant.
-    
-    Permite que al cerrar una declaración se generen
-    partidas contables automáticas.
-    
-    Puede ser global (tenant_id NULL) o específico por tenant.
-    """
+class RegimenFormularioSat(BigIntPKMixin, SoftDelete, AuditableFull, Base):
+    __tablename__ = "regimenes_formularios_sat"
+    __table_args__ = (
+        UniqueConstraint('regimen_id', 'formulario_id', name='uq_regimen_formulario'),
+        {"schema": "public"}
+    )
+    regimen_id = Column(BigInteger, ForeignKey("public.regimenes_fiscales.id"), nullable=False)
+    formulario_id = Column(BigInteger, ForeignKey("public.formularios_sat.id"), nullable=False)
+    es_obligatorio = Column(Boolean, default=True, server_default="true")
+
+    regimen = relationship("RegimenFiscal", overlaps="formularios_sat,regimenes")
+    formulario = relationship("FormularioSat", overlaps="formularios_sat,regimenes")
+
+
+class MapeoCasillaCuenta(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "mapeo_casilla_cuenta"
     __table_args__ = (
         UniqueConstraint('casilla_id', 'tenant_id', 'empresa_id', name='uq_casilla_tenant_empresa'),
         {"schema": "public"}
     )
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    casilla_id = Column(UUID(as_uuid=True), ForeignKey("public.casillas_sat.id"), nullable=False)
-    
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("public.tenants.id"), nullable=True)
-    empresa_id = Column(UUID(as_uuid=True), nullable=True)
-    
+    casilla_id = Column(BigInteger, ForeignKey("public.casillas_sat.id"), nullable=False)
+    tenant_id = Column(BigInteger, ForeignKey("public.tenants.id"), nullable=True)
+    empresa_id = Column(BigInteger, nullable=True)
     codigo_cuenta_sugerido = Column(String(20), nullable=False)
     nombre_cuenta_sugerido = Column(String(255), nullable=False)
-    tipo_movimiento = Column(String(10), nullable=False)  # 'DEBE', 'HABER'
-    
-    # Relaciones
-    casilla = relationship("CasillaSat")
-    tenant = relationship("Tenant")
+    tipo_movimiento = Column(String(10), nullable=False)
+
+    casilla = relationship("CasillaSat", foreign_keys=[casilla_id])
+    tenant = relationship("Tenant", foreign_keys=[tenant_id])

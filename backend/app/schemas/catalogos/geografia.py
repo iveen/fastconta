@@ -30,12 +30,13 @@ class DepartamentoUpdate(BaseModel):
 
 
 class DepartamentoResponse(DepartamentoBase):
-    id: UUID
+    id: int  # ✅ BIGINT (era UUID)
+    public_id: UUID | None = None
     municipios: list[MunicipioBrief] = []  
     created_at: datetime | None = None
     updated_at: datetime | None = None
-    created_by: UUID | None = None
-    updated_by: UUID | None = None
+    created_by: int | None = None
+    updated_by: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -61,11 +62,12 @@ class MunicipioUpdate(BaseModel):
 
 
 class MunicipioResponse(MunicipioBase):
-    id: UUID
+    id: int  # ✅ BIGINT (era UUID)
+    public_id: UUID | None = None
     departamento_nombre: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
-    created_by: UUID | None = None
-    updated_by: UUID | None = None
+    created_by: int | None = None
+    updated_by: int | None = None
 
     model_config = {"from_attributes": True}

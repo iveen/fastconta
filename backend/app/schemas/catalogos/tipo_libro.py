@@ -1,0 +1,41 @@
+"""Schemas para Tipos de Libro SAT"""
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+
+
+class TipoLibroBase(BaseModel):
+    codigo: str = Field(..., max_length=50)
+    nombre: str = Field(..., max_length=255)
+
+
+class TipoLibroCreate(TipoLibroBase):
+    pass
+
+
+class TipoLibroUpdate(BaseModel):
+    codigo: str | None = Field(None, max_length=50)
+    nombre: str | None = Field(None, max_length=255)
+
+
+class TipoLibroResponse(TipoLibroBase):
+    id: int  # ✅ BIGINT
+    public_id: UUID  # ✅ UUID público
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime | None = None
+    created_by: int | None = None  # ✅ BIGINT
+    updated_by: int | None = None  # ✅ BIGINT
+
+    model_config = {"from_attributes": True}
+
+
+class TipoLibroListResponse(BaseModel):
+    id: int  # ✅ BIGINT
+    public_id: UUID  # ✅ UUID público
+    codigo: str
+    nombre: str
+    is_active: bool
+
+    model_config = {"from_attributes": True}

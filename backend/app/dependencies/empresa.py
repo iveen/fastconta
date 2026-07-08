@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import DataScope, get_data_scope
 from app.db.session import get_public_db, get_tenant_db
 from app.models.tenant_models import Empresa
-from app.services.empresa_service import (
+from app.services.base.empresa_service import (
     configure_search_path_for_tenant,
     get_empresa_by_id,
 )

@@ -2,15 +2,21 @@
 <template>
   <div class="min-h-screen bg-gray-50 p-6">
     <div class="max-w-7xl mx-auto space-y-6">
-      
       <!-- Header -->
       <div class="flex justify-between items-center">
         <div>
           <h1 class="text-3xl font-bold text-gray-800 mb-1">Empresas</h1>
-          <p class="text-gray-600">Gestiona las empresas de tu firma contable</p>
+          <p class="text-gray-600">
+            <template v-if="authStore.isSuperAdmin && superAdminStore.currentTenantId">
+              Gestionando empresas de: <span class="font-semibold text-blue-600">{{ superAdminStore.currentTenant?.name }}</span>
+            </template>
+            <template v-else>
+              Gestiona las empresas de tu firma contable
+            </template>
+          </p>
         </div>
         <button
-          v-if="!authStore.isSuperAdmin"
+          v-if="!authStore.isSuperAdmin || superAdminStore.currentTenantId"
           @click="abrirModalCrear"
           class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
         >
@@ -19,33 +25,22 @@
         </button>
       </div>
 
-      <!-- Selector de Tenant (Solo Superadmin) -->
-      <div v-if="authStore.isSuperAdmin" class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <label class="block text-sm font-semibold text-blue-800 mb-2">🏢 Seleccionar Firma (Tenant)</label>
-        <select
-          v-model="selectedTenantId"
-          @change="handleTenantChange"
-          class="w-full md:w-1/2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2 border bg-white"
-        >
-          <option value="">-- Seleccione una firma para gestionar --</option>
-          <option v-for="t in tenants" :key="t.id" :value="t.id">
-            {{ t.name }} ({{ t.nit }})
-          </option>
-        </select>
-      </div>
+      <!-- Selector de Contexto (Solo Superadmin) -->
+      <SuperAdminContextSelector v-if="authStore.isSuperAdmin" />
 
       <!-- Mensajes -->
       <div v-if="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg flex justify-between items-center">
         <span>{{ error }}</span>
         <button @click="error = ''" class="text-sm underline hover:no-underline">Cerrar</button>
       </div>
+
       <div v-if="successMsg" class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg flex justify-between items-center">
         <span>{{ successMsg }}</span>
         <button @click="successMsg = ''" class="text-sm underline hover:no-underline">Cerrar</button>
       </div>
 
-      <!-- Estado vacío para superadmin sin tenant -->
-      <div v-if="authStore.isSuperAdmin && !selectedTenantId" class="bg-white rounded-lg shadow p-12 text-center border border-gray-200">
+      <!-- Estado vacío para superadmin sin contexto -->
+      <div v-if="authStore.isSuperAdmin && !superAdminStore.currentTenantId" class="bg-white rounded-lg shadow p-12 text-center border border-gray-200">
         <svg class="mx-auto h-16 w-16 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
         </svg>
@@ -54,7 +49,6 @@
 
       <!-- Contenido principal -->
       <div v-else class="space-y-6">
-        
         <!-- Loading -->
         <div v-if="cargandoLista" class="text-center py-12">
           <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -68,7 +62,7 @@
           </svg>
           <p class="mt-4 text-gray-500 text-lg">No hay empresas registradas</p>
           <button
-            v-if="!authStore.isSuperAdmin"
+            v-if="!authStore.isSuperAdmin || superAdminStore.currentTenantId"
             @click="abrirModalCrear"
             class="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
           >
@@ -90,7 +84,6 @@
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              <!-- ✅ CORREGIDO: template v-for para que empresa esté disponible en ambas filas -->
               <template v-for="empresa in empresas" :key="empresa.id">
                 <!-- Fila principal de la empresa -->
                 <tr class="hover:bg-gray-50">
@@ -103,8 +96,8 @@
                     {{ empresa.regimen_fiscal?.nombre || '-' }}
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm">
-                    <span v-if="empresa.cuenta_utilidad_periodo_id && empresa.cuenta_utilidades_acumuladas_id" 
-                          class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                    <span v-if="empresa.cuenta_utilidad_periodo_id && empresa.cuenta_utilidades_acumuladas_id"
+                      class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
                       ✅ Configurada
                     </span>
                     <span v-else class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
@@ -112,8 +105,8 @@
                     </span>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm">
-                    <span v-if="empresa.is_active" 
-                          class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                    <span v-if="empresa.is_active"
+                      class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
                       Activa
                     </span>
                     <span v-else class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
@@ -121,40 +114,39 @@
                     </span>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-right space-x-2">
-                    <button @click="abrirModalEditar(empresa)" 
-                            class="text-blue-600 hover:text-blue-900 font-medium">
+                    <button @click="abrirModalEditar(empresa)"
+                      class="text-blue-600 hover:text-blue-900 font-medium">
                       Editar
                     </button>
-                    <button @click="abrirConfiguracion(empresa)" 
-                            class="text-green-600 hover:text-green-900 font-medium">
+                    <button @click="abrirConfiguracion(empresa)"
+                      class="text-green-600 hover:text-green-900 font-medium">
                       Configurar
                     </button>
-                    <button 
-                      @click="empresaExpandida = empresaExpandida?.id === empresa.id ? null : empresa" 
+                    <button
+                      @click="empresaExpandida = empresaExpandida?.id === empresa.id ? null : empresa"
                       class="text-purple-600 hover:text-purple-900 font-medium"
                     >
                       {{ empresaExpandida?.id === empresa.id ? 'Ocultar' : 'Domicilios' }}
                     </button>
                     <button v-if="empresa.is_active"
-                            @click="confirmarEliminar(empresa)" 
-                            class="text-red-600 hover:text-red-900 font-medium">
+                      @click="confirmarEliminar(empresa)"
+                      class="text-red-600 hover:text-red-900 font-medium">
                       Desactivar
                     </button>
-                    <button 
-                      @click="empresaExpandidaRep = empresaExpandidaRep?.id === empresa.id ? null : empresa" 
+                    <button
+                      @click="empresaExpandidaRep = empresaExpandidaRep?.id === empresa.id ? null : empresa"
                       class="text-indigo-600 hover:text-indigo-900 font-medium"
                     >
                       {{ empresaExpandidaRep?.id === empresa.id ? 'Ocultar' : 'Representantes' }}
                     </button>
                   </td>
                 </tr>
-
-                <!-- ✅ Fila expandible de domicilios (DENTRO del template v-for) -->
+                <!-- Fila expandible de domicilios -->
                 <tr v-if="empresaExpandida?.id === empresa.id">
                   <td colspan="6" class="px-6 py-4 bg-gray-50 border-t border-gray-200">
                     <DomicilioManager
                       :empresa-id="empresa.id"
-                      :tenant-id="selectedTenantId"
+                      :tenant-id="currentTenantIdForComponents"
                       @updated="cargarEmpresas"
                     />
                   </td>
@@ -164,7 +156,7 @@
                   <td colspan="6" class="px-6 py-4 bg-gray-50 border-t border-gray-200">
                     <RepresentanteManager
                       :empresa-id="empresa.id"
-                      :tenant-id="selectedTenantId"
+                      :tenant-id="currentTenantIdForComponents"
                       @updated="cargarEmpresas"
                     />
                   </td>
@@ -179,27 +171,23 @@
       <div v-if="showModalEmpresa" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
         <div class="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full mx-4 relative max-h-[90vh] overflow-y-auto">
           <button @click="cerrarModalEmpresa" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">✕</button>
-          
           <h3 class="text-xl font-bold mb-4 text-gray-800 pr-6">
             {{ modoEdicion ? 'Editar Empresa' : 'Nueva Empresa' }}
           </h3>
-
           <div v-if="errorModal" class="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded mb-4 text-sm">
             {{ errorModal }}
           </div>
-
           <form @submit.prevent="guardarEmpresa" class="space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
-              <!-- NIT (Primer campo) -->
+              <!-- NIT -->
               <div>
                 <label class="block text-gray-700 text-sm font-bold mb-1">NIT *</label>
                 <div class="relative">
-                  <input 
-                    v-model="formEmpresa.nit" 
+                  <input
+                    v-model="formEmpresa.nit"
                     @input="debounceValidarNit"
                     @blur="validarNitEnTiempoReal(formEmpresa.nit)"
-                    type="text" 
+                    type="text"
                     class="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     :class="{
                       'border-green-500': nitValido && formEmpresa.nit,
@@ -217,34 +205,31 @@
                 </p>
                 <p v-else class="text-xs text-gray-500 mt-1">Formato: 1234567-8</p>
               </div>
-
               <!-- Nombre Comercial -->
               <div>
                 <label class="block text-gray-700 text-sm font-bold mb-1">Nombre Comercial</label>
-                <input 
-                  v-model="formEmpresa.nombre_comercial" 
-                  type="text" 
+                <input
+                  v-model="formEmpresa.nombre_comercial"
+                  type="text"
                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-
-              <!-- Nombre (Razón Social) -->
+              <!-- Razón Social -->
               <div class="md:col-span-2">
                 <label class="block text-gray-700 text-sm font-bold mb-1">Razón Social (Nombre) *</label>
-                <input 
-                  v-model="formEmpresa.nombre" 
-                  type="text" 
+                <input
+                  v-model="formEmpresa.nombre"
+                  type="text"
                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   required
                 />
               </div>
-
-              <!-- Fecha Constitución (dd/mm/yyyy) -->
+              <!-- Fecha Constitución -->
               <div>
                 <label class="block text-gray-700 text-sm font-bold mb-1">Fecha de Constitución</label>
-                <input 
-                  v-model="formEmpresa.fecha_constitucion_display" 
-                  type="text" 
+                <input
+                  v-model="formEmpresa.fecha_constitucion_display"
+                  type="text"
                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="dd/mm/yyyy"
                   @input="formatearFecha"
@@ -252,8 +237,7 @@
                 />
                 <p class="text-xs text-gray-500 mt-1">Formato: dd/mm/yyyy</p>
               </div>
-
-              <!-- Régimen Fiscal (Dropdown con búsqueda) -->
+              <!-- Régimen Fiscal -->
               <div class="relative">
                 <label class="block text-gray-700 text-sm font-bold mb-1">Régimen Fiscal</label>
                 <input
@@ -269,16 +253,15 @@
                     No se encontraron regímenes
                   </li>
                   <li v-for="regimen in regimenesFiltrados"
-                      :key="regimen.id"
-                      @mousedown="seleccionarRegimen(regimen)"
-                      class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
+                    :key="regimen.id"
+                    @mousedown="seleccionarRegimen(regimen)"
+                    class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
                     <span class="font-bold">{{ regimen.codigo }}</span>
                     <span class="ml-2">{{ regimen.nombre }}</span>
                   </li>
                 </ul>
               </div>
-
-              <!-- Tipo de Persona (Dropdown con búsqueda) -->
+              <!-- Tipo de Persona -->
               <div class="relative">
                 <label class="block text-gray-700 text-sm font-bold mb-1">Tipo de Persona</label>
                 <input
@@ -294,15 +277,14 @@
                     No se encontraron tipos
                   </li>
                   <li v-for="tipo in tiposPersonaFiltrados"
-                      :key="tipo.id"
-                      @mousedown="seleccionarTipoPersona(tipo)"
-                      class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
+                    :key="tipo.id"
+                    @mousedown="seleccionarTipoPersona(tipo)"
+                    class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
                     {{ tipo.nombre }}
                   </li>
                 </ul>
               </div>
-
-              <!-- Actividad Económica (Dropdown con búsqueda) -->
+              <!-- Actividad Económica -->
               <div class="md:col-span-2 relative">
                 <label class="block text-gray-700 text-sm font-bold mb-1">Actividad Económica</label>
                 <input
@@ -318,25 +300,24 @@
                     No se encontraron actividades
                   </li>
                   <li v-for="act in actividadesFiltradas"
-                      :key="act.id"
-                      @mousedown="seleccionarActividad(act)"
-                      class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
+                    :key="act.id"
+                    @mousedown="seleccionarActividad(act)"
+                    class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
                     <span class="font-bold">{{ act.codigo_sat }}</span>
                     <span class="ml-2">{{ act.nombre_actividad }}</span>
                   </li>
                 </ul>
               </div>
             </div>
-
             <div class="flex justify-end space-x-3 pt-4 border-t">
-              <button 
+              <button
                 type="button"
-                @click="cerrarModalEmpresa" 
+                @click="cerrarModalEmpresa"
                 class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition"
               >
                 Cancelar
               </button>
-              <button 
+              <button
                 type="submit"
                 :disabled="cargandoModal"
                 class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition"
@@ -354,10 +335,8 @@
           <button @click="cerrarConfigModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">✕</button>
           <h3 class="text-lg font-bold mb-4 text-gray-800 pr-6">Configurar Cuentas de Cierre</h3>
           <p class="text-sm text-gray-500 mb-4">Empresa: <span class="font-medium">{{ empresaConfig?.nombre }}</span></p>
-          
           <div v-if="errorConfig" class="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded mb-4 text-sm">{{ errorConfig }}</div>
           <div v-if="successConfig" class="bg-green-100 border border-green-400 text-green-700 px-3 py-2 rounded mb-4 text-sm">{{ successConfig }}</div>
-
           <div class="space-y-5">
             <!-- Búsqueda: Utilidad del Período -->
             <div class="relative">
@@ -377,16 +356,15 @@
                     No se encontraron cuentas
                   </li>
                   <li v-for="cuenta in cuentasFiltradasUtilidad"
-                      :key="cuenta.id"
-                      @mousedown="seleccionarUtilidad(cuenta)"
-                      class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
+                    :key="cuenta.id"
+                    @mousedown="seleccionarUtilidad(cuenta)"
+                    class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
                     <span class="font-bold">{{ cuenta.codigo }}</span>
                     <span class="ml-2">{{ cuenta.nombre }}</span>
                   </li>
                 </ul>
               </div>
             </div>
-
             <!-- Búsqueda: Utilidades Acumuladas -->
             <div class="relative">
               <label class="block text-gray-700 text-sm font-bold mb-1">Cuenta Utilidades/Pérdidas Acumuladas</label>
@@ -405,9 +383,9 @@
                     No se encontraron cuentas
                   </li>
                   <li v-for="cuenta in cuentasFiltradasAcumulada"
-                      :key="cuenta.id"
-                      @mousedown="seleccionarAcumulada(cuenta)"
-                      class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
+                    :key="cuenta.id"
+                    @mousedown="seleccionarAcumulada(cuenta)"
+                    class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
                     <span class="font-bold">{{ cuenta.codigo }}</span>
                     <span class="ml-2">{{ cuenta.nombre }}</span>
                   </li>
@@ -415,7 +393,6 @@
               </div>
             </div>
           </div>
-
           <div class="mt-6 flex justify-end space-x-3">
             <button @click="cerrarConfigModal" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Cancelar</button>
             <button
@@ -427,7 +404,6 @@
           </div>
         </div>
       </div>
-
     </div>
   </div>
 </template>
@@ -436,22 +412,23 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCompanyStore } from '@/stores/company'
+import { useSuperAdminStore } from '@/stores/superAdmin'
 import { Plus } from '@lucide/vue'
 import api from '@/services/api'
 import DomicilioManager from '@/components/empresas/DomicilioManager.vue'
 import RepresentanteManager from '@/components/empresas/RepresentanteManager.vue'
+import SuperAdminContextSelector from '@/components/SuperAdminContextSelector.vue'
 
 const authStore = useAuthStore()
 const companyStore = useCompanyStore()
+const superAdminStore = useSuperAdminStore()
 
-// Estado para empresa expandida (domicilios)
+// Estado para empresa expandida (domicilios y representantes)
 const empresaExpandida = ref(null)
 const empresaExpandidaRep = ref(null)
 
 // State General
 const empresas = ref([])
-const tenants = ref([])
-const selectedTenantId = ref('')
 const cargandoLista = ref(false)
 const error = ref('')
 const successMsg = ref('')
@@ -493,7 +470,7 @@ const dropdownTipoPersona = ref(false)
 const busquedaActividad = ref('')
 const dropdownActividad = ref(false)
 
-// Debounce manual sin dependencias
+// Debounce manual
 let debounceTimerNit = null
 const debounceValidarNit = () => {
   clearTimeout(debounceTimerNit)
@@ -532,6 +509,14 @@ const actividadesFiltradas = computed(() => {
   )
 })
 
+// ⭐ Computed: tenant_id para componentes hijos (DomicilioManager, RepresentanteManager)
+const currentTenantIdForComponents = computed(() => {
+  if (authStore.isSuperAdmin) {
+    return superAdminStore.currentTenantId || null
+  }
+  return authStore.tenantId || null
+})
+
 // Validación de NIT en tiempo real
 const validarNitEnTiempoReal = async (nit) => {
   if (!nit || nit.length < 7) {
@@ -539,21 +524,17 @@ const validarNitEnTiempoReal = async (nit) => {
     nitMensaje.value = ''
     return
   }
-  
   validandoNit.value = true
-  
   try {
-    const params = authStore.isSuperAdmin && selectedTenantId.value 
-      ? { tenant_id: selectedTenantId.value } 
+    const params = authStore.isSuperAdmin && superAdminStore.currentTenantId
+      ? { tenant_id: superAdminStore.currentTenantId }
       : {}
-    
     await api.post('/empresas/validar-nit', { nit }, { params })
     nitValido.value = true
     nitMensaje.value = '✅ NIT válido y disponible'
   } catch (err) {
     nitValido.value = false
     const detail = err.response?.data?.detail || ''
-    
     if (err.response?.status === 400) {
       nitMensaje.value = `❌ ${detail}`
     } else if (err.response?.status === 409) {
@@ -574,7 +555,6 @@ const cuentasPatrimonio = ref([])
 const cargandoConfig = ref(false)
 const errorConfig = ref('')
 const successConfig = ref('')
-
 const busquedaUtilidad = ref('')
 const busquedaAcumulada = ref('')
 const dropdownUtilidad = ref(false)
@@ -607,23 +587,15 @@ const cargarCatalogos = async () => {
       api.get('/tipos-persona/lista'),
       api.get('/actividades-economicas/activas')
     ])
-    
-    regimenes.value = (resRegimenes.data || []).filter(r => 
+    regimenes.value = (resRegimenes.data || []).filter(r =>
       r.is_active !== false && r.activo !== false
     )
     tiposPersona.value = resTipos.data || []
-    actividadesEconomicas.value = (resActividades.data || []).filter(a => 
+    actividadesEconomicas.value = (resActividades.data || []).filter(a =>
       a.activa !== false && a.is_active !== false
     )
-    
-    console.log('✅ Catálogos cargados:', {
-      regimenes: regimenes.value.length,
-      tiposPersona: tiposPersona.value.length,
-      actividades: actividadesEconomicas.value.length
-    })
   } catch (err) {
     console.error('❌ Error cargando catálogos:', err)
-    console.error('Response:', err.response?.data)
   } finally {
     cargandoCatalogos.value = false
   }
@@ -641,7 +613,6 @@ const formatearFecha = (event) => {
     value = value.substring(0, 5) + '/' + value.substring(5, 9)
   }
   formEmpresa.value.fecha_constitucion_display = value
-  
   if (value.length === 10) {
     const [dia, mes, anio] = value.split('/')
     formEmpresa.value.fecha_constitucion = `${anio}-${mes}-${dia}`
@@ -674,39 +645,36 @@ const seleccionarActividad = (act) => {
 const handleBlurRegimen = () => {
   setTimeout(() => { dropdownRegimen.value = false }, 200)
 }
+
 const handleBlurTipoPersona = () => {
   setTimeout(() => { dropdownTipoPersona.value = false }, 200)
 }
+
 const handleBlurActividad = () => {
   setTimeout(() => { dropdownActividad.value = false }, 200)
 }
 
 // ============================================
-// Tenants y Empresas
+// Cargar Empresas (con soporte SuperAdmin)
 // ============================================
-const fetchTenants = async () => {
-  if (!authStore.isSuperAdmin) return
-  try {
-    const res = await api.get('/tenants/')
-    tenants.value = res.data.filter(t => !['sistema', 'system', 'public'].includes(t.schema_name))
-  } catch (err) { 
-    console.error('Error cargando tenants:', err) 
-  }
-}
-
 const cargarEmpresas = async () => {
+  // Si es superadmin y no hay tenant seleccionado, no cargar
+  if (authStore.isSuperAdmin && !superAdminStore.currentTenantId) {
+    empresas.value = []
+    return
+  }
+
   cargandoLista.value = true
   error.value = ''
+  
   try {
     if (authStore.isSuperAdmin) {
-      if (!selectedTenantId.value) {
-        empresas.value = []
-      } else {
-        const params = { tenant_id: selectedTenantId.value }
-        const resp = await api.get('/empresas/', { params })
-        empresas.value = resp.data
-      }
+      // Superadmin: cargar empresas del tenant seleccionado
+      const params = { tenant_id: superAdminStore.currentTenantId }
+      const resp = await api.get('/empresas/', { params })
+      empresas.value = resp.data
     } else {
+      // Usuario regular: cargar empresas de su propio tenant
       if (!companyStore.hasCompanies) {
         try {
           await companyStore.loadCompanies()
@@ -724,19 +692,36 @@ const cargarEmpresas = async () => {
   }
 }
 
-watch(() => companyStore.availableCompanies, (newCompanies) => {
-  empresas.value = newCompanies
-}, { immediate: true })
+// ⭐ Watch: Cuando cambia el contexto del superadmin, recargar empresas
+watch(
+  () => superAdminStore.currentTenantId,
+  (newTenantId, oldTenantId) => {
+    if (newTenantId !== oldTenantId) {
+      // Resetear estados expandibles
+      empresaExpandida.value = null
+      empresaExpandidaRep.value = null
+      cargarEmpresas()
+    }
+  }
+)
 
-const handleTenantChange = () => {
-  empresas.value = []
-  cargarEmpresas()
-}
+// Watch para usuarios regulares
+watch(() => companyStore.availableCompanies, (newCompanies) => {
+  if (!authStore.isSuperAdmin) {
+    empresas.value = newCompanies
+  }
+}, { immediate: true })
 
 // ============================================
 // Modal Crear
 // ============================================
 const abrirModalCrear = async () => {
+  // Validar que haya contexto si es superadmin
+  if (authStore.isSuperAdmin && !superAdminStore.currentTenantId) {
+    error.value = 'Debe seleccionar un tenant antes de crear una empresa'
+    return
+  }
+
   modoEdicion.value = false
   empresaEditando.value = null
   formEmpresa.value = {
@@ -756,7 +741,6 @@ const abrirModalCrear = async () => {
   nitValido.value = true
   nitMensaje.value = ''
   errorModal.value = ''
-  
   showModalEmpresa.value = true
   await cargarCatalogos()
 }
@@ -767,7 +751,6 @@ const abrirModalCrear = async () => {
 const abrirModalEditar = async (empresa) => {
   modoEdicion.value = true
   empresaEditando.value = empresa
-  
   let fechaDisplay = ''
   if (empresa.fecha_constitucion) {
     const [anio, mes, dia] = empresa.fecha_constitucion.split('-')
@@ -775,7 +758,6 @@ const abrirModalEditar = async (empresa) => {
       fechaDisplay = `${dia}/${mes}/${anio}`
     }
   }
-  
   formEmpresa.value = {
     nit: empresa.nit || '',
     nombre: empresa.nombre || '',
@@ -787,12 +769,10 @@ const abrirModalEditar = async (empresa) => {
     tipo_persona_id: empresa.tipo_persona_id || '',
     actividad_economica_id: empresa.actividad_economica_id || ''
   }
-  
   errorModal.value = ''
   nitValido.value = true
   nitMensaje.value = ''
   showModalEmpresa.value = true
-  
   await cargarCatalogos()
   
   if (empresa.regimen_fiscal_id) {
@@ -823,12 +803,10 @@ const guardarEmpresa = async () => {
     errorModal.value = 'El NIT ingresado no es válido o ya está en uso.'
     return
   }
-  
   cargandoModal.value = true
   errorModal.value = ''
-  
   try {
-    const payload = { 
+    const payload = {
       nit: formEmpresa.value.nit,
       nombre: formEmpresa.value.nombre,
       razon_social: formEmpresa.value.razon_social || null,
@@ -838,16 +816,19 @@ const guardarEmpresa = async () => {
       tipo_persona_id: formEmpresa.value.tipo_persona_id || null,
       actividad_economica_id: formEmpresa.value.actividad_economica_id || null
     }
-
+    
+    // ⭐ Si es superadmin, enviar tenant_id en los params
+    const params = authStore.isSuperAdmin && superAdminStore.currentTenantId
+      ? { tenant_id: superAdminStore.currentTenantId }
+      : {}
+    
     if (modoEdicion.value && empresaEditando.value) {
-      const params = authStore.isSuperAdmin && selectedTenantId.value ? { tenant_id: selectedTenantId.value } : {}
       await api.put(`/empresas/${empresaEditando.value.id}`, payload, { params })
       successMsg.value = '✅ Empresa actualizada exitosamente'
     } else {
-      await api.post('/empresas/', payload)
+      await api.post('/empresas/', payload, { params })
       successMsg.value = '✅ Empresa creada exitosamente'
     }
-    
     cerrarModalEmpresa()
     await cargarEmpresas()
   } catch (err) {
@@ -869,7 +850,9 @@ const confirmarEliminar = (empresa) => {
 
 const eliminarEmpresa = async (empresa) => {
   try {
-    const params = authStore.isSuperAdmin && selectedTenantId.value ? { tenant_id: selectedTenantId.value } : {}
+    const params = authStore.isSuperAdmin && superAdminStore.currentTenantId
+      ? { tenant_id: superAdminStore.currentTenantId }
+      : {}
     await api.delete(`/empresas/${empresa.id}`, { params })
     successMsg.value = '✅ Empresa desactivada exitosamente'
     await cargarEmpresas()
@@ -893,7 +876,9 @@ const abrirConfiguracion = async (empresa) => {
   dropdownAcumulada.value = false
   
   try {
-    const params = authStore.isSuperAdmin && selectedTenantId.value ? { tenant_id: selectedTenantId.value } : {}
+    const params = authStore.isSuperAdmin && superAdminStore.currentTenantId
+      ? { tenant_id: superAdminStore.currentTenantId }
+      : {}
     
     const resCuentas = await api.get('/plan-cuentas/', { params: { ...params, empresa_id: empresa.id } })
     cuentasPatrimonio.value = resCuentas.data.filter(c => c.tipo === 'patrimonio' && c.activa)
@@ -943,13 +928,16 @@ const guardarConfiguracion = async () => {
   cargandoConfig.value = true
   errorConfig.value = ''
   successConfig.value = ''
-  
   try {
-    const params = authStore.isSuperAdmin && selectedTenantId.value ? { tenant_id: selectedTenantId.value } : {}
+    const params = authStore.isSuperAdmin && superAdminStore.currentTenantId
+      ? { tenant_id: superAdminStore.currentTenantId }
+      : {}
+    
     const payload = {
       cuenta_utilidad_periodo_id: configForm.value.cuenta_utilidad_periodo_id || null,
       cuenta_utilidades_acumuladas_id: configForm.value.cuenta_utilidades_acumuladas_id || null
     }
+    
     await api.put(`/empresas/${empresaConfig.value.id}`, payload, { params })
     successConfig.value = '✅ Configuración guardada correctamente.'
     await cargarEmpresas()
@@ -967,11 +955,14 @@ const cerrarConfigModal = () => {
   configForm.value = { cuenta_utilidad_periodo_id: '', cuenta_utilidades_acumuladas_id: '' }
 }
 
+// ============================================
+// Inicialización
+// ============================================
 onMounted(async () => {
-  await fetchTenants()
-  if (authStore.isSuperAdmin && tenants.value.length > 0) {
-    selectedTenantId.value = tenants.value[0].id
+  // Si es superadmin, cargar tenants (el SuperAdminContextSelector lo hará)
+  // Si no, cargar empresas directamente
+  if (!authStore.isSuperAdmin) {
+    await cargarEmpresas()
   }
-  await cargarEmpresas()
 })
 </script>

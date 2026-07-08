@@ -29,17 +29,19 @@ class ActividadEconomicaUpdate(BaseModel):
 # RESPONSE
 # ============================================================
 class ActividadEconomicaResponse(ActividadEconomicaBase):
-    id: UUID
+    id: int  # ✅ BIGINT (era UUID)
+    public_id: UUID | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
-    created_by: UUID | None = None
-    updated_by: UUID | None = None
+    created_by: int | None = None
+    updated_by: int | None = None
 
     model_config = {"from_attributes": True}
 
 
 class ActividadEconomicaListResponse(BaseModel):
-    id: UUID
+    id: int  # ✅ BIGINT (era UUID)
+    public_id: UUID | None = None
     codigo_sat: str
     nombre_actividad: str
     seccion: str | None = None

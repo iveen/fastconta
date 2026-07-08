@@ -1,5 +1,6 @@
 """Endpoint para Catálogo de Monedas"""
-from uuid import UUID
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.schemas.catalogos.moneda import (
@@ -9,8 +10,6 @@ from app.schemas.catalogos.moneda import (
     MonedaUpdate,
 )
 from app.services.catalogos.moneda_service import MonedaService
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/monedas", tags=["Catálogos - Monedas"])
 
@@ -27,11 +26,12 @@ async def listar_monedas(
     limit: int = Query(50, ge=1, le=200),
     service: MonedaService = Depends(get_service),
 ):
+    """Lista monedas con paginación"""
     monedas, total = await service.obtener_todos(
         activo=activo, search=search, skip=skip, limit=limit
     )
     return {
-        "data": [MonedaListResponse.model_validate(m) for m in monedas],
+        "data": [MonedaListResponse.model_validate(m).model_dump() for m in monedas],
         "total": total,
         "skip": skip,
         "limit": limit,
@@ -39,12 +39,19 @@ async def listar_monedas(
 
 
 @router.get("/activos", response_model=list[MonedaListResponse])
-async def listar_monedas_activos(service: MonedaService = Depends(get_service)):
+async def listar_monedas_activos(
+    service: MonedaService = Depends(get_service),
+):
+    """Lista todas las monedas activas (para dropdowns)"""
     return await service.obtener_todos_activos()
 
 
 @router.get("/{moneda_id}", response_model=MonedaResponse)
-async def obtener_moneda(moneda_id: UUID, service: MonedaService = Depends(get_service)):
+async def obtener_moneda(
+    moneda_id: int,  # ✅ BIGINT (era UUID)
+    service: MonedaService = Depends(get_service),
+):
+    """Obtiene una moneda por ID"""
     moneda = await service.obtener_por_id(moneda_id)
     if not moneda:
         raise HTTPException(status_code=404, detail="Moneda no encontrada")
@@ -52,7 +59,11 @@ async def obtener_moneda(moneda_id: UUID, service: MonedaService = Depends(get_s
 
 
 @router.post("/", response_model=MonedaResponse, status_code=201)
-async def crear_moneda(data: MonedaCreate, service: MonedaService = Depends(get_service)):
+async def crear_moneda(
+    data: MonedaCreate,
+    service: MonedaService = Depends(get_service),
+):
+    """Crea una nueva moneda"""
     try:
         return await service.crear(data.model_dump())
     except ValueError as e:
@@ -61,8 +72,11 @@ async def crear_moneda(data: MonedaCreate, service: MonedaService = Depends(get_
 
 @router.patch("/{moneda_id}", response_model=MonedaResponse)
 async def actualizar_moneda(
-    moneda_id: UUID, data: MonedaUpdate, service: MonedaService = Depends(get_service)
+    moneda_id: int,  # ✅ BIGINT (era UUID)
+    data: MonedaUpdate,
+    service: MonedaService = Depends(get_service),
 ):
+    """Actualiza una moneda"""
     moneda = await service.actualizar(moneda_id, data.model_dump(exclude_unset=True))
     if not moneda:
         raise HTTPException(status_code=404, detail="Moneda no encontrada")
@@ -70,6 +84,10 @@ async def actualizar_moneda(
 
 
 @router.delete("/{moneda_id}", status_code=204)
-async def eliminar_moneda(moneda_id: UUID, service: MonedaService = Depends(get_service)):
+async def eliminar_moneda(
+    moneda_id: int,  # ✅ BIGINT (era UUID)
+    service: MonedaService = Depends(get_service),
+):
+    """Elimina una moneda (soft delete)"""
     if not await service.eliminar(moneda_id):
         raise HTTPException(status_code=404, detail="Moneda no encontrada")

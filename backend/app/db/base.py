@@ -17,7 +17,9 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
     pool_pre_ping=True,  # 👈 Vital para reconexión automática
-    pool_size=10,
+    pool_size=20,
+    pool_timeout=30,
+    pool_recycle=1800,
     max_overflow=20
 )
 

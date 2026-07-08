@@ -1,7 +1,6 @@
 # app/core/security.py
 from dataclasses import dataclass, field
-from typing import Optional, Set
-from uuid import UUID
+from typing import Set
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -43,6 +42,15 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
+    try:
+        user_id = int(payload.get("sub"))
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token con formato inválido",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
     stmt = select(User).where(User.id == user_id).options(selectinload(User.tenant))
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
@@ -56,9 +64,9 @@ class DataScope:
     user: User
     role_code: str
     nivel_acceso: int
-    tenant_id: Optional[UUID] = None
-    tenant_schema: Optional[str] = None
-    empresa_ids: Optional[Set[UUID]] = field(default=None)
+    tenant_id: int | None = None
+    tenant_schema: str | None = None
+    empresa_ids: Set[int] | None = field(default=None)
     is_read_only: bool = False
 
 async def get_data_scope(

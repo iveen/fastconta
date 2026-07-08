@@ -1,5 +1,6 @@
 """Endpoint para Geografía (Departamentos y Municipios)"""
-from uuid import UUID
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.schemas.catalogos.geografia import (
@@ -11,8 +12,6 @@ from app.schemas.catalogos.geografia import (
     MunicipioUpdate,
 )
 from app.services.catalogos.geografia_service import GeografiaService
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/geografia", tags=["Catálogos - Geografía"])
 
@@ -25,14 +24,19 @@ def get_service(db: AsyncSession = Depends(get_db)) -> GeografiaService:
 # DEPARTAMENTOS
 # ============================================================
 @router.get("/departamentos", response_model=list[DepartamentoResponse])
-async def listar_departamentos(service: GeografiaService = Depends(get_service)):
+async def listar_departamentos(
+    service: GeografiaService = Depends(get_service),
+):
+    """Lista todos los departamentos"""
     return await service.obtener_departamentos()
 
 
 @router.get("/departamentos/{depto_id}", response_model=DepartamentoResponse)
 async def obtener_departamento(
-    depto_id: UUID, service: GeografiaService = Depends(get_service)
+    depto_id: int,  # ✅ BIGINT (era UUID)
+    service: GeografiaService = Depends(get_service),
 ):
+    """Obtiene un departamento por ID"""
     depto = await service.obtener_departamento_por_id(depto_id)
     if not depto:
         raise HTTPException(status_code=404, detail="Departamento no encontrado")
@@ -41,8 +45,10 @@ async def obtener_departamento(
 
 @router.post("/departamentos", response_model=DepartamentoResponse, status_code=201)
 async def crear_departamento(
-    data: DepartamentoCreate, service: GeografiaService = Depends(get_service)
+    data: DepartamentoCreate,
+    service: GeografiaService = Depends(get_service),
 ):
+    """Crea un nuevo departamento"""
     try:
         return await service.crear_departamento(data.model_dump())
     except ValueError as e:
@@ -51,10 +57,11 @@ async def crear_departamento(
 
 @router.patch("/departamentos/{depto_id}", response_model=DepartamentoResponse)
 async def actualizar_departamento(
-    depto_id: UUID,
+    depto_id: int,  # ✅ BIGINT (era UUID)
     data: DepartamentoUpdate,
     service: GeografiaService = Depends(get_service),
 ):
+    """Actualiza un departamento"""
     depto = await service.actualizar_departamento(depto_id, data.model_dump(exclude_unset=True))
     if not depto:
         raise HTTPException(status_code=404, detail="Departamento no encontrado")
@@ -63,8 +70,10 @@ async def actualizar_departamento(
 
 @router.delete("/departamentos/{depto_id}", status_code=204)
 async def eliminar_departamento(
-    depto_id: UUID, service: GeografiaService = Depends(get_service)
+    depto_id: int,  # ✅ BIGINT (era UUID)
+    service: GeografiaService = Depends(get_service),
 ):
+    """Elimina un departamento (soft delete)"""
     if not await service.eliminar_departamento(depto_id):
         raise HTTPException(status_code=404, detail="Departamento no encontrado")
 
@@ -74,9 +83,10 @@ async def eliminar_departamento(
 # ============================================================
 @router.get("/municipios", response_model=list[MunicipioResponse])
 async def listar_municipios(
-    departamento_id: UUID | None = Query(None),
+    departamento_id: int | None = Query(None, description="Filtrar por departamento"),
     service: GeografiaService = Depends(get_service),
 ):
+    """Lista municipios, opcionalmente filtrados por departamento"""
     municipios = await service.obtener_municipios(departamento_id)
     
     # Enriquecer con nombre del departamento
@@ -85,14 +95,15 @@ async def listar_municipios(
         data = MunicipioResponse.model_validate(m).model_dump()
         data["departamento_nombre"] = m.departamento.nombre if m.departamento else None
         response.append(data)
-    
     return response
 
 
 @router.get("/municipios/{mun_id}", response_model=MunicipioResponse)
 async def obtener_municipio(
-    mun_id: UUID, service: GeografiaService = Depends(get_service)
+    mun_id: int,  # ✅ BIGINT (era UUID)
+    service: GeografiaService = Depends(get_service),
 ):
+    """Obtiene un municipio por ID"""
     mun = await service.obtener_municipio_por_id(mun_id)
     if not mun:
         raise HTTPException(status_code=404, detail="Municipio no encontrado")
@@ -104,8 +115,10 @@ async def obtener_municipio(
 
 @router.post("/municipios", response_model=MunicipioResponse, status_code=201)
 async def crear_municipio(
-    data: MunicipioCreate, service: GeografiaService = Depends(get_service)
+    data: MunicipioCreate,
+    service: GeografiaService = Depends(get_service),
 ):
+    """Crea un nuevo municipio"""
     try:
         return await service.crear_municipio(data.model_dump())
     except ValueError as e:
@@ -114,10 +127,11 @@ async def crear_municipio(
 
 @router.patch("/municipios/{mun_id}", response_model=MunicipioResponse)
 async def actualizar_municipio(
-    mun_id: UUID,
+    mun_id: int,  # ✅ BIGINT (era UUID)
     data: MunicipioUpdate,
     service: GeografiaService = Depends(get_service),
 ):
+    """Actualiza un municipio"""
     mun = await service.actualizar_municipio(mun_id, data.model_dump(exclude_unset=True))
     if not mun:
         raise HTTPException(status_code=404, detail="Municipio no encontrado")
@@ -126,7 +140,9 @@ async def actualizar_municipio(
 
 @router.delete("/municipios/{mun_id}", status_code=204)
 async def eliminar_municipio(
-    mun_id: UUID, service: GeografiaService = Depends(get_service)
+    mun_id: int,  # ✅ BIGINT (era UUID)
+    service: GeografiaService = Depends(get_service),
 ):
+    """Elimina un municipio (soft delete)"""
     if not await service.eliminar_municipio(mun_id):
         raise HTTPException(status_code=404, detail="Municipio no encontrado")

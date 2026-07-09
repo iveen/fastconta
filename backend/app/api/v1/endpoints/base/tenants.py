@@ -3,12 +3,11 @@ import logging
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import DataScope, get_data_scope, get_password_hash
-from app.core.tenant import create_tenant_schema
 from app.db.session import get_db, get_public_db
 from app.dependencies import require_role
 from app.models.global_models import RegistrationAttempt, Role, Tenant, User
@@ -125,13 +124,14 @@ async def create_tenant(
         nit=payload.nit,
         schema_name="pending",  # ⚠️ Placeholder temporal
         plan=payload.plan or "freemium",
-        max_usuarios=3,  # ✅ Límite inicial por defecto
+        max_usuarios=1,  # ✅ Límite inicial por defecto
         admin_email=payload.admin_email,
         is_active=True
     )
     db.add(new_tenant)
-    await db.flush()  # ⭐ Necesario para generar el public_id
-    
+    await db.commit()
+    await db.refresh(new_tenant)
+        
     # 6. ✅ CORREGIDO: Generar schema_name con formato t_{public_id_sin_guiones}
     # Ejemplo: t_550e8400e29b41d4a716446655440000 (34 chars)
     safe_uuid = str(new_tenant.public_id).replace("-", "")
@@ -144,47 +144,77 @@ async def create_tenant(
     # 7. Crear schema y ejecutar TODAS las migraciones
     # ⚠️ SÍNCRONO: debe ejecutarse en thread separado
     import asyncio
-    try:
-        await asyncio.to_thread(create_tenant_schema, db, schema_name)
-    except Exception as e:
-        logger.error(f"Error al crear schema '{schema_name}': {e}")
-        await db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error al inicializar el tenant: {str(e)}"
-        )
-    
-    # 8. ✅ CORREGIDO: Crear admin del tenant con role_id (BIGINT)
-    admin_user = User(
-        tenant_id=new_tenant.id,  # ✅ BIGINT interno
-        email=payload.admin_email.strip().lower(),
-        hashed_password=get_password_hash(payload.admin_password),
-        full_name="Administrador",
-        role_id=role_obj.id,  # ✅ BIGINT FK (NO string)
-        is_active=True
-    )
-    db.add(admin_user)
-    
-    # 9. Registrar intento exitoso
-    db.add(RegistrationAttempt(ip_address=client_ip))
-    
-    await db.commit()
-    await db.refresh(new_tenant)
-    
-    logger.info(f"✅ Tenant '{new_tenant.name}' creado exitosamente (schema: {schema_name})")
-    
-    return TenantResponse(
-        id=new_tenant.public_id,  # ✅ Exponer public_id (UUID)
-        name=new_tenant.name,
-        schema_name=new_tenant.schema_name,
-        nit=new_tenant.nit,
-        plan=new_tenant.plan,
-        max_usuarios=new_tenant.max_usuarios,
-        is_active=new_tenant.is_active,
-        created_at=new_tenant.created_at,
-        admin_email=new_tenant.admin_email
+
+    from app.services.base.tenant_setup import (
+        cleanup_tenant_schema,
+        initialize_tenant_schema,
     )
 
+    try:
+        logger.info(f"🚀 Iniciando creación del schema '{schema_name}'...")
+        await asyncio.wait_for(
+            asyncio.to_thread(initialize_tenant_schema, schema_name),
+            300
+        )
+        logger.info(f"✅ Schema '{schema_name}' creado y migrado exitosamente")
+    except asyncio.TimeoutError:
+        await db.delete(new_tenant)
+        await db.commit()
+        raise HTTPException(status_code=504, detail="Timeout al crear el schema")
+    except Exception as e:
+        logger.error(f"❌ Error creando schema '{schema_name}': {e}", exc_info=True)
+        await db.delete(new_tenant)
+        await db.commit()
+        raise HTTPException(status_code=500, detail=f"Error al inicializar el tenant {str(e)}")
+
+    # 8. Actualizar schema_name del tenant
+    new_tenant.schema_name = schema_name
+    await db.commit()
+
+    # 9. Crear admin del tenant
+    try:
+        admin_user = User(
+            tenant_id=new_tenant.id,
+            email=payload.admin_email.strip().lower(),
+            hashed_password=get_password_hash(payload.admin_password),
+            full_name="Administrador",
+            role_id=role_obj.id,
+            is_active=True
+        )
+        db.add(admin_user)
+        
+        # 10. Registrar intento exitoso
+        db.add(RegistrationAttempt(ip_address=client_ip))
+        
+        await db.commit()
+        await db.refresh(new_tenant)
+        
+        logger.info(f"✅ Tenant '{new_tenant.name}' creado exitosamente (schema: {schema_name})")
+        
+        return TenantResponse(
+            id=new_tenant.public_id,
+            name=new_tenant.name,
+            schema_name=new_tenant.schema_name,
+            nit=new_tenant.nit,
+            plan=new_tenant.plan,
+            max_usuarios=new_tenant.max_usuarios,
+            is_active=new_tenant.is_active,
+            created_at=new_tenant.created_at,
+            admin_email=new_tenant.admin_email
+        )
+    except Exception as e:
+        logger.error(f"❌ Error creando admin: {e}", exc_info=True)
+        try:
+            await asyncio.to_thread(cleanup_tenant_schema, schema_name)
+        except Exception as cleanup_err:
+            logger.error(f"⚠️ Error en rollback: {cleanup_err}")
+        
+        await db.delete(new_tenant)
+        await db.commit()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al crear el usuario admin: {str(e)}"
+        )
 
 # ============================================================
 # 3. Activar/Extender Trial
@@ -356,4 +386,82 @@ async def get_tenant_usage(
             "expira": trial_expires.isoformat() if trial_expires else None
         },
         "warnings": warnings
+    }
+
+# ============================================================
+# 6. Desactivar Tenant (Soft Delete)
+# ============================================================
+@router.patch("/{tenant_public_id}/deactivate", response_model=dict)
+async def deactivate_tenant(
+    tenant_public_id: UUID,
+    reason: str = Query(..., min_length=5, max_length=500),
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
+):
+    """Desactiva un tenant (soft delete)"""
+    if scope.role_code != "superadmin":
+        raise HTTPException(status_code=403, detail="Acceso denegado")
+    
+    result = await db.execute(
+        select(Tenant).where(Tenant.public_id == tenant_public_id)
+    )
+    tenant = result.scalar_one_or_none()
+    
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant no encontrado")
+    
+    if not tenant.is_active:
+        raise HTTPException(status_code=400, detail="El tenant ya está inactivo")
+    
+    tenant.is_active = False
+    tenant.deleted_at = datetime.utcnow()
+    
+    # TODO: Invalidar tokens JWT de usuarios de este tenant (requiere Redis)
+    
+    await db.commit()
+    
+    logger.warning(f"⚠️ Tenant desactivado: {tenant.name} (razón: {reason})")
+    
+    return {
+        "message": "Tenant desactivado exitosamente",
+        "tenant_id": str(tenant.public_id),
+        "tenant_name": tenant.name,
+        "reason": reason
+    }
+
+# ============================================================
+# 7. Reactivar Tenant
+# ============================================================
+@router.patch("/{tenant_public_id}/activate", response_model=dict)
+async def activate_tenant(
+    tenant_public_id: UUID,
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db)
+):
+    """Reactiva un tenant previamente desactivado"""
+    if scope.role_code != "superadmin":
+        raise HTTPException(status_code=403, detail="Acceso denegado")
+    
+    result = await db.execute(
+        select(Tenant).where(Tenant.public_id == tenant_public_id)
+    )
+    tenant = result.scalar_one_or_none()
+    
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant no encontrado")
+    
+    if tenant.is_active:
+        raise HTTPException(status_code=400, detail="El tenant ya está activo")
+    
+    tenant.is_active = True
+    tenant.deleted_at = None
+    
+    await db.commit()
+    
+    logger.info(f"✅ Tenant reactivado: {tenant.name}")
+    
+    return {
+        "message": "Tenant reactivado exitosamente",
+        "tenant_id": str(tenant.public_id),
+        "tenant_name": tenant.name
     }

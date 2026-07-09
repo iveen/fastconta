@@ -1,10 +1,10 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-700 to-emerald-600 p-4">
+  <div class="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-600 via-blue-700 to-emerald-600 p-4">
     <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
       <!-- Logo y Branding -->
       <div class="text-center mb-8">
         <!-- Logo combinado: BookOpen + BarChart3 -->
-        <div class="relative w-20 h-20 bg-gradient-to-br from-blue-700 to-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+        <div class="relative w-20 h-20 bg-linear-to-br from-blue-700 to-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
           <BookOpen class="w-10 h-10 text-white" />
           <div class="absolute -bottom-1 -right-1 w-8 h-8 bg-emerald-400 rounded-lg flex items-center justify-center shadow-md border-2 border-white">
             <BarChart3 class="w-5 h-5 text-white" />
@@ -29,7 +29,6 @@
             required
           />
         </div>
-
         <div>
           <label class="block text-gray-700 text-sm font-bold mb-2" for="password">
             Contraseña
@@ -43,14 +42,26 @@
             required
           />
         </div>
-
         <button
           type="submit"
-          class="w-full bg-gradient-to-r from-blue-700 to-emerald-600 text-white font-bold py-3 px-4 rounded-lg hover:from-blue-800 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all shadow-md"
+          class="w-full bg-linear-to-r from-blue-700 to-emerald-600 text-white font-bold py-3 px-4 rounded-lg hover:from-blue-800 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all shadow-md"
         >
           Iniciar sesión
         </button>
       </form>
+
+      <!-- 🆕 Footer con link a registro -->
+      <div class="mt-6 pt-6 border-t border-gray-200 text-center">
+        <p class="text-sm text-gray-600">
+          ¿Eres una firma contable y aún no tienes cuenta?
+        </p>
+        <router-link
+          to="/registro"
+          class="inline-block mt-2 text-blue-600 hover:text-blue-800 font-semibold transition-colors"
+        >
+          Solicita acceso aquí →
+        </router-link>
+      </div>
 
       <!-- Error Message -->
       <p v-if="error" class="text-red-500 text-sm mt-4 text-center bg-red-50 p-3 rounded-lg">
@@ -80,9 +91,9 @@ const authStore = useAuthStore()
 async function handleLogin() {
   try {
     await authStore.login({
-      email: email.value, 
+      email: email.value,
       password: password.value
-  })
+    })
     router.push('/dashboard')
   } catch (err) {
     error.value = err.response?.data?.detail || 'Error al iniciar sesión'

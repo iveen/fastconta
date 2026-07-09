@@ -27,6 +27,7 @@ import Monedas from '@/views/configuracion/Monedas.vue'
 import Geografia from '@/views/configuracion/Geografia.vue'
 import TiposPersona from '@/views/configuracion/TiposPersona.vue'
 import CategoriasActivos from '@/views/configuracion/CategoriasActivos.vue'
+import PublicRegister from '@/views/public/PublicRegister.vue'
 
 
 import { useAuthStore } from '@/stores/auth'
@@ -41,6 +42,12 @@ const routes = [
     path: '/login',
     name: 'Login',
     component: Login,
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/registro', 
+    name: 'PublicRegister',
+    component: PublicRegister,
     meta: { requiresAuth: false }
   },
   {
@@ -137,6 +144,24 @@ const routes = [
         name: 'ConfiguracionCategoriasActivos',
         component: CategoriasActivos,
         meta: { title: 'Categorías de Activos' }
+      }
+    ]
+  },
+  // Rutas SuperAdmin
+  {
+    path: '/superadmin',
+    component: () => import('@/layouts/SuperadminLayout.vue'),
+    meta: { requiresAuth: true, requiresSuperAdmin: true },
+    children: [
+      {
+        path: 'tenants',
+        name: 'SuperadminTenants',
+        component: () => import('@/views/superadmin/TenantsList.vue')
+      },
+      {
+        path: 'tenant-requests',
+        name: 'SuperadminTenantRequests',
+        component: () => import('@/views/superadmin/TenantRequestQueue.vue')
       }
     ]
   }

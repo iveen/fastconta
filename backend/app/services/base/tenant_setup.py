@@ -84,7 +84,7 @@ def initialize_tenant_schema(
 
 def _create_schema_with_privileges(schema_name: str) -> None:
     """Crea el schema y otorga permisos necesarios."""
-    engine = create_engine(settings.DATABASE_URL, isolation_level="AUTOCOMMIT")
+    engine = create_engine(settings.SYNC_DATABASE_URL, isolation_level="AUTOCOMMIT")
     try:
         with engine.connect() as conn:
             # Crear schema
@@ -92,7 +92,7 @@ def _create_schema_with_privileges(schema_name: str) -> None:
             logger.debug(f"Schema '{schema_name}' creado")
             
             # Otorgar permisos al rol de la app
-            db_user = settings.DB_USER
+            db_user = settings.DATABASE_USER
             conn.execute(text(f'GRANT ALL ON SCHEMA "{schema_name}" TO "{db_user}"'))
             
             # Permisos automáticos para tablas/sequences creadas en el futuro
@@ -123,7 +123,7 @@ def _run_alembic_upgrade(schema_name: str, alembic_ini_name: str) -> None:
     """
     # Ruta al archivo alembic_tenant.ini
     # app/services/tenant_setup.py -> raíz del proyecto -> alembic_tenant.ini
-    alembic_ini_path = Path(__file__).resolve().parent.parent.parent / alembic_ini_name
+    alembic_ini_path = Path(__file__).resolve().parent.parent.parent.parent / alembic_ini_name
     
     if not alembic_ini_path.exists():
         raise FileNotFoundError(
@@ -160,7 +160,7 @@ def cleanup_tenant_schema(schema_name: str) -> None:
     
     logger.info(f"🗑️ Eliminando schema '{schema_name}'")
     
-    engine = create_engine(settings.DATABASE_URL, isolation_level="AUTOCOMMIT")
+    engine = create_engine(settings.SYNC_DATABASE_URL, isolation_level="AUTOCOMMIT")
     try:
         with engine.connect() as conn:
             conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE'))

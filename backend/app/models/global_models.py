@@ -106,10 +106,40 @@ class Tenant(BigIntPKMixin, AuditableFull, SoftDelete, Base):
         delta = self.trial_until - datetime.utcnow()
         return max(0, delta.days)
 
-class RegistrationAttempt(BigIntPKMixin, Base):
+class RegistrationAttempt(BigIntPKMixin, AuditableFull, Base):
     __tablename__ = "registration_attempts"
     __table_args__ = {"schema": "public"}
     ip_address = Column(String(45), nullable=False)
+
+# ============================================================
+# TENANT REQUESTS - Solicitudes de registro público
+# ============================================================
+class TenantRequestStatus(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
+class TenantRequest(BigIntPKMixin, AuditableFull, Base):
+    __tablename__ = "tenant_requests"
+    __table_args__ = {"schema": "public"}
+    
+    company_name = Column(String(255), nullable=False)
+    nit = Column(String(15), nullable=False, index=True)
+    contact_name = Column(String(255), nullable=False)
+    contact_email = Column(String(255), nullable=False, index=True)
+    contact_phone = Column(String(20), nullable=True)
+    
+    regimen_fiscal_id = Column(BigInteger, ForeignKey("public.regimenes_fiscales.id"), nullable=True)
+    estimated_clients_count = Column(Integer, nullable=True)
+    
+    status = Column(String(20), nullable=False, default=TenantRequestStatus.pending.value, index=True)
+    reviewed_by = Column(BigInteger, ForeignKey("public.users.id"), nullable=True)
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    notes = Column(Text, nullable=True)
+    
+    regimen_fiscal = relationship("RegimenFiscal", foreign_keys=[regimen_fiscal_id])
+    reviewer = relationship("User", foreign_keys=[reviewed_by])
+
 
 # ============================================================
 # CATÁLOGOS SIMPLES - CON SoftDelete

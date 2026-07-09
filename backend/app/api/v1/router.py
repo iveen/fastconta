@@ -7,6 +7,7 @@ from app.api.v1.endpoints.base import (
     domicilios,
     empresas,
     representantes_legales,
+    tenant_requests,
     tenants,
     users,
 )
@@ -32,6 +33,7 @@ from app.api.v1.endpoints.contabilidad import (
     plan_cuentas,
 )
 from app.api.v1.endpoints.fel import facturas
+from app.api.v1.endpoints.public import registration
 from app.api.v1.endpoints.sat import (
     declaraciones,
     formularios_sat,
@@ -42,6 +44,7 @@ from app.api.v1.endpoints.sat import (
 api_router = APIRouter()
 api_router.include_router(auth.router)
 api_router.include_router(tenants.router, prefix="/tenants", tags=["inquilinos"])
+api_router.include_router(tenant_requests.router, tags=["solicitudes-registro"])
 api_router.include_router(empresas.router, prefix="/empresas", tags=["empresas"])
 api_router.include_router(plan_cuentas.router, prefix="/plan-cuentas", tags=["plan-cuentas"])
 api_router.include_router(partidas.router, prefix="/partidas", tags=["partidas"])  
@@ -69,3 +72,4 @@ api_router.include_router(domicilios.router)
 api_router.include_router(representantes_legales.router)
 api_router.include_router(tipos_libro.router)
 api_router.include_router(estados_libro.router)
+api_router.include_router(registration.router)

@@ -6,7 +6,7 @@
       <!-- Logo combinado -->
       <div class="p-6 border-b border-blue-700">
         <div class="flex items-center gap-3">
-          <div class="relative w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-500 rounded-lg flex items-center justify-center shadow-md flex-shrink-0">
+          <div class="relative w-10 h-10 bg-linear-to-br from-emerald-400 to-emerald-500 rounded-lg flex items-center justify-center shadow-md shrink-0">
             <BookOpen class="w-6 h-6 text-white" />
             <div class="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-600 rounded flex items-center justify-center border-2 border-blue-900">
               <BarChart3 class="w-3 h-3 text-white" />
@@ -131,12 +131,22 @@
           <Users class="w-5 h-5 text-blue-200 group-hover:text-white transition-colors" />
           Usuarios
         </router-link>
+        <!-- 🆕 Acceso SuperAdmin -->
+        <router-link
+          v-if="authStore.isSuperAdmin"
+          to="/superadmin"
+          class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors group text-white"
+          active-class="bg-blue-700"
+        >
+          <Shield class="w-5 h-5 text-blue-200 group-hover:text-white transition-colors" />
+          Panel SuperAdmin
+        </router-link>
       </nav>
 
       <!-- User Panel (Bottom) -->
       <div class="border-t border-blue-700 p-4 bg-blue-900/50">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-md">
+          <div class="w-10 h-10 rounded-full bg-linear-to-br from-emerald-400 to-emerald-500 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-md">
             {{ authStore.initials }}
           </div>
           <div class="flex-1 min-w-0">
@@ -166,11 +176,11 @@
           <div class="relative" ref="companyDropdownRef" v-if="companyStore.hasCompanies">
             <button
               @click="showCompanyDropdown = !showCompanyDropdown"
-              class="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 border border-gray-300 rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors min-w-[200px]"
+              class="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 border border-gray-300 rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors min-w-50"
             >
               <Building2 class="w-4 h-4 text-gray-500" />
               <span class="truncate">{{ companyStore.currentCompany?.nombre || 'Seleccionar Empresa' }}</span>
-              <svg class="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-4 h-4 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
@@ -191,7 +201,7 @@
                   class="px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer flex items-center gap-2"
                   :class="{ 'bg-blue-50 text-blue-700 font-medium': company.id === companyStore.selectedCompanyId }"
                 >
-                  <svg v-if="company.id === companyStore.selectedCompanyId" class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <svg v-if="company.id === companyStore.selectedCompanyId" class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
                   </svg>
                   <span v-else class="w-4"></span>
@@ -219,7 +229,7 @@
             @click="showDropdown = !showDropdown"
             class="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition"
           >
-            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-emerald-500 flex items-center justify-center text-white font-bold text-xs">
+            <div class="w-8 h-8 rounded-full bg-linear-to-br from-blue-600 to-emerald-500 flex items-center justify-center text-white font-bold text-xs">
               {{ authStore.initials }}
             </div>
             <span class="text-sm text-gray-700 hidden sm:inline">
@@ -286,7 +296,8 @@ import {
   CreditCard,
   Users,
   LogOut,
-  Settings
+  Settings,
+  Shield,
 } from '@lucide/vue'
 
 const authStore = useAuthStore()
@@ -320,7 +331,8 @@ const pageTitle = computed(() => {
     'LibroMayor': 'Libro Mayor',
     'ConfiguracionHub': 'Configuración del Sistema',
     'ConfiguracionFormulariosSAT': 'Formularios SAT',
-    'Usuarios': 'Gestión de Usuarios'
+    'Usuarios': 'Gestión de Usuarios',
+    'SuperAdmin': 'Gestión SuperAdmin',
   }
   return titles[route.name] || 'Dashboard'
 })

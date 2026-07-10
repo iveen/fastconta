@@ -172,6 +172,7 @@ class EmailService:
             context={
                 "full_name": full_name,
                 "new_password": new_password,
+                "login_url": f"{email_config.app_url}/login"
             },
         )
 

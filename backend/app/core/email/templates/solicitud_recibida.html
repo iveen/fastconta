@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1> ¡Solicitud recibida!</h1>
+
+<p>Hola <strong>{{ contact_name }}</strong>,</p>
+
+<p>Hemos recibido tu solicitud de acceso a <strong>FastConta</strong> para la empresa:</p>
+
+<div class="card info">
+    <strong>🏢 {{ company_name }}</strong>
+    <p style="margin: 8px 0 0 0; font-size: 14px; color: #6b7280;">
+        NIT: {{ nit }}
+    </p>
+</div>
+
+<p>Nuestro equipo revisará tu solicitud en un plazo de <strong>24 a 48 horas hábiles</strong>. Una vez aprobada, recibirás un email con tus credenciales de acceso.</p>
+
+<h2>¿Qué sigue?</h2>
+<ul>
+    <li>Revisamos la información de tu empresa</li>
+    <li>Validamos tu NIT y datos fiscales</li>
+    <li>Creamos tu espacio de trabajo</li>
+    <li>Te enviamos las credenciales de administrador</li>
+</ul>
+
+<div class="card warning">
+    <strong>💡 Tip:</strong> Si no recibes respuesta en 48 horas, revisa tu carpeta de spam o contáctanos respondiendo a este email.
+</div>
+
+<p>Si tienes alguna pregunta, no dudes en contactarnos.</p>
+
+<p>Saludos cordiales,<br>
+<strong>El equipo de FastConta</strong></p>
+{% endblock %}

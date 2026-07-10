@@ -59,3 +59,5 @@ pikepdf==8.10.1
 pytesseract==0.3.13
 Pillow==12.2.0
 PyMuPDF==1.28.0
+fastapi-mail==1.6.5
+python-dotenv==1.2.2

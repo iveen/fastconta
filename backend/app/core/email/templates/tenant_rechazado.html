@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>⚠️ Actualización sobre tu solicitud</h1>
+
+<p>Hola <strong>{{ contact_name }}</strong>,</p>
+
+<p>Lamentamos informarte que tu solicitud de acceso a <strong>FastConta</strong> para la empresa <strong>{{ company_name }}</strong> no ha sido aprobada en esta ocasión.</p>
+
+<div class="card danger">
+    <strong>Motivo del rechazo:</strong>
+    <p style="margin-top: 8px;">{{ reason }}</p>
+</div>
+
+<h2>¿Qué puedes hacer?</h2>
+<ul>
+    <li>Revisa la información proporcionada y corrige cualquier error</li>
+    <li>Asegúrate de que tu NIT esté correctamente registrado ante la SAT</li>
+    <li>Envía una nueva solicitud con la información corregida</li>
+</ul>
+
+<p>Si crees que esto es un error o necesitas más información, no dudes en contactarnos respondiendo a este email.</p>
+
+<p>Saludos cordiales,<br>
+<strong>El equipo de FastConta</strong></p>
+{% endblock %}

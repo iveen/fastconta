@@ -243,24 +243,42 @@ class User(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=False)
     role_id = Column(BigInteger, ForeignKey("public.roles.id"), nullable=False)
-
-    tenant = relationship(
-        "Tenant",
-        back_populates="users",
-        foreign_keys=[tenant_id]
+    
+    # Política de contraseñas
+    must_change_password = Column(
+        Boolean, default=True, nullable=False,
+        comment="Indica si el usuario debe cambiar su contraseña en el próximo login"
     )
-    role = relationship(
-        "Role",
-        foreign_keys=[role_id],
-        lazy="selectin"
+    password_changed_at = Column(
+        DateTime(timezone=True), nullable=True,
+        comment="Fecha del último cambio de contraseña"
     )
+    password_expires_at = Column(
+        DateTime(timezone=True), nullable=True,
+        comment="Fecha de expiración de la contraseña (90 días)"
+    )
+    
+    # ✅ NUEVO: Política de bloqueo por intentos fallidos
+    failed_login_attempts = Column(
+        Integer, default=0, nullable=False,
+        comment="Contador de intentos fallidos consecutivos"
+    )
+    locked_until = Column(
+        DateTime(timezone=True), nullable=True,
+        comment="Fecha hasta la cual el usuario está bloqueado"
+    )
+    is_locked = Column(
+        Boolean, default=False, nullable=False,
+        comment="Indica si el usuario está bloqueado (por intentos fallidos o admin)"
+    )
+    
+    tenant = relationship("Tenant", back_populates="users", foreign_keys=[tenant_id])
+    role = relationship("Role", foreign_keys=[role_id], lazy="selectin")
     empresas_asignadas = relationship(
-        "UserEmpresa",
-        back_populates="user",
+        "UserEmpresa", back_populates="user",
         foreign_keys="[UserEmpresa.user_id]",
         cascade="all, delete-orphan"
     )
-
 
 class UserEmpresa(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "user_empresas"

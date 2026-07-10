@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.email.service import email_service
 from app.db.session import get_db
 from app.models.global_models import RegistrationAttempt, Tenant, TenantRequest
 from app.schemas.public.public_registration import (
@@ -94,7 +95,18 @@ async def public_register(
     await db.refresh(tenant_request)
     
     logger.info(f"✅ Nueva solicitud de registro: {tenant_request.company_name} (NIT: {tenant_request.nit})")
-    
+
+    try:
+        await email_service.send_solicitud_recibida(
+            to=tenant_request.contact_email,
+            company_name=tenant_request.company_name,
+            contact_name=tenant_request.contact_name,
+        )
+        logger.info(f" Email de confirmación enviado a {tenant_request.contact_email}")
+    except Exception as e:
+        logger.error(f"⚠️ No se pudo enviar email de confirmación: {e}")
+        # No fallar la operación si el email falla
+
     return TenantRequestResponse(
         id=tenant_request.id,
         public_id=tenant_request.public_id,
@@ -104,5 +116,5 @@ async def public_register(
         contact_email=tenant_request.contact_email,
         status=tenant_request.status,
         created_at=tenant_request.created_at,
-        message="Solicitud recibida. Será revisada en 24-48h hábiles."
+        message="Solicitud recibida. Será revisada en 24-48h hábiles. Revisa tu correo.",
     )

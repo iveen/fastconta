@@ -1,6 +1,5 @@
 # app/db/session.py
 import logging
-from modulefinder import test
 from typing import AsyncGenerator
 
 from fastapi import Depends, HTTPException
@@ -52,7 +51,7 @@ async def get_tenant_db(
         raise HTTPException(status_code=400, detail="Tenant no configurado")
     
     # 👇 SET LOCAL: el cambio solo aplica a esta transacción, no al pool
-    await db.execute(test("RESET LOCAL search_path"))
+    await db.execute(text("RESET search_path"))
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
     await db.flush()
     

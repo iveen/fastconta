@@ -3,7 +3,7 @@ import re
 import secrets
 import string
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Set
 
 from fastapi import Depends, HTTPException, status
@@ -25,6 +25,12 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 MAX_LOGIN_ATTEMPTS = 5
 LOCK_DURATION_MINUTES = 15
 PASSWORD_EXPIRATION_DAYS = 90
+
+# Password Reset Token
+token_hash_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+RESET_TOKEN_LENGTH = 64
+RESET_TOKEN_EXPIRATION_MINUTES = 5
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
@@ -180,28 +186,48 @@ def generate_secure_password(length: int = 16) -> str:
 
 def calculate_password_expiration(days: int = PASSWORD_EXPIRATION_DAYS) -> datetime:
     """Calcula la fecha de expiración de la contraseña."""
-    return datetime.utcnow() + timedelta(days=days)
+    return datetime.now(timezone.utc) + timedelta(days=days)
 
 
 def is_password_expired(user) -> bool:
     """Verifica si la contraseña del usuario ha expirado."""
     if not user.password_expires_at:
         return False
-    return datetime.utcnow() > user.password_expires_at
+    return datetime.now(timezone.utc) > user.password_expires_at
+
+def is_lock_expired(user) -> bool:
+    """
+    Verifica si el bloqueo del usuario EXPIRÓ (pero is_locked aún está en True).
+    Útil para saber si hay que resetear el contador.
+    """
+    return (
+        user.is_locked 
+        and user.locked_until is not None 
+        and datetime.now(timezone.utc) > user.locked_until
+    )
+
+def reset_expired_lock(user) -> None:
+    """
+    Resetea el estado de bloqueo si este ya expiró.
+    Se llama al inicio del login para dar 5 intentos NUEVOS.
+    """
+    if is_lock_expired(user):
+        user.failed_login_attempts = 0
+        user.is_locked = False
+        user.locked_until = None
 
 
 def is_user_locked(user) -> bool:
     """
-    Verifica si el usuario está bloqueado.
-    Retorna True si:
-    - is_locked es True Y locked_until aún no ha pasado
+    Verifica si el usuario está bloqueado ACTUALMENTE.
+    Retorna True solo si:
+    - is_locked es True Y locked_until AÚN no ha pasado
     """
     if not user.is_locked:
         return False
     
-    if user.locked_until and datetime.utcnow() > user.locked_until:
-        # El bloqueo expiró, pero la cuenta sigue bloqueada
-        # hasta que cambie la contraseña
+    # Si el bloqueo ya expiró, NO está bloqueado actualmente
+    if user.locked_until and datetime.now(timezone.utc) > user.locked_until:
         return False
     
     return True
@@ -211,8 +237,7 @@ def get_lock_remaining_minutes(user) -> int:
     """Retorna los minutos restantes de bloqueo."""
     if not user.locked_until:
         return 0
-    
-    remaining = (user.locked_until - datetime.utcnow()).total_seconds() / 60
+    remaining = (user.locked_until - datetime.now(timezone.utc)).total_seconds() / 60
     return max(0, int(remaining) + 1)
 
 
@@ -222,16 +247,18 @@ def register_failed_attempt(user) -> None:
     
     if user.failed_login_attempts >= MAX_LOGIN_ATTEMPTS:
         user.is_locked = True
-        user.locked_until = datetime.utcnow() + timedelta(minutes=LOCK_DURATION_MINUTES)
+        user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=LOCK_DURATION_MINUTES)
         user.must_change_password = True  # Forzar cambio al desbloquearse
 
 
 def clear_failed_attempts(user) -> None:
-    """Limpia los intentos fallidos tras un login exitoso."""
+    """
+    Limpia completamente el estado de bloqueo tras un login exitoso.
+    Se llama cuando el usuario inicia sesión correctamente.
+    """
     user.failed_login_attempts = 0
+    user.is_locked = False  # ✅ AHORA SÍ se limpia
     user.locked_until = None
-    # Nota: is_locked NO se limpia aquí si el bloqueo expiró,
-    # se limpia solo cuando el usuario cambia su contraseña
 
 # Lista de contraseñas más comunes (top 20 global)
 COMMON_PASSWORDS = {
@@ -321,3 +348,14 @@ def is_password_strong(password: str, user_email: str | None = None) -> bool:
         True si la contraseña cumple todos los requisitos
     """
     return len(validate_password_strength(password, user_email)) == 0
+
+#========================================================================
+# Password Reset Token Functions
+#========================================================================
+def generate_reset_token() -> tuple[str, str]:
+    """Retorna (token_plano, token_hash)"""
+    plain = secrets.token_urlsafe(RESET_TOKEN_LENGTH)
+    return plain, token_hash_ctx.hash(plain)
+
+def verify_reset_token(plain: str, token_hash: str) -> bool:
+    return token_hash_ctx.verify(plain, token_hash)

@@ -28,6 +28,13 @@ import Geografia from '@/views/configuracion/Geografia.vue'
 import TiposPersona from '@/views/configuracion/TiposPersona.vue'
 import CategoriasActivos from '@/views/configuracion/CategoriasActivos.vue'
 import PublicRegister from '@/views/public/PublicRegister.vue'
+import ChangePassword from '@/views/ChangePassword.vue'
+import ForgotPassword from '@/views/ForgotPassword.vue'
+import ResetPassword from '@/views/ResetPassword.vue'
+import SuperadminLayout from '@/layouts/SuperadminLayout.vue'
+import TenantsList from '@/views/superadmin/TenantsList.vue'
+import TenantRequestQueue from '@/views/superadmin/TenantRequestQueue.vue'
+import LoginAudit from '@/views/superadmin/LoginAudit.vue'
 
 
 import { useAuthStore } from '@/stores/auth'
@@ -48,6 +55,24 @@ const routes = [
     path: '/registro', 
     name: 'PublicRegister',
     component: PublicRegister,
+    meta: { requiresAuth: false }
+  },
+  {
+    path:'/change-password',
+    name: "ChangePassword",
+    component: ChangePassword,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/forgot-password',
+    name: 'ForgotPassword',
+    component: ForgotPassword,
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/reset-password',
+    name: 'ResetPassword',
+    component: ResetPassword,
     meta: { requiresAuth: false }
   },
   {
@@ -156,12 +181,18 @@ const routes = [
       {
         path: 'tenants',
         name: 'SuperadminTenants',
-        component: () => import('@/views/superadmin/TenantsList.vue')
+        component: TenantsList,
       },
       {
         path: 'tenant-requests',
         name: 'SuperadminTenantRequests',
-        component: () => import('@/views/superadmin/TenantRequestQueue.vue')
+        component: TenantRequestQueue,
+      },
+      {
+        path: 'login-audit',
+        name: 'SuperadminLoginAudit',
+        component: LoginAudit,
+        meta: { title: 'Bitácora de Logins' }
       }
     ]
   }
@@ -174,20 +205,34 @@ const router = createRouter({
 
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
-  const companyStore = useCompanyStore()
 
+  // 1. Rutas públicas (login, registro)
   if (to.meta.requiresAuth === false) {
-    if (authStore.isAuthenticated) {
+    // Si ya está autenticado y va al login, redirigir al dashboard
+    if (authStore.isAuthenticated && to.path === '/login') {
       return next('/dashboard')
     }
     return next()
   }
 
+  // 2. Verificar autenticación
   if (!authStore.isAuthenticated) {
     return next('/login')
   }
 
+  // 3. ✅ NUEVO: Si debe cambiar contraseña y NO está en la ruta de cambio
+  if (authStore.mustChangePassword && to.path !== '/change-password') {
+    return next('/change-password')
+  }
+
+  // 4. Si está autenticado y debe cambiar contraseña pero ya está en /change-password
+  if (authStore.mustChangePassword && to.path === '/change-password') {
+    return next() // Permitir acceso
+  }
+
+  // 5. Acceso normal
   next()
 })
+
 
 export default router

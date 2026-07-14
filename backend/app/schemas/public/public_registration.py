@@ -61,7 +61,7 @@ class TenantRequestListResponse(BaseModel):
 class TenantApprovalPayload(BaseModel):
     """Payload para aprobar una solicitud"""
     admin_email: EmailStr
-    admin_password: str = Field(..., min_length=8)
+    admin_password: str | None = None
     admin_full_name: str = Field(..., min_length=2, max_length=255)
     plan: str = Field(default="freemium", pattern="^(freemium|basic|pro|enterprise)$")
     max_usuarios: int = Field(default=3, ge=1, le=1000)

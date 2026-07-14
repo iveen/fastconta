@@ -17,32 +17,34 @@
 
       <!-- Navigation -->
       <nav class="flex-1 p-4 space-y-1">
-        <RouterLink
-          to="/superadmin/tenant-requests"
-          class="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-          :class="$route.path.includes('/tenant-requests')
-            ? 'bg-blue-50 text-blue-700'
-            : 'text-gray-700 hover:bg-gray-100'"
+        <RouterLink 
+          to="/superadmin/tenant-requests" 
+          class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100"
+          :class="{ 'bg-blue-50 text-blue-700': $route.name === 'SuperadminTenantRequests' }"
         >
-          <span class="flex items-center gap-2">
-            📥 Solicitudes
-          </span>
-          <span
-            v-if="store.pendingRequestsCount > 0"
-            class="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full animate-pulse"
-          >
-            {{ store.pendingRequestsCount }}
-          </span>
+          <Users class="w-5 h-5" />
+          <span>Solicitudes</span>
         </RouterLink>
-
-        <RouterLink
-          to="/superadmin/tenants"
-          class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-          :class="$route.path.includes('/tenants') && !$route.path.includes('requests')
-            ? 'bg-blue-50 text-blue-700'
-            : 'text-gray-700 hover:bg-gray-100'"
+        
+        <RouterLink 
+          to="/superadmin/tenants" 
+          class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100"
+          :class="{ 'bg-blue-50 text-blue-700': $route.name === 'SuperadminTenants' }"
         >
-          🏢 Tenants
+          <Building2 class="w-5 h-5" />
+          <span>Tenants</span>
+        </RouterLink>
+        <RouterLink 
+          to="/superadmin/login-audit" 
+          class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100"
+          :class="{ 'bg-blue-50 text-blue-700': $route.name === 'SuperadminLoginAudit' }"
+        >
+          <Activity class="w-5 h-5" />
+          <!-- O alternativamente: -->
+          <!-- <FileText class="w-5 h-5" /> -->
+          <!-- <ClipboardList class="w-5 h-5" /> -->
+          <!-- <History class="w-5 h-5" /> -->
+          <span>Bitácora de Logins</span>
         </RouterLink>
 
         <div class="pt-4 mt-4 border-t border-gray-200">
@@ -77,6 +79,7 @@
 </template>
 
 <script setup>
+import { Users, Building2, Activity } from '@lucide/vue'
 import { computed, onMounted } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { useSuperAdminStore } from '@/stores/superAdmin'

@@ -30,7 +30,11 @@ api.interceptors.request.use(config => {
 api.interceptors.response.use(
   response => response,
   error => {
-    if (error.response && error.response.status === 401) {
+    // ✅ NO redirigir si el error viene del login (es parte del flujo normal)
+    const isLoginRequest = error.config?.url?.includes('/auth/login')
+    
+    if (error.response && error.response.status === 401 && !isLoginRequest) {
+      // Solo redirigir si es un 401 en OTROS endpoints (token expirado, etc.)
       localStorage.removeItem('token')
       window.location.href = '/login'
     }

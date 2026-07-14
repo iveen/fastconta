@@ -175,6 +175,42 @@ class EmailService:
                 "login_url": f"{email_config.app_url}/login"
             },
         )
+    
+    async def send_password_reset_request(
+        self,
+        to: str,
+        full_name: str,
+        reset_url: str,
+    ) -> bool:
+        """Envía email con URL única y temporal para resetear contraseña."""
+        return await self.send_email(
+            to=to,
+            subject="🔐 Restablece tu contraseña de FastConta",
+            template_name="password_reset_request.html",
+            context={
+                "full_name": full_name,
+                "reset_url": reset_url,
+            },
+        )
+    
+    async def send_new_user_credentials(
+        self,
+        to: str,
+        full_name: str,
+        temp_password: str,
+        login_url: str,
+    ) -> bool:
+        """Envía email con credenciales de nuevo usuario."""
+        return await self.send_email(
+            to=to,
+            subject=" Bienvenido a FastConta - Tus credenciales de acceso",
+            template_name="new_user_credentials.html",
+            context={
+                "full_name": full_name,
+                "temp_password": temp_password,
+                "login_url": login_url,
+            },
+        )
 
 
 # Instancia global para usar en endpoints

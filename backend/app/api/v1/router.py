@@ -43,7 +43,7 @@ from app.api.v1.endpoints.sat import (
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
-api_router.include_router(tenants.router, prefix="/tenants", tags=["inquilinos"])
+api_router.include_router(tenants.router)
 api_router.include_router(tenant_requests.router, tags=["solicitudes-registro"])
 api_router.include_router(empresas.router, prefix="/empresas", tags=["empresas"])
 api_router.include_router(plan_cuentas.router, prefix="/plan-cuentas", tags=["plan-cuentas"])

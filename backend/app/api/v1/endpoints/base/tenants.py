@@ -1,6 +1,6 @@
 # app/api/endpoints/tenants.py
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -18,7 +18,7 @@ from app.schemas.base.tenant import (
     TenantUpgradeRequest,
 )
 
-router = APIRouter()
+router = APIRouter(prefix="/tenants", tags=["inquilinos"])
 logger = logging.getLogger(__name__)
 
 # Nombres reservados que no pueden usarse como tenant
@@ -107,7 +107,7 @@ async def create_tenant(
     
     # 4. Control anti-abuso por IP
     client_ip = request.client.host
-    since = datetime.utcnow() - timedelta(hours=24)
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
     attempts_count = await db.scalar(
         select(func.count(RegistrationAttempt.id))
         .where(
@@ -239,7 +239,7 @@ async def activate_tenant_trial(
         raise HTTPException(404, "Tenant no encontrado")
     
     # Calcular fecha de expiración
-    trial_until = datetime.utcnow() + timedelta(days=payload.trial_days)
+    trial_until = datetime.now(timezone.utc) + timedelta(days=payload.trial_days)
     
     # Actualizar trial
     tenant.trial_until = trial_until
@@ -349,7 +349,7 @@ async def get_tenant_usage(
     trial_expires = None
     
     if tenant.trial_until and tenant.trial_max_usuarios:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if tenant.trial_until > now:
             is_trial = True
             trial_expires = tenant.trial_until
@@ -365,7 +365,7 @@ async def get_tenant_usage(
         warnings.append("Estás cerca del límite de usuarios")
     
     if is_trial and tenant.trial_until:
-        days_left = (tenant.trial_until - datetime.utcnow()).days
+        days_left = (tenant.trial_until - datetime.now(timezone.utc)).days
         if days_left <= 7:
             warnings.append(f"Tu trial expira en {days_left} días")
     
@@ -414,7 +414,7 @@ async def deactivate_tenant(
         raise HTTPException(status_code=400, detail="El tenant ya está inactivo")
     
     tenant.is_active = False
-    tenant.deleted_at = datetime.utcnow()
+    tenant.deleted_at = datetime.now(timezone.utc)
     
     # TODO: Invalidar tokens JWT de usuarios de este tenant (requiere Redis)
     

@@ -81,7 +81,7 @@ class Tenant(BigIntPKMixin, AuditableFull, SoftDelete, Base):
         from datetime import datetime
         
         if self.trial_until and self.trial_max_usuarios:
-            now = datetime.utcnow()
+            now = datetime.now(datetime.timezone.utc)
             if self.trial_until > now:
                 return self.trial_max_usuarios
         
@@ -94,7 +94,7 @@ class Tenant(BigIntPKMixin, AuditableFull, SoftDelete, Base):
         if not self.trial_until or not self.trial_max_usuarios:
             return False
         
-        return self.trial_until > datetime.utcnow()
+        return self.trial_until > datetime.now(datetime.timezone.utc)
     
     def trial_days_remaining(self) -> int | None:
         """Retorna los días restantes del trial, o None si no hay trial activo."""
@@ -103,7 +103,7 @@ class Tenant(BigIntPKMixin, AuditableFull, SoftDelete, Base):
         if not self.is_trial_active():
             return None
         
-        delta = self.trial_until - datetime.utcnow()
+        delta = self.trial_until - datetime.now(datetime.timezone.utc)
         return max(0, delta.days)
 
 class RegistrationAttempt(BigIntPKMixin, AuditableFull, Base):
@@ -243,24 +243,42 @@ class User(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=False)
     role_id = Column(BigInteger, ForeignKey("public.roles.id"), nullable=False)
-
-    tenant = relationship(
-        "Tenant",
-        back_populates="users",
-        foreign_keys=[tenant_id]
+    
+    # Política de contraseñas
+    must_change_password = Column(
+        Boolean, default=True, nullable=False,
+        comment="Indica si el usuario debe cambiar su contraseña en el próximo login"
     )
-    role = relationship(
-        "Role",
-        foreign_keys=[role_id],
-        lazy="selectin"
+    password_changed_at = Column(
+        DateTime(timezone=True), nullable=True,
+        comment="Fecha del último cambio de contraseña"
     )
+    password_expires_at = Column(
+        DateTime(timezone=True), nullable=True,
+        comment="Fecha de expiración de la contraseña (90 días)"
+    )
+    
+    # ✅ NUEVO: Política de bloqueo por intentos fallidos
+    failed_login_attempts = Column(
+        Integer, default=0, nullable=False,
+        comment="Contador de intentos fallidos consecutivos"
+    )
+    locked_until = Column(
+        DateTime(timezone=True), nullable=True,
+        comment="Fecha hasta la cual el usuario está bloqueado"
+    )
+    is_locked = Column(
+        Boolean, default=False, nullable=False,
+        comment="Indica si el usuario está bloqueado (por intentos fallidos o admin)"
+    )
+    
+    tenant = relationship("Tenant", back_populates="users", foreign_keys=[tenant_id])
+    role = relationship("Role", foreign_keys=[role_id], lazy="selectin")
     empresas_asignadas = relationship(
-        "UserEmpresa",
-        back_populates="user",
+        "UserEmpresa", back_populates="user",
         foreign_keys="[UserEmpresa.user_id]",
         cascade="all, delete-orphan"
     )
-
 
 class UserEmpresa(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     __tablename__ = "user_empresas"
@@ -535,4 +553,79 @@ class MapeoCasillaCuenta(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     tipo_movimiento = Column(String(10), nullable=False)
 
     casilla = relationship("CasillaSat", foreign_keys=[casilla_id])
-    tenant = relationship("Tenant", foreign_keys=[tenant_id])
+    
+
+#======================================================================================
+# Login Audit Tables
+#======================================================================================
+class LoginAudit(BigIntPKMixin, Base):
+    """Bitácora de intentos de login (exitosos y fallidos)."""
+    __tablename__ = "login_audit"
+    __table_args__ = {"schema": "public"}
+    
+    user_id = Column(
+        BigInteger, 
+        ForeignKey("public.users.id", ondelete="SET NULL"), 
+        nullable=True, 
+        index=True
+    )
+    email_attempted = Column(
+        String(255), 
+        nullable=False, 
+        index=True,
+        comment="Email ingresado en el intento"
+    )
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    status = Column(
+        String(50), 
+        nullable=False, 
+        comment="SUCCESS, FAILED_INVALID_PASSWORD, FAILED_LOCKED, FAILED_USER_NOT_FOUND"
+    )
+    failure_reason = Column(String(255), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), 
+        server_default=text("CURRENT_TIMESTAMP"), 
+        nullable=False
+    )
+    
+    user = relationship("User", foreign_keys=[user_id])
+
+
+class PasswordResetToken(BigIntPKMixin, Base):
+    """Tokens para restablecimiento de contraseña (self-service)."""
+    __tablename__ = "password_reset_tokens"
+    __table_args__ = {"schema": "public"}
+    
+    user_id = Column(
+        BigInteger, 
+        ForeignKey("public.users.id", ondelete="CASCADE"), 
+        nullable=False, 
+        index=True
+    )
+    token_hash = Column(
+        String(255), 
+        nullable=False, 
+        unique=True, 
+        index=True,
+        comment="Hash del token por seguridad"
+    )
+    expires_at = Column(
+        DateTime(timezone=True), 
+        nullable=False, 
+        index=True
+    )
+    used_at = Column(DateTime(timezone=True), nullable=True)
+    is_used = Column(
+        Boolean, 
+        default=False, 
+        nullable=False
+    )
+    ip_address = Column(String(45), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), 
+        server_default=text("CURRENT_TIMESTAMP"), 
+        nullable=False
+    )
+    
+    user = relationship("User", foreign_keys=[user_id])

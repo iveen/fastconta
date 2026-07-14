@@ -9,14 +9,19 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const loading = ref(false)
   
+  // ✅ NUEVO: Estado de política de contraseñas
+  const mustChangePassword = ref(false)
+  const passwordExpiresAt = ref(null)
+  const loginError = ref(null)  // Para mensajes detallados del login
+
+  const requiresPasswordChange = computed(() => mustChangePassword.value)
+  
   const isAuthenticated = computed(() => !!token.value)
   
-  // ✅ NUEVO: Verificar si es SuperAdmin
   const isSuperAdmin = computed(() => {
     return user.value?.role === 'superadmin'
   })
   
-  // ✅ NUEVO: Iniciales del usuario para el avatar
   const initials = computed(() => {
     if (!user.value) return 'U'
     const name = user.value.full_name || user.value.email || ''
@@ -27,7 +32,6 @@ export const useAuthStore = defineStore('auth', () => {
     return name.substring(0, 2).toUpperCase()
   })
   
-  // ✅ NUEVO: Label del rol formateado
   const roleLabel = computed(() => {
     if (!user.value?.role) return 'Usuario'
     const roleMap = {
@@ -39,46 +43,45 @@ export const useAuthStore = defineStore('auth', () => {
     return roleMap[user.value.role] || user.value.role
   })
   
-  // ✅ NUEVO: Verificar si puede gestionar usuarios
   const canManageUsers = computed(() => {
     if (!user.value?.role) return false
     return ['superadmin', 'tenant_manager'].includes(user.value.role)
   })
   
-  // ✅ NUEVO: Tenant ID del usuario (para flujo multi-tenant)
-  const tenantId = computed(() => {
-    return user.value?.tenant_id || null
-  })
+  const tenantId = computed(() => user.value?.tenant_id || null)
+  const tenantSchema = computed(() => user.value?.schema || null)
   
-  // ✅ NUEVO: Schema del tenant (para queries dinámicas)
-  const tenantSchema = computed(() => {
-    return user.value?.schema || null
-  })
   
-  // Login
+  // ============================================================
+  // LOGIN - Con manejo de errores complejos
+  // ============================================================
   const login = async (credentials) => {
     loading.value = true
+    loginError.value = null  // ✅ Limpiar error previo
+    
     try {
       const response = await api.post('/auth/login', credentials)
       const data = response.data
       
-      // Guardar token
       token.value = data.access_token
       localStorage.setItem('token', data.access_token)
       
-      // ✅ CORREGIDO: Construir objeto user completo desde el backend
+      // ✅ Guardar estado de política de contraseñas
+      mustChangePassword.value = data.must_change_password || false
+      passwordExpiresAt.value = data.password_expires_at || null
+      
       user.value = {
-        id: data.id || null,
+        id: data.user_id,
+        public_id: data.public_id,
         email: credentials.email || credentials.username,
         full_name: data.full_name,
-        tenant_id: data.tenant_id,  // ✅ NUEVO: BIGINT interno
-        tenant_public_id: data.tenant_public_id,  // ✅ NUEVO: UUID público
+        tenant_id: data.tenant_id,
+        tenant_public_id: data.tenant_public_id,
         tenant_name: data.tenant_name,
-        schema: data.schema,  // ✅ NUEVO: Schema del tenant
+        schema: data.schema,
         role: data.role
       }
       
-      // ✅ CORREGIDO: Solo cargar empresas si NO es superadmin
       if (!isSuperAdmin.value) {
         const companyStore = useCompanyStore()
         await companyStore.loadCompanies()
@@ -89,63 +92,111 @@ export const useAuthStore = defineStore('auth', () => {
       return data
     } catch (err) {
       console.error('Error en login:', err)
+      
+      // ✅ NUEVO: Manejar errores complejos del backend
+      const errorDetail = err.response?.data?.detail
+      
+      if (err.response?.status === 423) {
+        // Cuenta bloqueada
+        loginError.value = {
+          type: 'locked',
+          message: typeof errorDetail === 'object' 
+            ? errorDetail.message 
+            : 'Cuenta bloqueada',
+          locked_until: typeof errorDetail === 'object' ? errorDetail.locked_until : null,
+          remaining_minutes: typeof errorDetail === 'object' ? errorDetail.remaining_minutes : null,
+          must_change_password: typeof errorDetail === 'object' ? errorDetail.must_change_password : false
+        }
+      } else if (err.response?.status === 401) {
+        // Credenciales inválidas
+        loginError.value = {
+          type: 'invalid_credentials',
+          message: typeof errorDetail === 'object' 
+            ? errorDetail.message 
+            : (errorDetail || 'Email o contraseña incorrectos'),
+          remaining_attempts: typeof errorDetail === 'object' ? errorDetail.remaining_attempts : null,
+          warning: typeof errorDetail === 'object' ? errorDetail.warning : null
+        }
+      } else {
+        loginError.value = {
+          type: 'generic',
+          message: typeof errorDetail === 'string' 
+            ? errorDetail 
+            : 'Error al iniciar sesión'
+        }
+      }
+      
       throw err
     } finally {
       loading.value = false
     }
   }
-  
-  // Logout
+
+  // ============================================================
+  // CAMBIO DE CONTRASEÑA
+  // ============================================================
+
+  const changePassword = async (payload) => {
+    loading.value = true
+    try {
+      const response = await api.post('/auth/change-password', payload)
+      mustChangePassword.value = false
+      passwordExpiresAt.value = response.data.password_expires_at
+      return response.data
+    } catch (err) {
+      console.error('Error cambiando contraseña:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // ============================================================
+  // LOGOUT
+  // ============================================================
   const logout = () => {
     token.value = null
     user.value = null
+    mustChangePassword.value = false
+    passwordExpiresAt.value = null
+    loginError.value = null
     localStorage.removeItem('token')
-    
     const companyStore = useCompanyStore()
     companyStore.clearCompany()
-    
     window.location.href = '/login'
   }
-  
-  // Verificar sesión al cargar la app
-  // src/stores/auth.js
+
+  // ============================================================
+  // CHECK AUTH
+  // ============================================================
   const checkAuth = async () => {
     if (!token.value) return false
-    
     try {
       const response = await api.get('/auth/me')
-      
       if (response.data.user) {
         user.value = {
-          id: response.data.id,
+          id: response.data.user_id,
+          public_id: response.data.public_id,
           email: response.data.email,
           full_name: response.data.full_name || response.data.name || response.data.email,
           tenant_name: response.data.tenant_name || response.data.tenant?.name || null,
           role: response.data.role || response.data.role_code || 'tenant_member',
-          // ✅ AGREGAR: tenant_id y schema
           tenant_id: response.data.tenant_id,
           schema: response.data.schema
         }
-
-        if (data.role !== 'superadmin') {
-          const companyStore = useCompanyStore()
+        
+        // ✅ NUEVO: Verificar política de contraseñas desde /auth/me si el backend lo retorna
+        mustChangePassword.value = response.data.must_change_password || false
+        passwordExpiresAt.value = response.data.password_expires_at || null
+        
+        const companyStore = useCompanyStore()
+        if (user.value.role !== 'superadmin') {
           await companyStore.loadCompanies()
         } else {
           console.log('👑 Superadmin detectado - omitiendo carga de empresas')
+          companyStore.availableCompanies = []
         }
-      } else {
-        user.value = response.data
       }
-      
-      // ✅ CORREGIDO: Solo cargar empresas si NO es superadmin
-      const companyStore = useCompanyStore()
-      if (user.value.role !== 'superadmin') {
-        await companyStore.loadCompanies()
-      } else {
-        console.log('👑 Superadmin detectado - omitiendo carga de empresas')
-        companyStore.availableCompanies = [] // Limpiar empresas para superadmin
-      }
-      
       return true
     } catch (err) {
       console.error('Error al verificar auth:', err)
@@ -154,19 +205,30 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // ✅ NUEVO: Limpiar error de login (para reintentar)
+  const clearLoginError = () => {
+    loginError.value = null
+  }
+
   return {
     token,
     user,
     loading,
+    mustChangePassword,  // ✅ NUEVO
+    passwordExpiresAt,   // ✅ NUEVO
+    loginError,          // ✅ NUEVO
+    requiresPasswordChange,  // ✅ NUEVO
     isAuthenticated,
     isSuperAdmin,
     initials,
     roleLabel,
     canManageUsers,
-    tenantId,  // ✅ NUEVO
-    tenantSchema,  // ✅ NUEVO
+    tenantId,
+    tenantSchema,
     login,
+    changePassword,  // ✅ NUEVO
     logout,
-    checkAuth
+    checkAuth,
+    clearLoginError  // ✅ NUEVO
   }
 })

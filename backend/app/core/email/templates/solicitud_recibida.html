@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h1> ¡Solicitud recibida!</h1>
+<h1>📧 ¡Solicitud recibida!</h1>
 
 <p>Hola <strong>{{ contact_name }}</strong>,</p>
 
@@ -9,9 +9,11 @@
 
 <div class="card info">
     <strong>🏢 {{ company_name }}</strong>
+    {% if nit %}
     <p style="margin: 8px 0 0 0; font-size: 14px; color: #6b7280;">
         NIT: {{ nit }}
     </p>
+    {% endif %}
 </div>
 
 <p>Nuestro equipo revisará tu solicitud en un plazo de <strong>24 a 48 horas hábiles</strong>. Una vez aprobada, recibirás un email con tus credenciales de acceso.</p>

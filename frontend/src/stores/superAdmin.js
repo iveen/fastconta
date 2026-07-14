@@ -22,26 +22,20 @@ export const useSuperAdminStore = defineStore('superAdmin', {
   },
   
   actions: {
-    // ... (acciones existentes de tenants)
-    
     /**
      * Contar solicitudes pendientes (para badge en sidebar)
-     * ✅ CORREGIDO: Verificar autenticación antes de hacer el request
      */
     async countPendingRequests() {
-      // ✅ Verificar si hay un token antes de hacer el request
       const token = localStorage.getItem('token')
       if (!token) {
         this.pendingRequestsCount = 0
         return 0
       }
-      
       try {
         const response = await api.get('/tenant-requests/pending/count')
         this.pendingRequestsCount = response.data.pending_count
         return this.pendingRequestsCount
       } catch (err) {
-        // ✅ Solo loguear el error si NO es 401 (no autenticado)
         if (err.response?.status !== 401) {
           console.error('Error contando solicitudes:', err)
         }
@@ -66,10 +60,9 @@ export const useSuperAdminStore = defineStore('superAdmin', {
         this.loading = false
       }
     },
-    
+
     /**
      * Listar solicitudes con filtro opcional por estado
-     * ✅ CORREGIDO: Verificar autenticación antes de hacer el request
      */
     async fetchTenantRequests(statusFilter = null) {
       const token = localStorage.getItem('token')
@@ -77,58 +70,90 @@ export const useSuperAdminStore = defineStore('superAdmin', {
         this.tenantRequests = []
         return []
       }
-      
       this.loading = true
       this.error = null
-      
       try {
-        console.log('📡 fetchTenantRequests: Haciendo request al backend...')
         const params = statusFilter ? { status: statusFilter } : {}
-        
         const response = await api.get('/tenant-requests/', { 
           params,
-          timeout: 30000  // 30 segundos de timeout
+          timeout: 30000
         })
-        
-        console.log('📡 fetchTenantRequests: Respuesta recibida:', response.data.length, 'solicitudes')
         this.tenantRequests = response.data
         return this.tenantRequests
-        
       } catch (err) {
-        console.error('❌ fetchTenantRequests: Error:', err)
-        
+        console.error('Error cargando solicitudes:', err)
         if (err.response?.status !== 401) {
-          console.error('❌ fetchTenantRequests: Detalles:', err.response?.data)
           this.error = err.response?.data?.detail || 'Error al cargar solicitudes'
         }
-        
         this.tenantRequests = []
         throw err
       } finally {
         this.loading = false
       }
     },
-    
+
     /**
-     * Aprobar solicitud y crear tenant + admin
+     * Reenviar email de solicitud (permitiendo actualizar email)
+     */
+    async resendRequestEmail(requestId, newEmail = null) {
+      this.loading = true
+      this.error = null
+      try {
+        const payload = newEmail ? { contact_email: newEmail } : {}
+        const response = await api.post(`/tenant-requests/${requestId}/resend-email`, payload)
+        return response.data
+      } catch (err) {
+        console.error('Error reenviando email:', err)
+        this.error = err.response?.data?.detail || 'Error al reenviar email'
+        throw err
+      } finally {
+        this.loading = false
+      }
+    },
+    /**
+     * Reenviar credenciales de un tenant aprobado.
+     * Genera nueva contraseña y envía email.
+     */
+    async resendTenantCredentials(requestId) {
+      this.loading = true
+      this.error = null
+      try {
+        const response = await api.post(`/tenant-requests/${requestId}/resend-credentials`)
+        return response.data
+      } catch (err) {
+        console.error('Error reenviando credenciales:', err)
+        this.error = err.response?.data?.detail || 'Error al reenviar credenciales'
+        throw err
+      } finally {
+        this.loading = false
+      }
+    },
+
+    /**
+     * Aprobar solicitud (usa BackgroundTasks en backend, responde inmediatamente)
      */
     async approveTenantRequest(requestId, payload) {
       this.loading = true
       this.error = null
       try {
+        console.log('🚀 Iniciando provisionamiento en background...')
         const response = await api.post(`/tenant-requests/${requestId}/approve`, payload)
+        console.log('✅ Respuesta inmediata del backend:', response.data)
+        
+        // Recargar listas
         await this.countPendingRequests()
         await this.fetchTenantRequests()
+        
         return response.data
       } catch (err) {
-        console.error('Error aprobando solicitud:', err)
+        console.error('❌ Error aprobando solicitud:', err)
         this.error = err.response?.data?.detail || 'Error al aprobar solicitud'
         throw err
       } finally {
         this.loading = false
       }
     },
-    
+
     /**
      * Rechazar solicitud
      */
@@ -148,7 +173,7 @@ export const useSuperAdminStore = defineStore('superAdmin', {
         this.loading = false
       }
     },
-    
+
     /**
      * Desactivar tenant
      */
@@ -170,7 +195,7 @@ export const useSuperAdminStore = defineStore('superAdmin', {
         this.loading = false
       }
     },
-    
+
     /**
      * Reactivar tenant
      */
@@ -183,92 +208,6 @@ export const useSuperAdminStore = defineStore('superAdmin', {
       } catch (err) {
         console.error('Error reactivando tenant:', err)
         this.error = err.response?.data?.detail || 'Error al reactivar tenant'
-        throw err
-      } finally {
-        this.loading = false
-      }
-    },
-    /**
-     * Aprueba solicitud con tracking de progreso
-     * @param {number} requestId 
-     * @param {Object} payload 
-     * @param {Function} onProgress - Callback para actualizar UI
-     */
-    async approveTenantRequestWithProgress(requestId, payload, onProgress) {
-      this.loading = true
-      this.error = null
-      
-      try {
-        // Paso 1: Validando
-        onProgress({
-          step: 1,
-          total: 4,
-          message: 'Validando datos de la solicitud...',
-          status: 'processing'
-        })
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        // Paso 2: Creando schema
-        onProgress({
-          step: 2,
-          total: 4,
-          message: 'Creando estructura en la Base de Datos...',
-          status: 'processing'
-        })
-        
-        // Hacer el request real (puede tardar 10-60s)
-        const response = await api.post(`/tenant-requests/${requestId}/approve`, payload, {
-          timeout: 300000  // 5 minutos de timeout
-        })
-        
-        console.log('✅ Respuesta del backend recibida:', response.data)
-        
-        // Paso 3: Completado
-        onProgress({
-          step: 3,
-          total: 4,
-          message: 'Creando usuario administrador...',
-          status: 'processing'
-        })
-        await new Promise(resolve => setTimeout(resolve, 300))
-        
-        // Paso 4: Éxito
-        onProgress({
-          step: 4,
-          total: 4,
-          message: '¡Tenant creado exitosamente!',
-          status: 'success'
-        })
-        
-        // ✅ CORREGIDO: Manejar errores de actualización de contadores sin lanzar excepción
-        try {
-          await this.countPendingRequests()
-        } catch (err) {
-          console.warn('⚠️ Error actualizando contador de pendientes:', err)
-          // No lanzar error, continuar
-        }
-        
-        try {
-          await this.fetchTenantRequests()
-        } catch (err) {
-          console.warn('⚠️ Error recargando lista de solicitudes:', err)
-          // No lanzar error, continuar
-        }
-        
-        console.log('✅ approveTenantRequestWithProgress completado exitosamente')
-        return response.data
-        
-      } catch (err) {
-        console.error('❌ Error en approveTenantRequestWithProgress:', err)
-        this.error = err.response?.data?.detail || 'Error al aprobar solicitud'
-        
-        onProgress({
-          step: 1,
-          total: 4,
-          message: `Error: ${this.error}`,
-          status: 'error'
-        })
-        
         throw err
       } finally {
         this.loading = false

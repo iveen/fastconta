@@ -9,7 +9,7 @@ import pandas as pd
 
 
 def generate_data_file():
-    excel_path = "TR2026.xlsx" 
+    excel_path = "app/scripts/data/TR2026.xlsx" 
     output_path = "app/scripts/data/actividades_economicas.py"
     
     if not os.path.exists(excel_path):

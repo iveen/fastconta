@@ -24,8 +24,8 @@ dist/
 .vite/
 output/
 *.local
-pnpm-lock.yaml
-package-lock.json
+#pnpm-lock.yaml
+#package-lock.json
 yarn.lock
 
 # --- IDEs ---

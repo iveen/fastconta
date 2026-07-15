@@ -182,7 +182,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { BookOpen, BarChart3, CheckCircle } from '@lucide/vue'
 import { publicRegistrationApi } from '@/services/publicRegistration'
-import api from '@/services/api'
+import publicApi from '@/services/publicApi'
 
 const form = reactive({
   company_name: '',
@@ -216,10 +216,13 @@ const handleSubmit = async () => {
 
 onMounted(async () => {
   try {
-    const response = await api.get('/regimenes-fiscales/activos')
+    const response = await publicApi.get('/regimenes-fiscales/activos')
     regimenes.value = response.data
+    console.log('✅ Regímenes cargados:', response.data)
   } catch (err) {
     console.error('Error cargando regímenes:', err)
+    console.error('Status:', err.response?.status)
+    console.error('Data:', err.response?.data)
   }
 })
 </script>

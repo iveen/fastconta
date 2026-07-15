@@ -1,42 +1,36 @@
+<!-- backend/app/core/email/templates/tenant_aprobado.html -->
+
 {% extends "base.html" %}
 
 {% block content %}
-<h1>🎉 ¡Tu cuenta ha sido activada!</h1>
+🎉 ¡Tu cuenta ha sido activada!
 
-<p>Hola <strong>{{ contact_name }}</strong>,</p>
+Hola {{ contact_name }},
 
-<p>Hemos aprobado la solicitud de <strong>{{ company_name }}</strong>. Ya puedes acceder a FastConta con las siguientes credenciales:</p>
+Hemos aprobado la solicitud de {{ company_name }}. Ya puedes acceder a FastConta con las siguientes credenciales:
 
-<div class="card success">
-    <div class="data-row">
-        <span class="data-label">📧 Email:</span>
-        <span class="data-value">{{ admin_email }}</span>
-    </div>
-    <div class="data-row">
-        <span class="data-label">🔑 Contraseña temporal:</span>
-        <span class="data-value code">{{ admin_password }}</span>
-    </div>
-</div>
+📧 Email: {{ admin_email }}
+🔑 Contraseña temporal: {{ admin_password }}
 
-<div style="text-align: center; margin: 32px 0;">
-    <a href="{{ login_url }}" class="btn">Iniciar sesión en FastConta</a>
-</div>
+<!-- ✅ CAMBIAR ESTO: de Markdown a etiqueta <a> HTML -->
+<p>
+  <a href="{{ login_url }}" style="color: #2563eb; text-decoration: underline; font-weight: bold;">
+    Iniciar sesión en FastConta
+  </a>
+</p>
 
-<div class="card warning">
-    <strong>⚠️ Importante:</strong> Por seguridad, te solicitaremos cambiar esta contraseña en tu primer inicio de sesión.
-</div>
+⚠️ Importante: Por seguridad, te solicitaremos cambiar esta contraseña en tu primer inicio de sesión.
 
-<h2>Primeros pasos</h2>
-<ul>
-    <li>Inicia sesión con tus credenciales</li>
-    <li>Cambia tu contraseña temporal</li>
-    <li>Configura tu empresa y datos fiscales</li>
-    <li>Importa tu plan de cuentas</li>
-    <li>Comienza a registrar facturas electrónicas</li>
-</ul>
+<h3>Primeros pasos</h3>
+<ol>
+  <li>Inicia sesión con tus credenciales</li>
+  <li>Cambia tu contraseña temporal</li>
+  <li>Configura tu empresa y datos fiscales</li>
+  <li>Importa tu plan de cuentas</li>
+  <li>Comienza a registrar facturas electrónicas</li>
+</ol>
 
 <p>Si tienes alguna duda, nuestro equipo está disponible para ayudarte.</p>
 
-<p>Bienvenido a FastConta,<br>
-<strong>El equipo de soporte</strong></p>
+<p>Bienvenido a FastConta,<br>El equipo de soporte</p>
 {% endblock %}

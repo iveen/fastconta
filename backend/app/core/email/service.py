@@ -137,6 +137,7 @@ class EmailService:
                 "admin_email": admin_email,
                 "admin_password": admin_password,
                 "contact_name": contact_name,
+                "login_url": f"{email_config.app_url}/login"
             },
         )
     

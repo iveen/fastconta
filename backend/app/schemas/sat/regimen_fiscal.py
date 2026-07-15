@@ -28,19 +28,26 @@ class RegimenFiscalUpdate(BaseModel):
 # ============================================================
 # RESPONSE (con auditoría completa)
 # ============================================================
-class RegimenFiscalResponse(RegimenFiscalBase):
-    id: UUID
-    # Auditoría completa
+class RegimenFiscalResponse(BaseModel):
+    id: int  # ✅ Cambiar a int
+    codigo: str
+    nombre: str
+    descripcion: str | None = None
+    is_active: bool
     created_at: datetime | None = None
     updated_at: datetime | None = None
-    created_by: UUID | None = None
-    updated_by: UUID | None = None
 
-    model_config = {"from_attributes": True}
+class RegimenFiscalDetailResponse(BaseModel):
+    id: int  # ✅ Cambiar a int
+    codigo: str
+    nombre: str
+    descripcion: str | None = None
+    is_active: bool
+    formularios_asociados: list[dict] = []
 
 
 class RegimenFiscalListResponse(BaseModel):
-    id: UUID
+    id: int
     codigo: str
     nombre: str
     descripcion: str | None = None

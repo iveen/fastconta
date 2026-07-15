@@ -66,13 +66,7 @@ const formatQ = (v, esCantidad = false) => {
       minimumFractionDigits: 0, 
       maximumFractionDigits: 0 
     })
-  }
-  
-<<<<<<< HEAD
-  // Otras secciones: Con Q y sin decimales 
-=======
-  // Otras secciones: Con Q y sin decimales
->>>>>>> bf6afec8517669bbe8359711399517386d7c8f65
+  }  
   return `Q ${num.toLocaleString('es-GT', { 
     minimumFractionDigits: 0, 
     maximumFractionDigits: 0 

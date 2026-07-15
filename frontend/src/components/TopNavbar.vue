@@ -3,7 +3,6 @@
 <nav class="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
   <div class="flex items-center gap-4">
     <h1 class="text-xl font-bold text-blue-800">FastConta</h1>
-    
     <!-- Dropdown de Empresas -->
     <div class="relative" v-if="companyStore.hasCompanies">
       <button
@@ -15,6 +14,7 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
         </svg>
       </button>
+      <h1> Hola Amigo!!!</h1>
       <div
         v-if="isOpen"
         class="absolute left-0 mt-2 w-64 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-64 overflow-y-auto"
@@ -42,9 +42,9 @@
   <div class="flex items-center gap-4">
     <span class="text-sm text-gray-500 hidden md:block">{{ $route.name }}</span>
     
-    <!-- ✅ NUEVO: Menú de Usuario con Cambiar Contraseña -->
+    <!-- Menú de Usuario -->
     <div class="relative">
-      <button 
+      <button
         @click="isUserMenuOpen = !isUserMenuOpen"
         class="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
       >
@@ -58,28 +58,29 @@
       </button>
 
       <!-- Dropdown Menu -->
-      <div 
-        v-if="isUserMenuOpen" 
+      <div
+        v-if="isUserMenuOpen"
         class="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-md shadow-lg z-50 py-1"
       >
+        <!-- Información del usuario (mobile) -->
         <div class="px-4 py-2 border-b border-gray-100 md:hidden">
           <p class="text-sm font-medium text-gray-700">{{ authStore.user?.full_name }}</p>
           <p class="text-xs text-gray-500 truncate">{{ authStore.user?.email }}</p>
         </div>
-        
-        <!-- ✅ Opción Cambiar Contraseña (NUEVA) -->
-        <button 
-          @click="openChangePasswordModal" 
-          class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+
+        <!-- ✅ Opción Cambiar Contraseña - USANDO COMPONENTE LUCIDE -->
+        <button
+          @click="openChangePasswordModal"
+          class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 transition-colors"
         >
           <Key class="w-4 h-4 text-gray-500" />
           Cambiar Contraseña
         </button>
-        
-        <!-- Opción Cerrar Sesión -->
-        <button 
-          @click="logout" 
-          class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-gray-100"
+
+        <!-- Opción Cerrar Sesión - USANDO COMPONENTE LUCIDE -->
+        <button
+          @click="logout"
+          class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-gray-100 transition-colors"
         >
           <LogOut class="w-4 h-4" />
           Cerrar Sesión
@@ -93,6 +94,7 @@
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
       <div class="flex justify-between items-center mb-4">
         <h3 class="text-lg font-bold text-gray-900">Cambiar Contraseña</h3>
+        <!-- ✅ BOTÓN CERRAR - USANDO COMPONENTE LUCIDE -->
         <button @click="showChangePasswordModal = false" class="text-gray-400 hover:text-gray-600">
           <X class="w-5 h-5" />
         </button>
@@ -113,28 +115,55 @@
 
       <form @submit.prevent="handleChangePassword" class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña Actual</label>
-          <input v-model="pwdForm.current_password" type="password" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+          <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña Actual *</label>
+          <input
+            v-model="pwdForm.current_password"
+            type="password"
+            required
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Ingresa tu contraseña actual"
+          />
         </div>
+
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Nueva Contraseña</label>
-          <input v-model="pwdForm.new_password" type="password" required minlength="12" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+          <label class="block text-sm font-medium text-gray-700 mb-1">Nueva Contraseña *</label>
+          <input
+            v-model="pwdForm.new_password"
+            type="password"
+            required
+            minlength="12"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Mínimo 12 caracteres"
+          />
           <p class="text-xs text-gray-500 mt-1">Mínimo 12 caracteres, mayúsculas, números y símbolos.</p>
         </div>
+
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Confirmar Nueva</label>
-          <input v-model="pwdForm.confirm_password" type="password" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
-          <p v-if="pwdForm.new_password && pwdForm.new_password !== pwdForm.confirm_password" class="text-xs text-red-600 mt-1">No coinciden</p>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Confirmar Nueva Contraseña *</label>
+          <input
+            v-model="pwdForm.confirm_password"
+            type="password"
+            required
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Confirma tu nueva contraseña"
+          />
+          <p v-if="pwdForm.new_password && pwdForm.new_password !== pwdForm.confirm_password" class="text-xs text-red-600 mt-1">
+            Las contraseñas no coinciden
+          </p>
         </div>
 
         <div class="flex gap-2 pt-2">
-          <button type="button" @click="showChangePasswordModal = false" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+          <button
+            type="button"
+            @click="showChangePasswordModal = false"
+            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+          >
             Cancelar
           </button>
-          <button 
-            type="submit" 
-            :disabled="pwdLoading || pwdForm.new_password !== pwdForm.confirm_password"
-            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          <button
+            type="submit"
+            :disabled="pwdLoading || pwdForm.new_password !== pwdForm.confirm_password || !pwdForm.new_password"
+            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {{ pwdLoading ? 'Cambiando...' : 'Actualizar' }}
           </button>
@@ -150,6 +179,7 @@ import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCompanyStore } from '@/stores/company'
 import { useAuthStore } from '@/stores/auth'
+// ✅ IMPORTAR COMPONENTES DE LUCIDE
 import { Key, LogOut, X } from '@lucide/vue'
 
 const router = useRouter()
@@ -196,14 +226,14 @@ async function handleChangePassword() {
   pwdError.value = ''
   pwdSuccess.value = ''
   pwdErrorDetail.value = null
-  
+
   try {
     await authStore.changePassword({
       current_password: pwdForm.current_password,
       new_password: pwdForm.new_password
     })
     
-    pwdSuccess.value = '✅ Contraseña actualizada correctamente.'
+    pwdSuccess.value = '✅ Contraseña actualizada correctamente. Se ha enviado un correo de confirmación.'
     pwdForm.current_password = ''
     pwdForm.new_password = ''
     pwdForm.confirm_password = ''
@@ -213,7 +243,9 @@ async function handleChangePassword() {
       showChangePasswordModal.value = false
     }, 2000)
   } catch (err) {
+    console.error('Error cambiando contraseña:', err)
     const detail = err.response?.data?.detail
+    
     if (typeof detail === 'object' && detail.errors) {
       pwdError.value = 'La contraseña no cumple con los requisitos:'
       pwdErrorDetail.value = detail.errors
@@ -236,6 +268,7 @@ const handleClickOutside = (event) => {
 onMounted(() => {
   window.addEventListener('click', handleClickOutside)
 })
+
 onUnmounted(() => {
   window.removeEventListener('click', handleClickOutside)
 })

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
+from app.core.email.service import email_service
 from app.core.security import (
     DataScope,
     calculate_password_expiration,
@@ -418,6 +419,15 @@ async def change_my_password(
     current_user.password_expires_at = calculate_password_expiration(days=90)
     
     await db.commit()
+
+    try:
+        await email_service.send_password_changed_notification(
+            to=current_user.email,
+            full_name=current_user.full_name,
+        )
+        logger.info(f"📧 Email de notificación enviado a {current_user.email}")
+    except Exception as e:
+        logger.error(f"⚠️ No se pudo enviar email de notificación: {e}")
     
     logger.info(f"✅ Usuario {current_user.email} cambió su contraseña exitosamente")
     

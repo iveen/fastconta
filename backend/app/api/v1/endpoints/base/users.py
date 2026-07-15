@@ -421,14 +421,17 @@ async def change_my_password(
     await db.commit()
 
     try:
+        changed_at_formatted = current_user.password_changed_at.strftime("%d/%m/%Y %H:%M")
         await email_service.send_password_changed_notification(
             to=current_user.email,
             full_name=current_user.full_name,
+            changed_at=changed_at_formatted,
         )
-        logger.info(f"📧 Email de notificación enviado a {current_user.email}")
+        logger.info(f" Email de notificación enviado a {current_user.email}")
     except Exception as e:
         logger.error(f"⚠️ No se pudo enviar email de notificación: {e}")
-    
+        # No fallar la operación si el email falla, solo loguear
+  
     logger.info(f"✅ Usuario {current_user.email} cambió su contraseña exitosamente")
     
     return {

@@ -211,6 +211,25 @@ class EmailService:
                 "login_url": login_url,
             },
         )
+    
+    async def send_password_changed_notification(
+        self,
+        to: str,
+        full_name: str,
+        changed_at: str,
+    ) -> bool:
+        """
+        Notifica al usuario que su contraseña ha sido cambiada exitosamente.
+        """
+        return await self.send_email(
+            to=to,
+            subject="🔐 Tu contraseña de FastConta ha sido actualizada",
+            template_name="password_changed.html",
+            context={
+                "full_name": full_name,
+                "changed_at": changed_at,
+            },
+        )
 
 
 # Instancia global para usar en endpoints

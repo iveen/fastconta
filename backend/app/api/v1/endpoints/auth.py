@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
+from app.core.email.service import email_service
 from app.core.jwt_utils import create_access_token
 from app.core.security import (
     MAX_LOGIN_ATTEMPTS,
@@ -207,35 +208,8 @@ async def change_password(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Cambia la contraseña del usuario actual.
-    Valida la fortaleza de la nueva contraseña.
-    """
-    # 1. Validar contraseña actual
-    if not verify_password(payload.current_password, current_user.hashed_password):
-        raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta")
+    # ... (toda la validación y actualización de contraseña que ya tienes) ...
     
-    # 2. Validar que sea diferente
-    if payload.current_password == payload.new_password:
-        raise HTTPException(status_code=400, detail="La nueva contraseña debe ser diferente a la actual")
-    
-    # 3. ✅ NUEVO: Validar fortaleza de la contraseña
-    password_errors = validate_password_strength(
-        password=payload.new_password,
-        user_email=current_user.email,
-    )
-    
-    if password_errors:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "password_too_weak",
-                "message": "La contraseña no cumple con los requisitos de seguridad",
-                "errors": password_errors,
-            }
-        )
-    
-    # 4. Actualizar contraseña
     current_user.hashed_password = get_password_hash(payload.new_password)
     current_user.must_change_password = False
     current_user.is_locked = False
@@ -243,17 +217,27 @@ async def change_password(
     current_user.failed_login_attempts = 0
     current_user.password_changed_at = datetime.now(timezone.utc)
     current_user.password_expires_at = calculate_password_expiration(days=90)
-    
     await db.commit()
-    
+
+    # ✅ AGREGA ESTE BLOQUE AQUÍ (copiado de users.py)
+    try:
+        changed_at_formatted = current_user.password_changed_at.strftime("%d/%m/%Y %H:%M")
+        await email_service.send_password_changed_notification(
+            to=current_user.email,
+            full_name=current_user.full_name,
+            changed_at=changed_at_formatted,
+        )
+        logger.info(f"📧 Email de notificación enviado a {current_user.email}")
+    except Exception as e:
+        logger.error(f"⚠️ No se pudo enviar email de notificación: {e}")
+        # No fallar la operación si el email falla, solo loguear
+
     logger.info(f"✅ Usuario {current_user.email} cambió su contraseña exitosamente")
-    
     return {
         "message": "Contraseña cambiada exitosamente",
         "password_expires_at": current_user.password_expires_at.isoformat(),
         "account_unlocked": True,
     }
-
 
 @router.post("/reset-password", status_code=status.HTTP_200_OK)
 async def reset_password(

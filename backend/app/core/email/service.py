@@ -44,6 +44,7 @@ class EmailService:
                     MAIL_SSL_TLS=email_config.use_ssl,
                     USE_CREDENTIALS=True,
                     VALIDATE_CERTS=True,
+                    # APP_URL=email_config.app_url,
                 )
                 cls._fast_mail = FastMail(mail_config)
                 logger.info(f"✅ EmailService configurado: {email_config.host}:{email_config.port}")

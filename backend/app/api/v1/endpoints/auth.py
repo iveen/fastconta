@@ -8,7 +8,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.config import settings
 from app.core.email.service import email_service
 from app.core.jwt_utils import create_access_token
 from app.core.security import (
@@ -309,7 +308,7 @@ async def reset_password(
 # ============================================================
 # PASSWORD RESET (Self-Service con Token)
 # ============================================================
-MAX_RESET_REQUESTS_PER_HOUR = 3
+MAX_RESET_REQUESTS_PER_HOUR = 100
 
 
 @router.post("/request-password-reset", response_model=RequestPasswordResetResponse)
@@ -379,8 +378,9 @@ async def request_password_reset(
     
     # 5. Enviar email con token
     try:
+        from app.core.email.config import email_config
         from app.core.email.service import email_service
-        reset_url = f"{settings.APP_URL}/reset-password?token={plain_token}"
+        reset_url = f"{email_config.app_url}/reset-password?token={plain_token}"
         
         await email_service.send_password_reset_request(
             to=user.email,

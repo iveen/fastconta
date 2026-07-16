@@ -8,7 +8,6 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.config import settings
 from app.core.email.service import email_service
 from app.core.security import (
     DataScope,
@@ -291,15 +290,18 @@ async def create_user(
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
+
+    logger.info(f"Usuario {new_user.email} creado exitosamente en la Base de Datos.")
     
     # ✅ Enviar email con credenciales
     try:
+        from app.core.email.config import email_config
         from app.core.email.service import email_service
         await email_service.send_new_user_credentials(
             to=new_user.email,
             full_name=new_user.full_name,
             temp_password=temp_password,
-            login_url=f"{settings.APP_URL}/login",
+            login_url=f"{email_config.app_url}/login",
         )
         logger.info(f"📧 Email con credenciales enviado a {new_user.email}")
     except Exception as e:

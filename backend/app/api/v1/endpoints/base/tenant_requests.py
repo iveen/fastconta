@@ -33,6 +33,8 @@ router = APIRouter(prefix="/tenant-requests", tags=["Tenant Requests"])
 # ============================================================
 # BACKGROUND TASK: Provisionamiento asíncrono
 # ============================================================
+# backend/app/api/v1/endpoints/tenant_requests.py
+
 async def provision_tenant_background(
     tenant_id: int,
     user_id: int,
@@ -41,7 +43,6 @@ async def provision_tenant_background(
     admin_password: str,
     company_name: str,
     contact_name: str,
-    db: AsyncSession = Depends(get_public_db),
 ):
     """
     Tarea en segundo plano para ejecutar migraciones y notificar al usuario.
@@ -49,56 +50,59 @@ async def provision_tenant_background(
     """
     logger.info(f"🚀 [Background] Iniciando provisionamiento para schema '{schema_name}'")
     
-    try:
-        # 1. Ejecutar migraciones (síncrono, usar to_thread)
-        await asyncio.to_thread(initialize_tenant_schema, schema_name)
-        logger.info(f"✅ [Background] Migraciones completadas para '{schema_name}'")
-        
-        # 2. Activar tenant y usuario (las migraciones fueron exitosas)
-        tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one_or_none()
-        if tenant:
-            tenant.is_active = True
-            
-        user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
-        if user:
-            user.is_active = True
-            
-        await db.commit()
-        logger.info(f"✅ [Background] Tenant {tenant_id} y User {user_id} activados")
-        
-        # 3. Enviar email con credenciales
+    # ✅ Crear sesión de base de datos manualmente
+    async for db in get_public_db():
         try:
-            await email_service.send_tenant_aprobado(
-                to=admin_email,
-                company_name=company_name,
-                admin_email=admin_email,
-                admin_password=admin_password,
-                contact_name=contact_name,
-            )
-            logger.info(f"📧 [Background] Email de aprobación enviado a {admin_email}")
-        except Exception as e:
-            logger.error(f"⚠️ [Background] No se pudo enviar email de aprobación: {e}")
+            # 1. Ejecutar migraciones (síncrono, usar to_thread)
+            await asyncio.to_thread(initialize_tenant_schema, schema_name)
+            logger.info(f"✅ [Background] Migraciones completadas para '{schema_name}'")
             
-    except Exception as e:
-        logger.error(f"❌ [Background] Error en provisionamiento para {schema_name}: {e}")
-        try:
-            # Rollback: desactivar registros y limpiar schema
+            # 2. Activar tenant y usuario (las migraciones fueron exitosas)
             tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one_or_none()
             if tenant:
-                tenant.is_active = False
-                
+                tenant.is_active = True
+                logger.info(f"✅ [Background] Tenant {tenant_id} activado")
+            
             user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
             if user:
-                user.is_active = False
-                
+                user.is_active = True
+                logger.info(f"✅ [Background] User {user_id} activado")
+            
             await db.commit()
+            logger.info(f"✅ [Background] Tenant {tenant_id} y User {user_id} activados en BD")
             
-            # Limpiar schema fallido para no dejar basura en Postgres
-            await asyncio.to_thread(cleanup_tenant_schema, schema_name)
-            logger.info(f"🗑️ [Background] Rollback de schema '{schema_name}' completado")
-            
-        except Exception as cleanup_err:
-            logger.error(f"❌ [Background] Error crítico en rollback: {cleanup_err}")
+            # 3. Enviar email con credenciales
+            try:
+                await email_service.send_tenant_aprobado(
+                    to=admin_email,
+                    company_name=company_name,
+                    admin_email=admin_email,
+                    admin_password=admin_password,
+                    contact_name=contact_name,
+                )
+                logger.info(f"📧 [Background] Email de aprobación enviado a {admin_email}")
+            except Exception as e:
+                logger.error(f"⚠️ [Background] No se pudo enviar email de aprobación: {e}")
+                
+        except Exception as e:
+            logger.error(f"❌ [Background] Error en provisionamiento para {schema_name}: {e}")
+            try:
+                # Rollback: desactivar registros y limpiar schema
+                tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one_or_none()
+                if tenant:
+                    tenant.is_active = False
+                user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+                if user:
+                    user.is_active = False
+                await db.commit()
+                
+                # Limpiar schema fallido para no dejar basura en Postgres
+                await asyncio.to_thread(cleanup_tenant_schema, schema_name)
+                logger.info(f"🗑️ [Background] Rollback de schema '{schema_name}' completado")
+            except Exception as cleanup_err:
+                logger.error(f"❌ [Background] Error crítico en rollback: {cleanup_err}")
+        finally:
+            await db.close()
 
 
 # ============================================================

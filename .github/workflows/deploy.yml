@@ -1,4 +1,5 @@
 name: CD - Despliegue a Oracle Cloud
+
 on:
   push:
     branches: [main]
@@ -24,20 +25,21 @@ jobs:
           host: ${{ secrets.ORACLE_HOST }}
           username: ${{ secrets.ORACLE_USER }}
           key: ${{ secrets.ORACLE_SSH_KEY }}
-          host_key_checking: false  
+          debug: true  # Descomenta esta línea solo si el despliegue falla, para ver más detalles
           script: |
-            cd /opt/fastconta || { echo "❌ Directorio no existe"; exit 1; }
+            # 1. Ir al directorio correcto del proyecto
+            cd /opt/fastconta || { echo "❌ Directorio /opt/fastconta no existe"; exit 1; }
+            
+            # 2. Obtener los últimos cambios de GitHub
             git pull origin main
             
+            # 3. Verificar que exista el archivo .env (crítico para Docker)
             if [ ! -f .env ]; then
-              echo "❌ Archivo .env no encontrado"
+              echo "❌ Archivo .env no encontrado en /opt/fastconta"
               exit 1
             fi
             
+            # 4. Detener contenedores actuales de forma limpia
             docker compose -f docker-compose.prod.yml down
-            docker compose -f docker-compose.prod.yml build --no-cache
-            docker compose -f docker-compose.prod.yml up -d
-            docker image prune -f
             
-            echo "✅ Despliegue completado. Estado de contenedores:"
-            docker compose -f docker-compose.prod.yml ps
+            # 5. Construir y levantar los contenedores

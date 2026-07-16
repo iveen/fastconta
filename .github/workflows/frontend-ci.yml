@@ -1,23 +1,20 @@
-# .github/workflows/frontend-ci.yml
-name: CI - Frontend Validacion
-
+name: CI - Frontend Validación
 on:
   push:
     branches: [main, develop]
     paths:
-      - 'app/frontend/**'
+      - 'frontend/**'
   pull_request:
     branches: [main]
     paths:
-      - 'app/frontend/**'
+      - 'frontend/**'
 
 jobs:
   frontend-ci:
     name: Node 24 - Vue + pnpm
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout codigo
+      - name: Checkout código
         uses: actions/checkout@v4
 
       - name: Configurar Node.js 24
@@ -25,7 +22,7 @@ jobs:
         with:
           node-version: '24'
           cache: 'pnpm'
-          cache-dependency-path: 'app/frontend/pnpm-lock.yaml'
+          cache-dependency-path: 'frontend/pnpm-lock.yaml'
 
       - name: Instalar pnpm
         uses: pnpm/action-setup@v3
@@ -34,9 +31,9 @@ jobs:
           run_install: false
 
       - name: Instalar dependencias
-        working-directory: ./app/frontend
+        working-directory: ./frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Validar build de produccion
-        working-directory: ./app/frontend
+      - name: Validar build de producción
+        working-directory: ./frontend
         run: pnpm run build

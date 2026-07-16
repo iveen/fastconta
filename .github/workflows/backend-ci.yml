@@ -1,23 +1,20 @@
-# .github/workflows/backend-ci.yml
-name: CI - Backend Validacion
-
+name: CI - Backend Validación
 on:
   push:
     branches: [main, develop]
     paths:
-      - 'app/backend/**'
+      - 'backend/**'
   pull_request:
     branches: [main]
     paths:
-      - 'app/backend/**'
+      - 'backend/**'
 
 jobs:
   backend-ci:
     name: Python 3.12 - FastAPI
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout codigo
+      - name: Checkout código
         uses: actions/checkout@v4
 
       - name: Configurar Python 3.12
@@ -25,28 +22,28 @@ jobs:
         with:
           python-version: '3.12'
           cache: 'pip'
-          cache-dependency-path: 'app/backend/requirements.txt'
+          cache-dependency-path: 'backend/requirements.txt'
 
       - name: Instalar dependencias
-        working-directory: ./app/backend
+        working-directory: ./backend
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install ruff
+          pip install ruff pytest pytest-asyncio
 
       - name: Validar sintaxis Python
-        working-directory: ./app/backend
+        working-directory: ./backend
         run: python -m compileall -q app/
 
       - name: Ejecutar Ruff (Linting)
-        working-directory: ./app/backend
+        working-directory: ./backend
         run: ruff check app/ --output-format=github
 
-      - name: Validar carga de modelos (Evita errores de SQLAlchemy)
-        working-directory: ./app/backend
+      - name: Validar carga de modelos
+        working-directory: ./backend
         env:
           DATABASE_URL: postgresql+psycopg2://fake:fake@localhost:5432/fake
           SECRET_KEY: test_key_for_ci
           TENANT_SCHEMA: public
         run: |
-          python -c "from app.models import *; print('Modelos cargados correctamente sin errores de mapeo')"
+          python -c "from app.models import *; print('✅ Modelos cargados correctamente')"

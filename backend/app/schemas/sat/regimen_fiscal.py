@@ -72,6 +72,3 @@ class FormularioAsociadoBrief(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class RegimenFiscalDetailResponse(RegimenFiscalResponse):
-    """Respuesta detallada con formularios SAT asociados"""
-    formularios_asociados: list[FormularioAsociadoBrief] = []

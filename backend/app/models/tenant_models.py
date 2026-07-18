@@ -17,6 +17,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -444,3 +445,99 @@ class DeclaracionImpuestoFactura(BigIntPKMixin, AuditableFull, Base):
     __table_args__ = (
         UniqueConstraint("detalle_declaracion_id", "factura_id", name="uq_detalle_factura"),
     )
+
+# ============================================================
+# INVENTARIOS - Bodegas y Productos CON SoftDelete
+# Tomas, Items e Importaciones SIN SoftDelete (valor legal SAT)
+# ============================================================
+
+class InventarioBodega(BigIntPKMixin, AuditableFull, SoftDelete, Base):
+    __tablename__ = "inventarios_bodegas"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "empresa_id", "codigo", name="uq_inventarios_bodegas_codigo"),
+        Index("idx_inventarios_bodegas_empresa", "tenant_id", "empresa_id"),
+    )
+    tenant_id = Column(BigInteger, ForeignKey("public.tenants.id"), nullable=False, index=True)
+    empresa_id = Column(BigInteger, ForeignKey("empresas.id"), nullable=False, index=True)
+    codigo = Column(String(20), nullable=False)
+    nombre = Column(String(100), nullable=False)
+    ubicacion = Column(String(200))
+    empresa = relationship("Empresa")
+    items = relationship("InventarioItem", back_populates="bodega")
+
+
+class InventarioProducto(BigIntPKMixin, AuditableFull, SoftDelete, Base):
+    __tablename__ = "inventarios_productos"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "empresa_id", "codigo", name="uq_inventarios_productos_codigo"),
+        Index("idx_inventarios_productos_empresa", "tenant_id", "empresa_id"),
+    )
+    tenant_id = Column(BigInteger, ForeignKey("public.tenants.id"), nullable=False, index=True)
+    empresa_id = Column(BigInteger, ForeignKey("empresas.id"), nullable=False, index=True)
+    codigo = Column(String(50))
+    descripcion = Column(String(255), nullable=False)
+    unidad_medida = Column(String(20), default="UND", nullable=False, server_default="'UND'")
+    cuenta_inventario_id = Column(BigInteger, ForeignKey("plan_cuentas.id"), nullable=True)
+    empresa = relationship("Empresa")
+    cuenta_inventario = relationship("CuentaContable", foreign_keys=[cuenta_inventario_id])
+    items = relationship("InventarioItem", back_populates="producto")
+
+
+class InventarioToma(BigIntPKMixin, AuditableFull, Base):
+    __tablename__ = "inventarios_tomas"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "empresa_id", "anio_periodo", "mes_periodo", name="uq_inventarios_tomas_periodo"),
+        CheckConstraint("estado IN ('BORRADOR', 'CONFIRMADO', 'CONTABILIZADO')", name="chk_inventarios_tomas_estado"),
+        CheckConstraint("tipo IN ('FISCAL', 'INTERNO', 'AJUSTE')", name="chk_inventarios_tomas_tipo"),
+        CheckConstraint("metodo_valuacion IN ('COSTO_PROMEDIO', 'PEPS', 'IDENTIFICACION_ESPECIFICA')", name="chk_inventarios_tomas_metodo"),
+        CheckConstraint("mes_periodo BETWEEN 1 AND 12", name="chk_inventarios_tomas_mes_valido"),
+        Index("idx_inventarios_tomas_empresa_periodo", "tenant_id", "empresa_id", "anio_periodo", "mes_periodo"),
+    )
+    tenant_id = Column(BigInteger, ForeignKey("public.tenants.id"), nullable=False, index=True)
+    empresa_id = Column(BigInteger, ForeignKey("empresas.id"), nullable=False, index=True)
+    anio_periodo = Column(SmallInteger, nullable=False, index=True)
+    mes_periodo = Column(SmallInteger, nullable=False, index=True)
+    fecha_corte = Column(Date, nullable=False)
+    tipo = Column(String(20), nullable=False, default="FISCAL", server_default="'FISCAL'")
+    metodo_valuacion = Column(String(30), nullable=False, default="COSTO_PROMEDIO", server_default="'COSTO_PROMEDIO'")
+    estado = Column(String(20), nullable=False, default="BORRADOR", server_default="'BORRADOR'")
+    observaciones = Column(Text)
+    partida_ajuste_id = Column(BigInteger, ForeignKey("partidas.id", ondelete="SET NULL"), nullable=True)
+    total_items = Column(Integer, default=0, server_default="0")
+    valor_total = Column(Numeric(15, 2), default=Decimal("0.00"), server_default="0.00")
+    empresa = relationship("Empresa")
+    partida_ajuste = relationship("Partida")
+    items = relationship("InventarioItem", back_populates="toma", cascade="all, delete-orphan")
+    importaciones = relationship("InventarioImportacion", back_populates="toma", cascade="all, delete-orphan")
+
+
+class InventarioItem(BigIntPKMixin, AuditableFull, Base):
+    __tablename__ = "inventarios_items"
+    __table_args__ = (Index("idx_inventarios_items_toma", "toma_id"), Index("idx_inventarios_items_codigo", "codigo"))
+    toma_id = Column(BigInteger, ForeignKey("inventarios_tomas.id", ondelete="CASCADE"), nullable=False, index=True)
+    producto_id = Column(BigInteger, ForeignKey("inventarios_productos.id", ondelete="SET NULL"), nullable=True)
+    bodega_id = Column(BigInteger, ForeignKey("inventarios_bodegas.id", ondelete="SET NULL"), nullable=True)
+    codigo = Column(String(50), index=True)
+    descripcion = Column(String(255), nullable=False)
+    unidad_medida = Column(String(20), default="UND", server_default="'UND'")
+    cantidad = Column(Numeric(15, 4), nullable=False)
+    costo_unitario = Column(Numeric(15, 4), nullable=False)
+    costo_total = Column(Numeric(15, 2), nullable=False)
+    bodega_codigo = Column(String(20))
+    toma = relationship("InventarioToma", back_populates="items")
+    producto = relationship("InventarioProducto", back_populates="items")
+    bodega = relationship("InventarioBodega", back_populates="items")
+
+
+class InventarioImportacion(BigIntPKMixin, AuditableFull, Base):
+    __tablename__ = "inventarios_importaciones"
+    __table_args__ = (Index("idx_inventarios_importaciones_toma", "toma_id"),)
+    toma_id = Column(BigInteger, ForeignKey("inventarios_tomas.id", ondelete="CASCADE"), nullable=False, index=True)
+    archivo_original = Column(String(255), nullable=False)
+    formato = Column(String(10), nullable=False)
+    modo = Column(String(20), nullable=False, default="REEMPLAZAR")
+    filas_procesadas = Column(Integer, nullable=False, server_default="0")
+    filas_validas = Column(Integer, nullable=False, server_default="0")
+    filas_con_error = Column(Integer, nullable=False, server_default="0")
+    errores = Column(JSONB)
+    toma = relationship("InventarioToma", back_populates="importaciones")

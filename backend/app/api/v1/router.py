@@ -33,6 +33,7 @@ from app.api.v1.endpoints.contabilidad import (
     plan_cuentas,
 )
 from app.api.v1.endpoints.fel import facturas
+from app.api.v1.endpoints.inventario import router as inventario_router
 from app.api.v1.endpoints.public import registration
 from app.api.v1.endpoints.sat import (
     declaraciones,
@@ -73,3 +74,4 @@ api_router.include_router(representantes_legales.router)
 api_router.include_router(tipos_libro.router)
 api_router.include_router(estados_libro.router)
 api_router.include_router(registration.router)
+api_router.include_router(inventario_router)

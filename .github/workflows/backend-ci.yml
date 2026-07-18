@@ -1,21 +1,63 @@
 name: CI - Backend Validación
+
 on:
   push:
     branches: [main, develop]
     paths:
       - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
   pull_request:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   backend-ci:
     name: Python 3.12 - FastAPI
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fastconta
+          POSTGRES_PASSWORD: fastconta
+          POSTGRES_DB: fastconta_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: ./backend
+
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
+
+      - name: Instalar dependencias del sistema
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libcairo2-dev \
+            pkg-config \
+            python3-dev \
+            libxml2-dev \
+            libxslt1-dev \
+            qpdf
 
       - name: Configurar Python 3.12
         uses: actions/setup-python@v5
@@ -24,25 +66,28 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'backend/requirements.txt'
 
-      - name: Instalar dependencias
-        working-directory: ./backend
+      - name: Instalar dependencias Python
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install ruff pytest pytest-asyncio
+          pip install ruff pytest pytest-asyncio pytest-cov
 
       - name: Validar sintaxis Python
-        working-directory: ./backend
         run: python -m compileall -q app/
 
       - name: Ejecutar Ruff (Linting)
-        working-directory: ./backend
         run: ruff check app/ --output-format=github
 
-      - name: Validar carga de modelos
-        working-directory: ./backend
+      - name: Ejecutar tests
         env:
-          DATABASE_URL: postgresql+psycopg2://fake:fake@localhost:5432/fake
+          DATABASE_URL: postgresql+asyncpg://fastconta:fastconta@localhost:5432/fastconta_test
+          SECRET_KEY: test_key_for_ci
+          TENANT_SCHEMA: public
+        run: pytest --cov=app --cov-report=xml -v
+
+      - name: Validar carga de modelos
+        env:
+          DATABASE_URL: postgresql+psycopg2://fastconta:fastconta@localhost:5432/fastconta_test
           SECRET_KEY: test_key_for_ci
           TENANT_SCHEMA: public
         run: |

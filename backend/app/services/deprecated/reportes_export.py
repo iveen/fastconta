@@ -29,7 +29,6 @@ def generar_balance_comprobacion_excel(datos: dict) -> io.BytesIO:
     ws.title = "Balance de Comprobación"
 
     # Estilos
-    header_font = Font(bold=True, size=11)
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     header_font_white = Font(bold=True, size=11, color="FFFFFF")
     thin_border = Border(

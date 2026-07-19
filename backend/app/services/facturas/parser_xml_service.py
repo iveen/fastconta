@@ -129,14 +129,6 @@ async def parse_fel_xml(xml_content: str, db: AsyncSession = None) -> Dict | Non
         gran_total_el = first(root.xpath('//dte:GranTotal', namespaces=ns))
         gran_total = float(get_text(gran_total_el, '0'))
 
-        total_iva = 0.0
-        total_gravado = 0.0
-
-        # Buscar IVA en totales
-        for imp_el in root.xpath('//dte:Totales/dte:TotalImpuestos/dte:TotalImpuesto', namespaces=ns):
-            if imp_el.get('NombreCorto', '') == 'IVA' or get_text(imp_el.find('dte:NombreCorto', ns)) == 'IVA':
-                total_iva = float(imp_el.get('TotalMontoImpuesto', '0'))
-
         # 6. Items (Líneas de detalle) - CON CÁLCULOS SEPARADOS
         items = []
         total_gravado_bienes = 0.0

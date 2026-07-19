@@ -19,6 +19,8 @@ from pathlib import Path
 # 🔑 CARGAR .env ANTES DE CUALQUIER OTRA IMPORTACIÓN
 # ============================================================
 from dotenv import load_dotenv
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 APP_DIR = SCRIPT_DIR.parent
@@ -39,14 +41,11 @@ sys.path.insert(0, str(BACKEND_DIR))
 # ============================================================
 # IMPORTS (después de cargar .env)
 # ============================================================
-from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash  # noqa: E402
 
 # ✅ CORREGIDO: Usar AsyncSessionLocal (como en seed_categorias_activos.py)
-from app.db.session import AsyncSessionLocal
-from app.models.global_models import Role, Tenant, User
+from app.db.session import AsyncSessionLocal  # noqa: E402
+from app.models.global_models import Role, Tenant, User  # noqa: E402
 
 # ============================================================
 # CONFIGURACIÓN

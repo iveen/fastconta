@@ -224,7 +224,7 @@ class ExportService:
                 resumen_cuentas[key]["valor_total"] += item.costo_total
 
         if resumen_cuentas:
-            columnas_cuentas = [
+            _columnas_cuentas = [
                 Column(header="Código", key="codigo", width=15,
                        alignment=ColumnAlignment.LEFT, type=ColumnType.TEXT),
                 Column(header="Cuenta", key="nombre", width=40,

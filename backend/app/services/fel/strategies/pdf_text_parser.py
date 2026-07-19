@@ -149,7 +149,7 @@ async def parse_fel_texto(texto: str) -> Optional[Dict]:
             try:
                 total_iva = Decimal(iva_matches[-1])
                 logger.info(f"✅ IVA Total: {total_iva}")
-            except:
+            except: #noqa E722
                 pass
 
         # 12. Calcular total gravado

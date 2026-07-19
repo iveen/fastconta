@@ -458,7 +458,7 @@ class GeografiaService:
             encabezados.append(str(cell.value).strip())
 
         # Saltar fila de título si existe
-        fila_inicio = 1
+        _fila_inicio = 1
         if len(encabezados) == 0 or encabezados[0] == "":
             # Buscar la fila de encabezados reales
             for row in ws.iter_rows(min_row=1, max_row=5, values_only=True):

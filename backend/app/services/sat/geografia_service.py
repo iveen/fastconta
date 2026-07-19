@@ -458,13 +458,11 @@ class GeografiaService:
             encabezados.append(str(cell.value).strip())
 
         # Saltar fila de título si existe
-        _fila_inicio = 1
         if len(encabezados) == 0 or encabezados[0] == "":
             # Buscar la fila de encabezados reales
             for row in ws.iter_rows(min_row=1, max_row=5, values_only=True):
                 if row and row[0] and str(row[0]).strip() in columnas_requeridas:
                     encabezados = [str(v).strip() if v else "" for v in row]
-                    fila_inicio = row[0]  # No, esto no funciona así
                     break
 
         # Leer datos (asumiendo que los encabezados están en fila 1 o 3)

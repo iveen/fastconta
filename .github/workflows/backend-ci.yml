@@ -25,13 +25,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    # 🔹 Servicio PostgreSQL efímero para tests
     services:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: fastconta
-          POSTGRES_PASSWORD: fastconta
-          POSTGRES_DB: fastconta_test
+          POSTGRES_USER: ${{ secrets.TEST_DATABASE_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.TEST_DATABASE_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.TEST_DATABASE_NAME }}
         ports:
           - 5432:5432
         options: >-
@@ -43,6 +44,17 @@ jobs:
     defaults:
       run:
         working-directory: ./backend
+
+    # 🔹 Variables de entorno disponibles para todos los steps
+    env:
+      DATABASE_HOST: localhost
+      DATABASE_PORT: 5432
+      DATABASE_USER: ${{ secrets.TEST_DATABASE_USER }}
+      DATABASE_PASSWORD: ${{ secrets.TEST_DATABASE_PASSWORD }}
+      DATABASE_NAME: ${{ secrets.TEST_DATABASE_NAME }}
+      DATABASE_URL: postgresql+asyncpg://${{ secrets.TEST_DATABASE_USER }}:${{ secrets.TEST_DATABASE_PASSWORD }}@localhost:5432/${{ secrets.TEST_DATABASE_NAME }}
+      SECRET_KEY: ${{ secrets.TEST_SECRET_KEY }}
+      TENANT_SCHEMA: public
 
     steps:
       - name: Checkout código
@@ -72,23 +84,36 @@ jobs:
           pip install -r requirements.txt
           pip install ruff pytest pytest-asyncio pytest-cov
 
+      - name: Esperar que PostgreSQL esté listo
+        run: |
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U ${{ secrets.TEST_DATABASE_USER }} >/dev/null 2>&1; then
+              echo "✅ PostgreSQL está listo"
+              exit 0
+            fi
+            echo "⏳ Esperando PostgreSQL... ($i/30)"
+            sleep 2
+          done
+          echo "❌ PostgreSQL no respondió a tiempo"
+          exit 1
+
       - name: Validar sintaxis Python
         run: python -m compileall -q app/
 
       - name: Ejecutar Ruff (Linting)
         run: ruff check app/ --output-format=github
 
-      - name: Ejecutar tests
-        env:
-          DATABASE_URL: postgresql+asyncpg://fastconta:fastconta@localhost:5432/fastconta_test
-          SECRET_KEY: test_key_for_ci
-          TENANT_SCHEMA: public
+      - name: Ejecutar tests con coverage
         run: pytest --cov=app --cov-report=xml -v
 
       - name: Validar carga de modelos
-        env:
-          DATABASE_URL: postgresql+psycopg2://fastconta:fastconta@localhost:5432/fastconta_test
-          SECRET_KEY: test_key_for_ci
-          TENANT_SCHEMA: public
         run: |
           python -c "from app.models import *; print('✅ Modelos cargados correctamente')"
+
+      - name: Subir reporte de coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: backend/coverage.xml
+          retention-days: 7

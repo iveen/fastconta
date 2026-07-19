@@ -17,6 +17,8 @@ pip-delete-this-directory.txt
 .pytest_cache/
 *.db
 *.sqlite3
+.coverage
+coverage.xml
 
 # --- Node / Frontend ---
 node_modules/

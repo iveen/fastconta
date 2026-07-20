@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block content %}
+❌ Error en la importación de inventario
+
+Hola {{ full_name }},
+
+Lamentablemente, tu archivo "{{ archivo_nombre }}" no pudo ser procesado correctamente.
+
+🔍 Detalle del error:
+
+    {{ error_mensaje }}
+
+⚠️ Posibles causas:
+• El archivo tiene un formato no soportado (solo se aceptan .xlsx, .xls o .csv)
+• Faltan columnas obligatorias: descripcion, costo_unitario, cantidad
+• Los valores numéricos contienen caracteres especiales o formatos inválidos
+• El archivo está vacío o corrupto
+• La toma de inventario ya no está en estado BORRADOR
+
+💡 Recomendaciones:
+• Verifica que el archivo tenga las columnas requeridas
+• Asegúrate de que los costos y cantidades sean valores numéricos válidos
+• Elimina caracteres especiales como "Q", comas o espacios en los números
+• Confirma que la toma de inventario esté en estado BORRADOR antes de importar
+• Si el problema persiste, contacta a soporte técnico
+
+🔗 Puedes intentar nuevamente desde: {{ app_url }}/inventarios
+
+Si necesitas ayuda adicional, no dudes en contactar al administrador de tu firma contable o a nuestro equipo de soporte.
+
+Saludos cordiales,
+El equipo de FastConta
+{% endblock %}

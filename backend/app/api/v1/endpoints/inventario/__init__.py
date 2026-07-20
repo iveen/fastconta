@@ -6,6 +6,7 @@ from app.api.v1.endpoints.inventario import (
     export,
     importacion,
     items,
+    jobs,  # ✅ NUEVO
     productos,
     tomas,
 )
@@ -17,5 +18,6 @@ router.include_router(productos.router, prefix="/productos")
 router.include_router(tomas.router, prefix="/tomas")
 router.include_router(items.router, prefix="/items")
 router.include_router(importacion.router, prefix="/importaciones")
+router.include_router(jobs.router, prefix="/importaciones")  
 router.include_router(costo_ventas.router, prefix="/costo-ventas")
 router.include_router(export.router, prefix="/export")

@@ -11,6 +11,7 @@ from sqlalchemy import (
     Index,
     Integer,
     Numeric,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -629,3 +630,66 @@ class PasswordResetToken(BigIntPKMixin, Base):
     )
     
     user = relationship("User", foreign_keys=[user_id])
+
+#=====================================================================
+# Manejo de Colas de Carga de Archivos de Inventarios
+#=====================================================================
+class InventarioImportacionJob(BigIntPKMixin, AuditableFull, Base):
+    """
+    Job de importación asíncrona de inventarios.
+    Tabla GLOBAL (schema public) para monitoreo centralizado.
+    
+    ⚠️ NOTA: No tiene FK estricta a inventarios_tomas porque esa tabla
+    está en el schema del tenant. La integridad se maneja a nivel de aplicación.
+    """
+    __tablename__ = "inventarios_importacion_jobs"
+    __table_args__ = (
+        Index("idx_import_jobs_tenant", "tenant_id"),
+        Index("idx_import_jobs_empresa", "tenant_id", "empresa_id"),
+        Index("idx_import_jobs_toma", "toma_id"),
+        Index("idx_import_jobs_estado", "estado"),
+        Index("idx_import_jobs_usuario", "usuario_id"),
+        Index("idx_import_jobs_created", "created_at"),
+        { "schema": "public" },
+    )
+
+    # Identificación del tenant/empresa (sin FK, solo índice)
+    tenant_id = Column(BigInteger, nullable=False, index=True)
+    empresa_id = Column(BigInteger, nullable=False, index=True)
+    toma_id = Column(BigInteger, nullable=False, index=True)  # ⚠️ Sin FK
+    usuario_id = Column(BigInteger, ForeignKey("public.users.id", ondelete="SET NULL"), nullable=True)
+
+    # Archivo
+    archivo_original = Column(String(255), nullable=False)
+    archivo_ruta = Column(String(500), nullable=False)
+    formato = Column(String(10), nullable=False)
+    tamano_bytes = Column(BigInteger, nullable=False, server_default="0")
+    modo = Column(String(20), nullable=False, default="REEMPLAZAR")
+
+    # Estado del job
+    estado = Column(String(20), nullable=False, default="PENDIENTE", server_default="'PENDIENTE'")
+    # PENDIENTE | PROCESANDO | COMPLETADO | FALLIDO | CANCELADO | TOMA_ELIMINADA
+
+    # Progreso
+    filas_totales = Column(Integer, nullable=False, server_default="0")
+    filas_procesadas = Column(Integer, nullable=False, server_default="0")
+    filas_validas = Column(Integer, nullable=False, server_default="0")
+    filas_con_error = Column(Integer, nullable=False, server_default="0")
+    porcentaje = Column(SmallInteger, nullable=False, server_default="0")
+
+    # Resultado (FK a tabla tenant, sin constraint estricto)
+    importacion_id = Column(BigInteger, nullable=True)  # ⚠️ Sin FK
+    errores = Column(JSONB)
+    mensaje_error = Column(Text, nullable=True)
+
+    # Notificación
+    notificado = Column(Boolean, nullable=False, default=False, server_default="false")
+    notificado_en = Column(DateTime(timezone=True), nullable=True)
+
+    # Control de concurrencia
+    iniciado_en = Column(DateTime(timezone=True), nullable=True)
+    finalizado_en = Column(DateTime(timezone=True), nullable=True)
+    locked_at = Column(DateTime(timezone=True), nullable=True)
+
+    def __repr__(self):
+        return f"<InventarioImportacionJob {self.id} - tenant={self.tenant_id} - {self.estado} ({self.porcentaje}%)>"

@@ -17,10 +17,16 @@ jobs:
       - name: Checkout código
         uses: actions/checkout@v4
 
-      - name: Configurar Node.js 20
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Configurar Node.js LTS
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 'lts'
           cache: 'pnpm'
           cache-dependency-path: 'frontend/pnpm-lock.yaml'
 

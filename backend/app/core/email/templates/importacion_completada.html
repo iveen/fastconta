@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+✅ ¡Importación completada exitosamente!
+
+Hola {{ full_name }},
+
+Tu archivo "{{ archivo_nombre }}" ha sido procesado correctamente en FastConta.
+
+📊 Resumen de la importación:
+
+    Período fiscal: {{ periodo }}
+    Modo: {{ modo }}
+    Filas procesadas: {{ filas_procesadas }}
+    Items válidos importados: {{ filas_validas }}
+    {% if filas_con_error > 0 %}
+    Filas con errores: {{ filas_con_error }}
+    {% endif %}
+
+{% if filas_con_error > 0 %}
+⚠️ Importante:
+• Hubo {{ filas_con_error }} filas con errores de validación que NO fueron importadas.
+• Puedes revisar el detalle completo de los errores en el historial de importaciones.
+• Te recomendamos corregir esas filas y volver a intentar la importación si es necesario.
+{% else %}
+✨ Todas las filas fueron procesadas exitosamente sin errores.
+{% endif %}
+
+💡 Próximos pasos:
+• Revisa el inventario importado en el módulo de Inventarios
+• Valida que las cantidades y costos sean correctos
+• Cuando estés listo, puedes confirmar la toma de inventario
+• Recuerda que los inventarios fiscales deben ser al 30/jun o 31/dic
+
+🔗 Accede a tu inventario desde: {{ app_url }}/inventarios
+
+Si tienes alguna duda o necesitas ayuda, contacta al administrador de tu firma contable.
+
+Saludos cordiales,
+El equipo de FastConta
+{% endblock %}

@@ -232,6 +232,72 @@ class EmailService:
                 "changed_at": changed_at,
             },
         )
+    
+    async def send_importacion_completada(
+        self,
+        to: str,
+        full_name: str,
+        archivo_nombre: str,
+        periodo: str,
+        modo: str,
+        filas_procesadas: int,
+        filas_validas: int,
+        filas_con_error: int,
+    ) -> bool:
+        """
+        Envía email notificando que una importación de inventario se completó.
+        
+        Args:
+            to: Email del destinatario
+            full_name: Nombre completo del usuario
+            archivo_nombre: Nombre del archivo importado
+            periodo: Período fiscal (ej: "2026/06")
+            modo: Modo de importación (REEMPLAZAR/AGREGAR)
+            filas_procesadas: Total de filas procesadas
+            filas_validas: Items importados exitosamente
+            filas_con_error: Filas con errores de validación
+        """
+        return await self.send_email(
+            to=to,
+            subject=f"✅ Importación completada: {archivo_nombre}",
+            template_name="importacion_completada.html",
+            context={
+                "full_name": full_name,
+                "archivo_nombre": archivo_nombre,
+                "periodo": periodo,
+                "modo": modo,
+                "filas_procesadas": filas_procesadas,
+                "filas_validas": filas_validas,
+                "filas_con_error": filas_con_error,
+            },
+        )
+
+    async def send_importacion_fallida(
+        self,
+        to: str,
+        full_name: str,
+        archivo_nombre: str,
+        error_mensaje: str,
+    ) -> bool:
+        """
+        Envía email notificando que una importación de inventario falló.
+        
+        Args:
+            to: Email del destinatario
+            full_name: Nombre completo del usuario
+            archivo_nombre: Nombre del archivo que falló
+            error_mensaje: Descripción del error ocurrido
+        """
+        return await self.send_email(
+            to=to,
+            subject=f"❌ Error en importación: {archivo_nombre}",
+            template_name="importacion_fallida.html",
+            context={
+                "full_name": full_name,
+                "archivo_nombre": archivo_nombre,
+                "error_mensaje": error_mensaje,
+            },
+        )
 
 
 # Instancia global para usar en endpoints

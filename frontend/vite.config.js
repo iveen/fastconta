@@ -10,6 +10,10 @@ export default defineConfig({
     vueDevTools(),
     tailwindcss(),
   ],
+  tests: {
+    environment: 'happy-dom',
+    globals:true,
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))

@@ -31,10 +31,12 @@ import PublicRegister from '@/views/public/PublicRegister.vue'
 import ChangePassword from '@/views/ChangePassword.vue'
 import ForgotPassword from '@/views/ForgotPassword.vue'
 import ResetPassword from '@/views/ResetPassword.vue'
-import SuperadminLayout from '@/layouts/SuperadminLayout.vue'
 import TenantsList from '@/views/superadmin/TenantsList.vue'
 import TenantRequestQueue from '@/views/superadmin/TenantRequestQueue.vue'
 import LoginAudit from '@/views/superadmin/LoginAudit.vue'
+import TomasList from '@/views/inventarios/TomasList.vue'
+import TomaDetalle from '@/views/inventarios/TomaDetalle.vue'
+import Catalogos from '@/views/inventarios/Catalogos.vue'
 
 
 import { useAuthStore } from '@/stores/auth'
@@ -96,7 +98,10 @@ const routes = [
       { path: 'activos-fijos', name: 'ActivosFijos', component: ActivoFijoList, meta: { requiresAuth: true } },
       { path: 'activos-fijos/nuevo', name: 'ActivosFijosCrear', component: ActivoFijoForm, meta: { requiresAuth: true } },
       { path: 'activos-fijos/editar/:id', name: 'ActivosFijosEditar', component: ActivoFijoForm, meta: { requiresAuth: true } },
-      { path: 'activos-fijos/:id/proyeccion', name: 'ActivosFijosProyeccion', component: ActivoFijoProyeccion, meta: { requiresAuth: true } }
+      { path: 'activos-fijos/:id/proyeccion', name: 'ActivosFijosProyeccion', component: ActivoFijoProyeccion, meta: { requiresAuth: true } },
+      { path: 'inventarios', name: 'InventarioTomasList', component: TomasList, meta: { requiresAuth: true, title: 'Lista de Tomas de Inventario' } },
+      { path: 'inventarios/tomas/:id', name: 'InventarioTomaDetalle', component: TomaDetalle, meta: { requiresAuth: true, title: 'Detalle de Toma' } },
+      { path: 'inventarios/catalogos', name: 'InventarioCatalogos', component: Catalogos, meta: { requiresAuth: true, title: 'Catálogos de Inventario' } },
     ]
   },
   {

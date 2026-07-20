@@ -1,5 +1,4 @@
 name: CD - Despliegue a Oracle Cloud
-
 on:
   push:
     branches: [main]
@@ -25,21 +24,39 @@ jobs:
           host: ${{ secrets.ORACLE_HOST }}
           username: ${{ secrets.ORACLE_USER }}
           key: ${{ secrets.ORACLE_SSH_KEY }}
-          debug: true  # Descomenta esta línea solo si el despliegue falla, para ver más detalles
           script: |
-            # 1. Ir al directorio correcto del proyecto
-            cd /opt/fastconta || { echo "❌ Directorio /opt/fastconta no existe"; exit 1; }
-            
-            # 2. Obtener los últimos cambios de GitHub
-            git pull origin main
-            
-            # 3. Verificar que exista el archivo .env (crítico para Docker)
+            set -e
+            cd /opt/fastconta
+
             if [ ! -f .env ]; then
-              echo "❌ Archivo .env no encontrado en /opt/fastconta"
+              echo "❌ Archivo .env no encontrado"
               exit 1
             fi
-            
-            # 4. Detener contenedores actuales de forma limpia
-            docker compose -f docker-compose.prod.yml down
-            
-            # 5. Construir y levantar los contenedores
+
+            echo "🔄 Obteniendo últimos cambios..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "🔨 Construyendo nuevas imágenes..."
+            docker compose -f docker-compose.prod.yml build --pull
+
+            echo "🚀 Aplicando despliegue..."
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            echo "✅ Verificando estado..."
+            sleep 10
+            docker compose -f docker-compose.prod.yml ps
+
+            echo "🏥 Health check del backend..."
+            if curl -f -s http://localhost:8001/docs > /dev/null; then
+              echo "✅ Backend respondiendo correctamente"
+            else
+              echo "⚠️ Backend no responde, mostrando logs..."
+              docker compose -f docker-compose.prod.yml logs --tail=50 backend
+              exit 1
+            fi
+
+            echo "🧹 Limpiando imágenes antiguas..."
+            docker image prune -f
+
+            echo "✅ Despliegue completado exitosamente"

@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_calcular_costo_ventas_sin_autenticacion(client):
     """GET /inventarios/costo-ventas/tomas/{toma_public_id} requiere autenticación"""
     toma_id = str(uuid4())

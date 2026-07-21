@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_importar_inventario_sin_autenticacion(client):
     """POST /inventarios/importaciones/tomas/{toma_public_id}/importar requiere autenticación"""
     toma_id = str(uuid4())
@@ -21,7 +21,7 @@ async def test_importar_inventario_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_importar_inventario_formato_invalido_sin_autenticacion(client):
     """POST /inventarios/importaciones/tomas/{toma_public_id}/importar valida formato"""
     toma_id = str(uuid4())
@@ -36,7 +36,7 @@ async def test_importar_inventario_formato_invalido_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_listar_importaciones_sin_autenticacion(client):
     """GET /inventarios/importaciones/tomas/{toma_public_id}/historial requiere autenticación"""
     toma_id = str(uuid4())

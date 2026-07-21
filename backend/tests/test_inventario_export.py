@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_exportar_toma_excel_sin_autenticacion(client):
     """GET /inventarios/export/tomas/{toma_public_id}?formato=excel requiere autenticación"""
     toma_id = str(uuid4())
@@ -12,7 +12,7 @@ async def test_exportar_toma_excel_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_exportar_toma_pdf_sin_autenticacion(client):
     """GET /inventarios/export/tomas/{toma_public_id}?formato=pdf requiere autenticación"""
     toma_id = str(uuid4())
@@ -20,7 +20,7 @@ async def test_exportar_toma_pdf_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_exportar_toma_formato_invalido_sin_autenticacion(client):
     """GET /inventarios/export/tomas/{toma_public_id}?formato=invalid valida formato"""
     toma_id = str(uuid4())

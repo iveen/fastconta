@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_crear_bodega_sin_autenticacion(client):
     """POST /inventarios/bodegas/{empresa_public_id} requiere autenticación"""
     empresa_id = str(uuid4())
@@ -17,7 +17,7 @@ async def test_crear_bodega_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_listar_bodegas_sin_autenticacion(client):
     """GET /inventarios/bodegas/{empresa_public_id} requiere autenticación"""
     empresa_id = str(uuid4())
@@ -25,7 +25,7 @@ async def test_listar_bodegas_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_obtener_bodega_sin_autenticacion(client):
     """GET /inventarios/bodegas/detalle/{public_id} requiere autenticación"""
     bodega_id = str(uuid4())
@@ -33,7 +33,7 @@ async def test_obtener_bodega_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_actualizar_bodega_sin_autenticacion(client):
     """PUT /inventarios/bodegas/{public_id} requiere autenticación"""
     bodega_id = str(uuid4())
@@ -42,7 +42,7 @@ async def test_actualizar_bodega_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_eliminar_bodega_sin_autenticacion(client):
     """DELETE /inventarios/bodegas/{public_id} requiere autenticación"""
     bodega_id = str(uuid4())

@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_crear_toma_sin_autenticacion(client):
     """POST /inventarios/tomas requiere autenticación"""
     payload = {
@@ -19,7 +19,7 @@ async def test_crear_toma_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_crear_toma_campos_faltantes(client):
     """POST /inventarios/tomas valida campos obligatorios"""
     payload = {
@@ -30,21 +30,21 @@ async def test_crear_toma_campos_faltantes(client):
     assert response.status_code in [401, 403, 422]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_listar_tomas_sin_autenticacion(client):
     """GET /inventarios/tomas requiere autenticación"""
     response = await client.get("/api/v1/inventarios/tomas")
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_listar_tomas_con_filtros_sin_autenticacion(client):
     """GET /inventarios/tomas con filtros requiere autenticación"""
     response = await client.get("/api/v1/inventarios/tomas?estado=BORRADOR&anio=2026")
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_obtener_toma_sin_autenticacion(client):
     """GET /inventarios/tomas/{public_id} requiere autenticación"""
     toma_id = str(uuid4())
@@ -52,7 +52,7 @@ async def test_obtener_toma_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_actualizar_toma_sin_autenticacion(client):
     """PUT /inventarios/tomas/{public_id} requiere autenticación"""
     toma_id = str(uuid4())
@@ -61,7 +61,7 @@ async def test_actualizar_toma_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_confirmar_toma_sin_autenticacion(client):
     """POST /inventarios/tomas/{public_id}/confirmar requiere autenticación"""
     toma_id = str(uuid4())
@@ -69,7 +69,7 @@ async def test_confirmar_toma_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_eliminar_toma_sin_autenticacion(client):
     """DELETE /inventarios/tomas/{public_id} requiere autenticación"""
     toma_id = str(uuid4())

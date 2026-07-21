@@ -11,14 +11,14 @@ import pytest
 # ============================================================
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_listar_jobs_usuario_sin_autenticacion(client):
     """GET /inventarios/importaciones/jobs requiere autenticación"""
     response = await client.get("/api/v1/inventarios/importaciones/jobs")
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_consultar_estado_job_sin_autenticacion(client):
     """GET /inventarios/importaciones/jobs/{job_id} requiere autenticación"""
     job_id = str(uuid4())
@@ -26,7 +26,7 @@ async def test_consultar_estado_job_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_cancelar_job_sin_autenticacion(client):
     """POST /inventarios/importaciones/jobs/{job_id}/cancelar requiere autenticación"""
     job_id = str(uuid4())
@@ -39,7 +39,7 @@ async def test_cancelar_job_sin_autenticacion(client):
 # ============================================================
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_importar_inventario_async_sin_autenticacion(client):
     """POST /inventarios/importaciones/tomas/{toma_id}/importar requiere autenticación"""
     toma_id = str(uuid4())
@@ -56,7 +56,7 @@ async def test_importar_inventario_async_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_importar_inventario_formato_invalido_sin_autenticacion(client):
     """POST /inventarios/importaciones/tomas/{toma_id}/importar valida formato"""
     toma_id = str(uuid4())
@@ -76,21 +76,21 @@ async def test_importar_inventario_formato_invalido_sin_autenticacion(client):
 # ============================================================
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_listar_jobs_global_sin_autenticacion(client):
     """GET /inventarios/importaciones/admin/jobs requiere autenticación"""
     response = await client.get("/api/v1/inventarios/importaciones/admin/jobs")
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_estadisticas_jobs_global_sin_autenticacion(client):
     """GET /inventarios/importaciones/admin/jobs/estadisticas requiere autenticación"""
     response = await client.get("/api/v1/inventarios/importaciones/admin/jobs/estadisticas")
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_consultar_job_admin_sin_autenticacion(client):
     """GET /inventarios/importaciones/admin/jobs/{job_id} requiere autenticación"""
     job_id = str(uuid4())

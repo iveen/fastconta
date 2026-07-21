@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_crear_producto_sin_autenticacion(client):
     """POST /inventarios/productos/{empresa_public_id} requiere autenticación"""
     empresa_id = str(uuid4())
@@ -17,7 +17,7 @@ async def test_crear_producto_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_listar_productos_sin_autenticacion(client):
     """GET /inventarios/productos/{empresa_public_id} requiere autenticación"""
     empresa_id = str(uuid4())
@@ -25,7 +25,7 @@ async def test_listar_productos_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_listar_productos_con_busqueda_sin_autenticacion(client):
     """GET /inventarios/productos/{empresa_public_id}?search=... requiere autenticación"""
     empresa_id = str(uuid4())
@@ -33,7 +33,7 @@ async def test_listar_productos_con_busqueda_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_obtener_producto_sin_autenticacion(client):
     """GET /inventarios/productos/detalle/{public_id} requiere autenticación"""
     producto_id = str(uuid4())
@@ -41,7 +41,7 @@ async def test_obtener_producto_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_actualizar_producto_sin_autenticacion(client):
     """PUT /inventarios/productos/{public_id} requiere autenticación"""
     producto_id = str(uuid4())
@@ -50,7 +50,7 @@ async def test_actualizar_producto_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_eliminar_producto_sin_autenticacion(client):
     """DELETE /inventarios/productos/{public_id} requiere autenticación"""
     producto_id = str(uuid4())

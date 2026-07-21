@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_crear_item_sin_autenticacion(client):
     """POST /inventarios/items/tomas/{toma_public_id} requiere autenticación"""
     toma_id = str(uuid4())
@@ -19,7 +19,7 @@ async def test_crear_item_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_crear_item_campos_faltantes(client):
     """POST /inventarios/items/tomas/{toma_public_id} valida campos obligatorios"""
     toma_id = str(uuid4())
@@ -31,7 +31,7 @@ async def test_crear_item_campos_faltantes(client):
     assert response.status_code in [401, 403, 422]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_listar_items_sin_autenticacion(client):
     """GET /inventarios/items/tomas/{toma_public_id} requiere autenticación"""
     toma_id = str(uuid4())
@@ -39,7 +39,7 @@ async def test_listar_items_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_obtener_item_sin_autenticacion(client):
     """GET /inventarios/items/{public_id} requiere autenticación"""
     item_id = str(uuid4())
@@ -47,7 +47,7 @@ async def test_obtener_item_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_actualizar_item_sin_autenticacion(client):
     """PUT /inventarios/items/{public_id} requiere autenticación"""
     item_id = str(uuid4())
@@ -56,7 +56,7 @@ async def test_actualizar_item_sin_autenticacion(client):
     assert response.status_code in [401, 403]
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_eliminar_item_sin_autenticacion(client):
     """DELETE /inventarios/items/{public_id} requiere autenticación"""
     item_id = str(uuid4())

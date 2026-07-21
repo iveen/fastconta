@@ -1,7 +1,7 @@
 import pytest
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_create_user_sin_autenticacion(client):
     payload = {
         "full_name": "Juan Pérez",
@@ -11,7 +11,7 @@ async def test_create_user_sin_autenticacion(client):
     response = await client.post("/api/v1/users/", json=payload)
     assert response.status_code in [401, 403]
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="session")
 async def test_create_user_campos_faltantes(client):
     payload = {
         "email": "juan@test.com"

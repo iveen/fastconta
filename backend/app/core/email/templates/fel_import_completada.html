@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+✅ Importación FEL Completada
+
+Hola {{ full_name }},
+
+La importación de facturas electrónicas desde el SAT se ha completado exitosamente.
+
+📊 Resumen de la Importación:
+
+Archivo: {{ archivo_nombre }}
+Total de XMLs procesados: {{ total_archivos }}
+✅ Facturas creadas: {{ facturas_creadas }}
+⚠️ Facturas duplicadas (omitidas): {{ facturas_duplicadas }}
+❌ Facturas con error: {{ facturas_con_error }}
+
+{% if facturas_con_error > 0 %}
+Puedes revisar el detalle de los errores en el panel de FastConta, sección "Importaciones FEL".
+{% endif %}
+
+Si tienes alguna pregunta, contacta al administrador de tu firma contable.
+
+Saludos cordiales,
+El equipo de FastConta
+{% endblock %}

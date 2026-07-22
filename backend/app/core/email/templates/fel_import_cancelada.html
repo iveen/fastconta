@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+⏹️ Importación FEL Cancelada
+
+Hola {{ full_name }},
+
+La importación de facturas electrónicas ha sido cancelada.
+
+📄 Archivo: {{ archivo_nombre }}
+📊 Progreso al momento de cancelar: {{ archivos_procesados }} de {{ archivos_totales }} XMLs procesados
+
+Las facturas que ya fueron creadas antes de la cancelación se mantienen en el sistema.
+Puedes re-procesar el archivo desde el panel de FastConta si lo deseas.
+
+Saludos cordiales,
+El equipo de FastConta
+{% endblock %}

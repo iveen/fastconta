@@ -298,6 +298,48 @@ class EmailService:
                 "error_mensaje": error_mensaje,
             },
         )
+    
+    async def send_fel_import_completada(
+        self,
+        to: str,
+        full_name: str,
+        archivo_nombre: str,
+        total_archivos: int,
+        facturas_creadas: int,
+        facturas_rechazadas: int,
+    ) -> bool:
+        """Notifica que la importación FEL se completó."""
+        return await self.send_email(
+            to=to,
+            subject=f"✅ Importación FEL completada: {archivo_nombre}",
+            template_name="fel_import_completada.html",
+            context={
+                "full_name": full_name,
+                "archivo_nombre": archivo_nombre,
+                "total_archivos": total_archivos,
+                "facturas_creadas": facturas_creadas,
+                "facturas_rechazadas": facturas_rechazadas,
+            },
+        )
+
+    async def send_fel_import_fallida(
+        self,
+        to: str,
+        full_name: str,
+        archivo_nombre: str,
+        error_mensaje: str,
+    ) -> bool:
+        """Notifica que la importación FEL falló."""
+        return await self.send_email(
+            to=to,
+            subject=f"❌ Error en importación FEL: {archivo_nombre}",
+            template_name="fel_import_fallida.html",
+            context={
+                "full_name": full_name,
+                "archivo_nombre": archivo_nombre,
+                "error_mensaje": error_mensaje,
+            },
+    )
 
 
 # Instancia global para usar en endpoints

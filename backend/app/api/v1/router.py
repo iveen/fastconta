@@ -32,7 +32,7 @@ from app.api.v1.endpoints.contabilidad import (
     periodos_fiscales,
     plan_cuentas,
 )
-from app.api.v1.endpoints.fel import facturas
+from app.api.v1.endpoints.fel import router as fel_router
 from app.api.v1.endpoints.inventario import router as inventario_router
 from app.api.v1.endpoints.public import registration
 from app.api.v1.endpoints.sat import (
@@ -52,7 +52,7 @@ api_router.include_router(partidas.router, prefix="/partidas", tags=["partidas"]
 api_router.include_router(balances.router, prefix="/balances", tags=["balances"])
 api_router.include_router(cierre.router, prefix="/cierre", tags=["cierre-contable"])
 api_router.include_router(periodos_fiscales.router, prefix="/periodos-fiscales", tags=["periodos-fiscales"])
-api_router.include_router(facturas.router, prefix="/facturas", tags=["facturas"])
+
 api_router.include_router(sat_libros.router, prefix="/sat-libros", tags=["Libros SAT"])
 api_router.include_router(users.router)
 api_router.include_router(activos_fijos.router)
@@ -75,3 +75,4 @@ api_router.include_router(tipos_libro.router)
 api_router.include_router(estados_libro.router)
 api_router.include_router(registration.router)
 api_router.include_router(inventario_router)
+api_router.include_router(fel_router)

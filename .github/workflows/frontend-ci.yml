@@ -1,39 +1,35 @@
 name: CI - Frontend Validación
+
 on:
   push:
     branches: [main, develop]
     paths:
       - 'frontend/**'
   pull_request:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - 'frontend/**'
 
 jobs:
   frontend-ci:
-    name: Node LTS - Vue + pnpm
+    name: Node 22 - Vue + pnpm
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
 
-      - name: Instalar pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11
-          run_install: false
-
-      - name: Configurar Node.js LTS
+      - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 'lts'
+          node-version: '22' # ✅ Fijar versión LTS actual (evita el error de 'lts')
           cache: 'pnpm'
           cache-dependency-path: 'frontend/pnpm-lock.yaml'
 
       - name: Instalar pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4
         with:
-          version: latest
+          version: 9 # ✅ Versión estable recomendada (puedes usar 10 u 11 si tu proyecto lo requiere)
           run_install: false
 
       - name: Instalar dependencias

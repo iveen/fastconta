@@ -5,25 +5,6 @@
       <!-- Header -->
       <div class="flex justify-between items-center mb-6">
         <h1 class="text-2xl font-bold text-gray-800">Facturas Electrónicas (FEL)</h1>
-        <div class="flex gap-3">
-          <input ref="fileXML" type="file" multiple accept=".xml,.pdf" @change="handleFileSelect" class="hidden" />
-          <button
-            @click="$refs.fileXML.click()"
-            :disabled="!companyStore.selectedCompanyId || uploading"
-            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow transition flex items-center gap-2 disabled:opacity-50 relative group"
-            title="Soporta XML y PDF (con XML embebido)"
-          >
-            <span>+</span> {{ uploading ? 'Subiendo...' : 'Cargar FEL' }}
-            <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs bg-gray-800 text-white rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap pointer-events-none">
-              Formatos: XML, PDF
-            </span>
-          </button>
-          <input ref="fileXLS" type="file" accept=".xlsx,.xls" @change="validarXLS" class="hidden" />
-          <button @click="$refs.fileXLS.click()" :disabled="!companyStore.selectedCompanyId || validando" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg shadow transition flex items-center gap-2 disabled:opacity-50">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            {{ validando ? 'Validando...' : 'Validar Hoja' }}
-          </button>
-        </div>
       </div>
 
       <!-- Banner de estado -->
@@ -60,135 +41,185 @@
           <span class="font-semibold text-gray-800">{{ companyStore.currentCompany?.nombre || 'Desconocida' }}</span>
         </div>
 
-        <!--  TARJETAS DE RESUMEN -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p class="text-sm text-blue-600 font-medium">Compras del Período</p>
-            <p class="text-2xl font-bold text-blue-700">{{ formatCurrency(totalesCompras, 'GTQ') }}</p>
-            <p class="text-xs text-blue-600 mt-1">{{ facturasFiltradas.filter(f => f.tipo_operacion === 'Compra').length }} facturas recibidas</p>
-          </div>
-          
-          <div class="bg-green-50 border border-green-200 rounded-lg p-4">
-            <p class="text-sm text-green-600 font-medium">Ventas del Período</p>
-            <p class="text-2xl font-bold text-green-700">{{ formatCurrency(totalesVentas, 'GTQ') }}</p>
-            <p class="text-xs text-green-600 mt-1">{{ facturasFiltradas.filter(f => f.tipo_operacion === 'Venta').length }} facturas emitidas</p>
-          </div>
-          
-          <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <p class="text-sm text-gray-600 font-medium">Balance Neto</p>
-            <p class="text-2xl font-bold" :class="totalesVentas - totalesCompras >= 0 ? 'text-green-700' : 'text-red-700'">
-              {{ formatCurrency(totalesVentas - totalesCompras, 'GTQ') }}
-            </p>
-            <p class="text-xs text-gray-600 mt-1">Ventas - Compras</p>
-          </div>
-        </div>
-
-        <!-- 🆕 FILTROS DE PERÍODO -->
-        <div class="bg-white p-4 rounded-lg shadow mb-6 flex flex-wrap items-center gap-4">
-          <div class="flex items-center gap-2">
-            <label class="text-sm font-medium text-gray-700">Período:</label>
-            <select v-model="filtroMes" @change="aplicarFiltros" class="border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2 border text-sm">
-              <option value="">Todos los meses</option>
-              <option v-for="m in meses" :key="m.value" :value="m.value">{{ m.label }}</option>
-            </select>
-          </div>
-          
-          <div class="flex items-center gap-2">
-            <label class="text-sm font-medium text-gray-700">Año:</label>
-            <select v-model="filtroAnio" @change="aplicarFiltros" class="border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2 border text-sm">
-              <option value="">Todos los años</option>
-              <option v-for="a in anios" :key="a" :value="a">{{ a }}</option>
-            </select>
-          </div>
-          
-          <button 
-            v-if="filtroMes || filtroAnio" 
-            @click="limpiarFiltros" 
-            class="text-sm text-blue-600 hover:text-blue-800 underline"
-          >
-            Limpiar filtros
-          </button>
-          
-          <div class="ml-auto text-sm text-gray-600">
-            Mostrando {{ facturasFiltradas.length }} de {{ facturas.length }} facturas
+        <!-- 🆕 TABS DE NAVEGACIÓN -->
+        <div class="mb-6">
+          <div class="border-b border-gray-200">
+            <nav class="flex gap-6 -mb-px">
+              <button
+                v-for="tab in tabs"
+                :key="tab.id"
+                @click="activeTab = tab.id"
+                :class="[
+                  'py-3 px-1 border-b-2 font-medium text-sm transition-colors flex items-center gap-2',
+                  activeTab === tab.id
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                ]"
+              >
+                <span class="text-lg">{{ tab.icon }}</span>
+                {{ tab.label }}
+              </button>
+            </nav>
           </div>
         </div>
 
-        <!-- Tabla de resultados -->
-        <div class="bg-white rounded-lg shadow overflow-hidden">
-          <div v-if="loading" class="p-8 text-center">
-            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p class="mt-2 text-sm text-gray-500">Cargando facturas...</p>
+        <!-- 🆕 TAB: FACTURAS (contenido existente) -->
+        <div v-if="activeTab === 'facturas'">
+          <!-- Botones de acción rápida -->
+          <div class="flex gap-3 mb-6">
+            <input ref="fileXML" type="file" multiple accept=".xml,.pdf" @change="handleFileSelect" class="hidden" />
+            <button
+              @click="$refs.fileXML.click()"
+              :disabled="!companyStore.selectedCompanyId || uploading"
+              class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow transition flex items-center gap-2 disabled:opacity-50 relative group"
+              title="Soporta XML y PDF (con XML embebido)"
+            >
+              <span>+</span> {{ uploading ? 'Subiendo...' : 'Cargar FEL' }}
+              <span class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs bg-gray-800 text-white rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap pointer-events-none">
+                Formatos: XML, PDF
+              </span>
+            </button>
+            <input ref="fileXLS" type="file" accept=".xlsx,.xls" @change="validarXLS" class="hidden" />
+            <button @click="$refs.fileXLS.click()" :disabled="!companyStore.selectedCompanyId || validando" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg shadow transition flex items-center gap-2 disabled:opacity-50">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              {{ validando ? 'Validando...' : 'Validar Hoja' }}
+            </button>
           </div>
-          <div v-else class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th @click="handleSort('fecha_emision')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none">Fecha {{ sortArrow('fecha_emision') }}</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo DTE</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">DTE</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transacción</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Emisor/Receptor</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ámbito / Estado</th>
-                  <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">IVA</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">T/C</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Moneda</th>
-                  <th class="px-4 py-3 text-right text-xs font-medium text-blue-600 uppercase tracking-wider">Compras</th>
-                  <th class="px-4 py-3 text-right text-xs font-medium text-green-600 uppercase tracking-wider">Ventas</th>
-                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Validación</th>
-                </tr>
-              </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
-                <tr v-for="f in sortedFacturas" :key="f.id" :class="['hover:bg-gray-50 transition', f.estado === 'Anulada' ? 'bg-red-50' : '']">
-                  <td class="px-4 py-3 text-sm text-gray-600">{{ formatDateGT(f.fecha_emision) }}</td>
-                  <td class="px-4 py-3 text-sm"><span :class="getTipoDTEClass(f.tipo_documento)" class="px-2 py-1 rounded text-xs font-semibold">{{ f.tipo_documento || 'FACT' }}</span></td>
-                  <td class="px-4 py-3 text-sm">
-                    <router-link :to="{ name: 'FacturaDetalle', params: { factura_id: f.id } }" class="text-blue-600 hover:text-blue-800 font-mono font-semibold">
-                      {{ f.serie || 'S/N' }}-{{ f.numero || '000' }}
-                    </router-link>
-                  </td>
-                  <td class="px-4 py-3 text-sm"><span :class="f.tipo_operacion === 'Venta' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'" class="px-2 py-1 rounded text-xs font-semibold">{{ f.tipo_operacion }}</span></td>
-                  <td class="px-4 py-3 text-sm text-gray-700 truncate max-w-xs">{{ f.tipo_operacion === 'Venta' ? f.receptor_nombre : f.emisor_nombre }}</td>
-                  <td class="px-4 py-3 text-sm">
-                    <span v-if="f.estado === 'Anulada'" class="px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-200">ANULADA</span>
-                    <span v-else :class="f.es_exportacion ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'" class="px-2 py-1 rounded text-xs font-semibold">{{ f.es_exportacion ? 'Exportación' : 'Local' }}</span>
-                  </td>
-                  <td class="px-4 py-3 text-sm font-mono text-right">{{ formatCurrency(f.total_iva, f.moneda) }}</td>
-                  <td class="px-4 py-3 text-sm font-mono text-gray-600">{{ formatTipoCambio(f.tipo_cambio, f.moneda) }}</td>
-                  <td class="px-4 py-3 text-sm font-bold text-gray-700">{{ f.moneda }}</td>
-                  <td class="px-4 py-3 text-sm font-bold text-right text-blue-700">
-                    {{ f.tipo_operacion === 'Compra' ? formatCurrency(f.total, f.moneda) : '-' }}
-                  </td>
-                  <td class="px-4 py-3 text-sm font-bold text-right text-green-700">
-                    {{ f.tipo_operacion === 'Venta' ? formatCurrency(f.total, f.moneda) : '-' }}
-                  </td>
-                  <td class="px-4 py-3 text-sm">
-                    <div v-if="f.validado" class="flex flex-col items-start gap-1">
-                      <span class="px-2 py-1 rounded text-xs font-bold bg-green-100 text-green-700 border border-green-200">✅ Validada</span>
-                      <span v-if="f.fecha_validacion" class="text-[10px] text-gray-500">{{ formFechaValidacion(f.fecha_validacion) }}</span>
-                    </div>
-                    <span v-else class="px-2 py-1 rounded text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200">❌ Pendiente</span>
-                  </td>
-                </tr>
-                <tr v-if="sortedFacturas.length === 0">
-                  <td colspan="12" class="px-4 py-8 text-center text-gray-500">No se encontraron facturas para esta empresa.</td>
-                </tr>
-              </tbody>
-              <!-- 🆕 FOOTER CON TOTALES -->
-              <tfoot v-if="facturasFiltradas.length > 0" class="bg-gray-100 font-semibold">
-                <tr>
-                  <td colspan="9" class="px-4 py-3 text-right text-sm text-gray-700">TOTALES DEL PERÍODO:</td>
-                  <td class="px-4 py-3 text-right text-sm font-mono text-blue-700">
-                    {{ formatCurrency(totalesCompras, 'GTQ') }}
-                  </td>
-                  <td class="px-4 py-3 text-right text-sm font-mono text-green-700">
-                    {{ formatCurrency(totalesVentas, 'GTQ') }}
-                  </td>
-                  <td></td>
-                </tr>
-              </tfoot>
-            </table>
+
+          <!-- TARJETAS DE RESUMEN -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p class="text-sm text-blue-600 font-medium">Compras del Período</p>
+              <p class="text-2xl font-bold text-blue-700">{{ formatCurrency(totalesCompras, 'GTQ') }}</p>
+              <p class="text-xs text-blue-600 mt-1">{{ facturasFiltradas.filter(f => f.tipo_operacion === 'Compra').length }} facturas recibidas</p>
+            </div>
+            <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+              <p class="text-sm text-green-600 font-medium">Ventas del Período</p>
+              <p class="text-2xl font-bold text-green-700">{{ formatCurrency(totalesVentas, 'GTQ') }}</p>
+              <p class="text-xs text-green-600 mt-1">{{ facturasFiltradas.filter(f => f.tipo_operacion === 'Venta').length }} facturas emitidas</p>
+            </div>
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <p class="text-sm text-gray-600 font-medium">Balance Neto</p>
+              <p class="text-2xl font-bold" :class="totalesVentas - totalesCompras >= 0 ? 'text-green-700' : 'text-red-700'">
+                {{ formatCurrency(totalesVentas - totalesCompras, 'GTQ') }}
+              </p>
+              <p class="text-xs text-gray-600 mt-1">Ventas - Compras</p>
+            </div>
           </div>
+
+          <!-- FILTROS DE PERÍODO -->
+          <div class="bg-white p-4 rounded-lg shadow mb-6 flex flex-wrap items-center gap-4">
+            <div class="flex items-center gap-2">
+              <label class="text-sm font-medium text-gray-700">Período:</label>
+              <select v-model="filtroMes" @change="aplicarFiltros" class="border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2 border text-sm">
+                <option value="">Todos los meses</option>
+                <option v-for="m in meses" :key="m.value" :value="m.value">{{ m.label }}</option>
+              </select>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="text-sm font-medium text-gray-700">Año:</label>
+              <select v-model="filtroAnio" @change="aplicarFiltros" class="border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2 border text-sm">
+                <option value="">Todos los años</option>
+                <option v-for="a in anios" :key="a" :value="a">{{ a }}</option>
+              </select>
+            </div>
+            <button
+              v-if="filtroMes || filtroAnio"
+              @click="limpiarFiltros"
+              class="text-sm text-blue-600 hover:text-blue-800 underline"
+            >
+              Limpiar filtros
+            </button>
+            <div class="ml-auto text-sm text-gray-600">
+              Mostrando {{ facturasFiltradas.length }} de {{ facturas.length }} facturas
+            </div>
+          </div>
+
+          <!-- Tabla de resultados -->
+          <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div v-if="loading" class="p-8 text-center">
+              <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <p class="mt-2 text-sm text-gray-500">Cargando facturas...</p>
+            </div>
+            <div v-else class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th @click="handleSort('fecha_emision')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none">Fecha {{ sortArrow('fecha_emision') }}</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo DTE</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">DTE</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transacción</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Emisor/Receptor</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ámbito / Estado</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">IVA</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">T/C</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Moneda</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-blue-600 uppercase tracking-wider">Compras</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-green-600 uppercase tracking-wider">Ventas</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Validación</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                  <tr v-for="f in sortedFacturas" :key="f.id" :class="['hover:bg-gray-50 transition', f.estado === 'Anulada' ? 'bg-red-50' : '']">
+                    <td class="px-4 py-3 text-sm text-gray-600">{{ formatDateGT(f.fecha_emision) }}</td>
+                    <td class="px-4 py-3 text-sm"><span :class="getTipoDTEClass(f.tipo_documento)" class="px-2 py-1 rounded text-xs font-semibold">{{ f.tipo_documento || 'FACT' }}</span></td>
+                    <td class="px-4 py-3 text-sm">
+                      <router-link :to="{ name: 'FacturaDetalle', params: { factura_id: f.id } }" class="text-blue-600 hover:text-blue-800 font-mono font-semibold">
+                        {{ f.serie || 'S/N' }}-{{ f.numero || '000' }}
+                      </router-link>
+                    </td>
+                    <td class="px-4 py-3 text-sm"><span :class="f.tipo_operacion === 'Venta' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'" class="px-2 py-1 rounded text-xs font-semibold">{{ f.tipo_operacion }}</span></td>
+                    <td class="px-4 py-3 text-sm text-gray-700 truncate max-w-xs">{{ f.tipo_operacion === 'Venta' ? f.receptor_nombre : f.emisor_nombre }}</td>
+                    <td class="px-4 py-3 text-sm">
+                      <span v-if="f.estado === 'Anulada'" class="px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-200">ANULADA</span>
+                      <span v-else :class="f.es_exportacion ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'" class="px-2 py-1 rounded text-xs font-semibold">{{ f.es_exportacion ? 'Exportación' : 'Local' }}</span>
+                    </td>
+                    <td class="px-4 py-3 text-sm font-mono text-right">{{ formatCurrency(f.total_iva, f.moneda) }}</td>
+                    <td class="px-4 py-3 text-sm font-mono text-gray-600">{{ formatTipoCambio(f.tipo_cambio, f.moneda) }}</td>
+                    <td class="px-4 py-3 text-sm font-bold text-gray-700">{{ f.moneda }}</td>
+                    <td class="px-4 py-3 text-sm font-bold text-right text-blue-700">
+                      {{ f.tipo_operacion === 'Compra' ? formatCurrency(f.total, f.moneda) : '-' }}
+                    </td>
+                    <td class="px-4 py-3 text-sm font-bold text-right text-green-700">
+                      {{ f.tipo_operacion === 'Venta' ? formatCurrency(f.total, f.moneda) : '-' }}
+                    </td>
+                    <td class="px-4 py-3 text-sm">
+                      <div v-if="f.validado" class="flex flex-col items-start gap-1">
+                        <span class="px-2 py-1 rounded text-xs font-bold bg-green-100 text-green-700 border border-green-200">✅ Validada</span>
+                        <span v-if="f.fecha_validacion" class="text-[10px] text-gray-500">{{ formFechaValidacion(f.fecha_validacion) }}</span>
+                      </div>
+                      <span v-else class="px-2 py-1 rounded text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200">❌ Pendiente</span>
+                    </td>
+                  </tr>
+                  <tr v-if="sortedFacturas.length === 0">
+                    <td colspan="12" class="px-4 py-8 text-center text-gray-500">No se encontraron facturas para esta empresa.</td>
+                  </tr>
+                </tbody>
+                <tfoot v-if="facturasFiltradas.length > 0" class="bg-gray-100 font-semibold">
+                  <tr>
+                    <td colspan="9" class="px-4 py-3 text-right text-sm text-gray-700">TOTALES DEL PERÍODO:</td>
+                    <td class="px-4 py-3 text-right text-sm font-mono text-blue-700">
+                      {{ formatCurrency(totalesCompras, 'GTQ') }}
+                    </td>
+                    <td class="px-4 py-3 text-right text-sm font-mono text-green-700">
+                      {{ formatCurrency(totalesVentas, 'GTQ') }}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 🆕 TAB: IMPORTAR (ZIP + Jobs) -->
+        <div v-if="activeTab === 'importar'">
+          <FELJobsPanel @upload-complete="cargarFacturas" />
+        </div>
+
+        <!-- 🆕 TAB: KPIs -->
+        <div v-if="activeTab === 'kpis'">
+          <FELKPIDashboard />
         </div>
       </div>
 
@@ -213,12 +244,28 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useCompanyStore } from '@/stores/company'
 import api from '@/services/api'
-import { formatDateGT, formatDateTimeGT } from '@/utils/dates'
+import { formatDateGT } from '@/utils/dates'
+
+// 🆕 Importar toast de vue3-toastify (reemplaza a vue-toastification)
+import { toast } from 'vue3-toastify'
+import 'vue3-toastify/dist/index.css'
+
+// 🆕 Importar nuevos componentes
+import FELJobsPanel from '@/components/fel/FELJobsPanel.vue'
+import FELKPIDashboard from '@/components/fel/FELKPIDashboard.vue'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const companyStore = useCompanyStore()
+
+// 🆕 Estado de tabs
+const activeTab = ref('facturas')
+const tabs = computed(() => [
+  { id: 'facturas', label: 'Facturas', icon: '📋' },
+  { id: 'importar', label: 'Importar', icon: '📦' },
+  { id: 'kpis', label: 'KPIs', icon: '📊' },
+])
 
 const facturas = ref([])
 const loading = ref(false)
@@ -231,23 +278,16 @@ const validando = ref(false)
 const resultadoXLS = ref(null)
 const sortConfig = ref({ field: 'fecha_emision', direction: 'desc' })
 
-// 🆕 Filtros de período
+// Filtros de período
 const filtroMes = ref('')
 const filtroAnio = ref('')
-
 const meses = [
-  { value: '1', label: 'Enero' },
-  { value: '2', label: 'Febrero' },
-  { value: '3', label: 'Marzo' },
-  { value: '4', label: 'Abril' },
-  { value: '5', label: 'Mayo' },
-  { value: '6', label: 'Junio' },
-  { value: '7', label: 'Julio' },
-  { value: '8', label: 'Agosto' },
-  { value: '9', label: 'Septiembre' },
-  { value: '10', label: 'Octubre' },
-  { value: '11', label: 'Noviembre' },
-  { value: '12', label: 'Diciembre' }
+  { value: '1', label: 'Enero' }, { value: '2', label: 'Febrero' },
+  { value: '3', label: 'Marzo' }, { value: '4', label: 'Abril' },
+  { value: '5', label: 'Mayo' }, { value: '6', label: 'Junio' },
+  { value: '7', label: 'Julio' }, { value: '8', label: 'Agosto' },
+  { value: '9', label: 'Septiembre' }, { value: '10', label: 'Octubre' },
+  { value: '11', label: 'Noviembre' }, { value: '12', label: 'Diciembre' }
 ]
 
 const anios = computed(() => {
@@ -255,27 +295,21 @@ const anios = computed(() => {
   return aniosUnicos.sort((a, b) => b - a)
 })
 
-// 🆕 Facturas filtradas por período
 const facturasFiltradas = computed(() => {
   let filtradas = [...facturas.value]
-  
   if (filtroAnio.value) {
     filtradas = filtradas.filter(f => new Date(f.fecha_emision).getFullYear() === parseInt(filtroAnio.value))
   }
-  
   if (filtroMes.value) {
     filtradas = filtradas.filter(f => (new Date(f.fecha_emision).getMonth() + 1) === parseInt(filtroMes.value))
   }
-  
   return filtradas
 })
 
-// 🆕 Totales calculados (corregidos para manejar strings y usar total_gtq)
 const totalesCompras = computed(() => {
   return facturasFiltradas.value
     .filter(f => f.tipo_operacion === 'Compra')
     .reduce((sum, f) => {
-      // Usar total_gtq si existe (ya convertido), sino convertir total
       const monto = f.total_gtq ? parseFloat(f.total_gtq) : parseFloat(f.total) || 0
       return sum + monto
     }, 0)
@@ -285,22 +319,18 @@ const totalesVentas = computed(() => {
   return facturasFiltradas.value
     .filter(f => f.tipo_operacion === 'Venta')
     .reduce((sum, f) => {
-      // Usar total_gtq si existe (ya convertido con tipo de cambio), sino convertir total
       const monto = f.total_gtq ? parseFloat(f.total_gtq) : parseFloat(f.total) || 0
       return sum + monto
     }, 0)
 })
 
-const aplicarFiltros = () => {
-  // Los filtros se aplican automáticamente por el computed
-}
-
+const aplicarFiltros = () => {}
 const limpiarFiltros = () => {
   filtroMes.value = ''
   filtroAnio.value = ''
 }
 
-// 🔹 Tenants para superadmin
+// Tenants para superadmin
 const tenants = ref([])
 const selectedTenantId = ref('')
 
@@ -319,12 +349,9 @@ const handleTenantChange = () => {
   cargarFacturas()
 }
 
-const formatDate = (dateStr) => dateStr ? new Date(dateStr).toLocaleDateString('es-GT', { year: 'numeric', month: 'short', day: '2-digit' }) : '-'
-
 const formatTipoCambio = (tc, moneda) => moneda === 'GTQ' ? '1.00000' : (tc ? Number(tc).toFixed(5) : 'N/A')
-
 const formatCurrency = (amount, moneda) => {
-  if (!amount || isNaN(amount)) return '0.00'  // ✅ Agregar validación NaN
+  if (!amount || isNaN(amount)) return '0.00'
   const symbol = moneda === 'GTQ' ? 'Q' : (moneda === 'USD' ? '$' : moneda)
   return `${symbol} ${Number(amount).toLocaleString('es-GT', { minimumFractionDigits: 2 })}`
 }
@@ -387,17 +414,18 @@ const handleFileSelect = async (event) => {
     const ext = f.name.toLowerCase().split('.').pop()
     return ext === 'xml' || ext === 'pdf'
   })
+
   if (!files.length) {
-    statusMsg.value = '⚠️ Solo se permiten archivos XML o PDF'
-    statusType.value = 'error'
+    toast.warning('⚠️ Solo se permiten archivos XML o PDF')
     event.target.value = ''
     return
   }
+
   if (!companyStore.selectedCompanyId) {
-    statusMsg.value = '⚠️ Selecciona una empresa antes de cargar'
-    statusType.value = 'error'
+    toast.error('⚠️ Selecciona una empresa antes de cargar')
     return
   }
+
   await uploadFacturas(files)
   event.target.value = ''
 }
@@ -410,6 +438,7 @@ const uploadFacturas = async (files) => {
     const params = {}
     if (authStore.isSuperAdmin && selectedTenantId.value) params.tenant_id = selectedTenantId.value
     const { data } = await api.post('/facturas/upload', formData, { params, headers: {'Content-Type': undefined} })
+    
     const revisionManual = data.requieren_revision_manual?.length || 0
     let msg = `✅ ${data.cargadas} facturas cargadas.`
     if (revisionManual > 0) {
@@ -418,10 +447,14 @@ const uploadFacturas = async (files) => {
     if (data.rechazadas?.length) {
       msg += ` ❌ ${data.rechazadas.length} rechazadas.`
     }
+    
     statusMsg.value = msg; statusType.value = 'success'
+    toast.success(msg)
     await cargarFacturas()
   } catch (err) {
-    statusMsg.value = `❌ ${err.response?.data?.detail || err.message}`; statusType.value = 'error'
+    const errorMsg = `❌ ${err.response?.data?.detail || err.message}`
+    statusMsg.value = errorMsg; statusType.value = 'error'
+    toast.error(errorMsg)
   } finally {
     uploading.value = false
   }
@@ -438,9 +471,15 @@ const validarXLS = async (e) => {
     if (authStore.isSuperAdmin && selectedTenantId.value) params.tenant_id = selectedTenantId.value
     const { data } = await api.post('/facturas/validar-hoja-electronica', fd, { params, headers: {'Content-Type': undefined} })
     resultadoXLS.value = data
-    if (data.success) await cargarFacturas()
+    if (data.success) {
+      toast.success('✅ Validación exitosa')
+      await cargarFacturas()
+    } else {
+      toast.warning('⚠️ Validación con observaciones')
+    }
   } catch (err) {
     resultadoXLS.value = { success: false, mensaje: err.response?.data?.detail || 'Error de conexión' }
+    toast.error('❌ Error al validar hoja')
   } finally {
     validando.value = false; e.target.value = ''
   }

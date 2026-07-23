@@ -1,0 +1,20 @@
+<!-- app/core/email/templates/fel_import_fallida.html -->
+{% extends "base.html" %}
+
+{% block content %}
+❌ Error en Importación FEL
+
+Hola {{ full_name }},
+
+Lamentablemente, la importación de facturas electrónicas ha fallado.
+
+📄 Archivo: {{ archivo_nombre }}
+
+🔍 Error:
+{{ error_mensaje }}
+
+Por favor, verifica el archivo e intenta nuevamente. Si el problema persiste, contacta al administrador de tu firma contable.
+
+Saludos cordiales,
+El equipo de FastConta
+{% endblock %}

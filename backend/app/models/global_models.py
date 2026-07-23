@@ -693,3 +693,62 @@ class InventarioImportacionJob(BigIntPKMixin, AuditableFull, Base):
 
     def __repr__(self):
         return f"<InventarioImportacionJob {self.id} - tenant={self.tenant_id} - {self.estado} ({self.porcentaje}%)>"
+    
+#=====================================================================
+# Manejo de Colas de Importación FEL (Facturas Electrónicas)
+#=====================================================================
+class FELImportJob(BigIntPKMixin, AuditableFull, Base):
+    """
+    Job de importación asíncrona de facturas electrónicas (FEL).
+    Tabla GLOBAL (schema public) para monitoreo centralizado.
+    ⚠️ NOTA: No tiene FK estricta a facturas_electronicas porque esa tabla
+     está en el schema del tenant. La integridad se maneja a nivel de aplicación.
+    """
+    __tablename__ = "fel_import_jobs"
+    __table_args__ = (
+        Index("idx_fel_jobs_tenant", "tenant_id"),
+        Index("idx_fel_jobs_empresa", "tenant_id", "empresa_id"),
+        Index("idx_fel_jobs_estado", "estado"),
+        Index("idx_fel_jobs_usuario", "usuario_id"),
+        Index("idx_fel_jobs_created", "created_at"),
+        {"schema": "public"},
+    )
+    
+    # Identificación del tenant/empresa (sin FK, solo índice)
+    tenant_id = Column(BigInteger, nullable=False, index=True)
+    empresa_id = Column(BigInteger, nullable=False, index=True)
+    usuario_id = Column(BigInteger, ForeignKey("public.users.id", ondelete="SET NULL"), nullable=True)
+    
+    # Archivo
+    archivo_original = Column(String(255), nullable=False)
+    archivo_ruta = Column(String(500), nullable=False)
+    formato = Column(String(10), nullable=False, default="ZIP")  # ZIP
+    tamano_bytes = Column(BigInteger, nullable=False, server_default="0")
+    
+    # Estado del job
+    estado = Column(String(20), nullable=False, default="PENDIENTE", server_default="'PENDIENTE'")
+    # PENDIENTE | PROCESANDO | COMPLETADO | FALLIDO | CANCELADO
+    
+    # Progreso
+    archivos_totales = Column(Integer, nullable=False, server_default="0")
+    archivos_procesados = Column(Integer, nullable=False, server_default="0")
+    facturas_creadas = Column(Integer, nullable=False, server_default="0")
+    facturas_duplicadas = Column(Integer, nullable=False, server_default="0")
+    facturas_con_error = Column(Integer, nullable=False, server_default="0")
+    porcentaje = Column(SmallInteger, nullable=False, server_default="0")
+    
+    # Resultado
+    errores = Column(JSONB)
+    mensaje_error = Column(Text, nullable=True)
+    
+    # Notificación
+    notificado = Column(Boolean, nullable=False, default=False, server_default="false")
+    notificado_en = Column(DateTime(timezone=True), nullable=True)
+    
+    # Control de concurrencia
+    iniciado_en = Column(DateTime(timezone=True), nullable=True)
+    finalizado_en = Column(DateTime(timezone=True), nullable=True)
+    locked_at = Column(DateTime(timezone=True), nullable=True)
+    
+    def __repr__(self):
+        return f"<FELImportJob {self.id} - tenant={self.tenant_id} - {self.estado} ({self.porcentaje}%)>"

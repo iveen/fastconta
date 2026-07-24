@@ -1,6 +1,6 @@
 # app/api/endpoints/auth.py
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -214,7 +214,7 @@ async def change_password(
     current_user.is_locked = False
     current_user.locked_until = None
     current_user.failed_login_attempts = 0
-    current_user.password_changed_at = datetime.now(timezone.utc)
+    current_user.password_changed_at = datetime.now(UTC)
     current_user.password_expires_at = calculate_password_expiration(days=90)
     await db.commit()
 
@@ -274,7 +274,7 @@ async def reset_password(
     # Actualizar usuario
     user.hashed_password = get_password_hash(new_password)
     user.must_change_password = True
-    user.password_changed_at = datetime.now(timezone.utc)  # ✅ Usar timezone-aware
+    user.password_changed_at = datetime.now(UTC)  # ✅ Usar timezone-aware
     user.password_expires_at = calculate_password_expiration(days=90)
     
     # Desbloquear cuenta
@@ -337,7 +337,7 @@ async def request_password_reset(
         )
     
     # 2. Rate limiting: max 3 solicitudes por email por hora
-    since = datetime.now(timezone.utc) - timedelta(hours=1)
+    since = datetime.now(UTC) - timedelta(hours=1)
     recent_tokens = await db.scalar(
         select(func.count(PasswordResetToken.id))
         .where(
@@ -359,12 +359,12 @@ async def request_password_reset(
             PasswordResetToken.user_id == user.id,
             PasswordResetToken.is_used.is_(False),
         )
-        .values(is_used=True, used_at=datetime.now(timezone.utc))
+        .values(is_used=True, used_at=datetime.now(UTC))
     )
     
     # 4. Generar token nuevo
     plain_token, token_hash = generate_reset_token()
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=RESET_TOKEN_EXPIRATION_MINUTES)
+    expires_at = datetime.now(UTC) + timedelta(minutes=RESET_TOKEN_EXPIRATION_MINUTES)
     
     reset_token = PasswordResetToken(
         user_id=user.id,
@@ -435,7 +435,7 @@ async def confirm_password_reset(
         raise HTTPException(status_code=400, detail=generic_error)
     
     # 3. Validar expiración
-    if datetime.now(timezone.utc) > valid_token.expires_at:
+    if datetime.now(UTC) > valid_token.expires_at:
         raise HTTPException(status_code=400, detail=generic_error)
     
     user = valid_token.user
@@ -462,12 +462,12 @@ async def confirm_password_reset(
     
     # 6. Marcar token como usado
     valid_token.is_used = True
-    valid_token.used_at = datetime.now(timezone.utc)
+    valid_token.used_at = datetime.now(UTC)
     
     # 7. Actualizar contraseña
     user.hashed_password = get_password_hash(payload.new_password)
     user.must_change_password = False
-    user.password_changed_at = datetime.now(timezone.utc)
+    user.password_changed_at = datetime.now(UTC)
     user.password_expires_at = calculate_password_expiration(days=90)
     
     # 8. Desbloquear cuenta si estaba bloqueada
@@ -568,7 +568,7 @@ async def get_login_audit_stats(
     if scope.role_code != "superadmin":
         raise HTTPException(status_code=403, detail="Acceso denegado")
     
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    since = datetime.now(UTC) - timedelta(days=days)
     
     # Totales por status
     total = await db.scalar(
@@ -673,7 +673,7 @@ async def first_login_change_password(
     current_user.is_locked = False
     current_user.locked_until = None
     current_user.failed_login_attempts = 0
-    current_user.password_changed_at = datetime.now(timezone.utc)
+    current_user.password_changed_at = datetime.now(UTC)
     current_user.password_expires_at = calculate_password_expiration(days=90)
     
     await db.commit()

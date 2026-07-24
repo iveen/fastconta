@@ -694,11 +694,7 @@ const guardarEmpresa = async () => {
     return
   }
   
-  console.log('🔹 Iniciando guardado...')
-  console.log('🔹 formEmpresa:', formEmpresa.value)
-  console.log('🔹 modoEdicion:', modoEdicion.value)
-  console.log('🔹 isSuperAdmin:', authStore.isSuperAdmin)
-  
+ 
   cargandoModal.value = true
   errorModal.value = ''
   
@@ -714,16 +710,16 @@ const guardarEmpresa = async () => {
       actividad_economica_id: formEmpresa.value.actividad_economica_id || null
     }
     
-    console.log('🔹 Payload a enviar:', payload)
+    
     
     const params = authStore.isSuperAdmin && superAdminStore.currentTenantId
       ? { tenant_id: superAdminStore.currentTenantId }
       : {}
     
-    console.log('🔹 Params:', params)
+    
     
     if (modoEdicion.value && empresaEditando.value) {
-      console.log('🔹 Actualizando empresa ID:', empresaEditando.value.id)
+      
       await api.put(`/empresas/${empresaEditando.value.id}`, payload, { params })
       successMsg.value = '✅ Empresa actualizada exitosamente'
     } else {

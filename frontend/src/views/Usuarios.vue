@@ -402,14 +402,14 @@ const handleAssignEmpresa = async () => {
 
 // ✅ NUEVO: Resetear contraseña de usuario
 const handleResetUserPassword = (user) => {
-  console.log(selectUser)
+  // console.log(selectUser)
   selectedUser.value = user
   showResetPasswordModal.value = true
 }
 
 const confirmResetPassword = async () => {
   if (!selectedUser.value) return
-  console.log("Reset", selectedUser.value)
+  // console.log("Reset", selectedUser.value)
   resettingPassword.value = true
   try {
     await api.post(`/auth/reset-password?user_id=${selectedUser.value.public_id}`)

@@ -292,10 +292,7 @@ const cargarCuentas = async () => {
     // ✅ El interceptor de Axios ya inyecta X-Company-Id automáticamente
     const resp = await api.get('/plan-cuentas/', { params })
     
-    // ✅ DEBUG: Ver qué está llegando del backend
-    console.log('📊 Cuentas recibidas del backend:', resp.data.length)
-    console.log('📊 Primeras 3 cuentas:', resp.data.slice(0, 3))
-    
+        
     // ✅ ELIMINAR DUPLICADOS usando Map (más eficiente y confiable)
     const mapaCuentas = new Map()
     resp.data.forEach(cuenta => {
@@ -309,7 +306,7 @@ const cargarCuentas = async () => {
     
     cuentasDisponibles.value = Array.from(mapaCuentas.values())
     
-    console.log(`✅ Cuentas únicas después de filtrar: ${cuentasDisponibles.value.length}`)
+    
   } catch (err) {
     console.error('Error cargando cuentas:', err)
   }

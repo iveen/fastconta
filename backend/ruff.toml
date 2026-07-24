@@ -1,0 +1,24 @@
+# backend/ruff.toml
+line-length = 120
+target-version = "py312"
+
+[lint]
+# Reglas a ignorar globalmente
+ignore = [
+    "B008",   # Do not perform function call in argument defaults (FastAPI Depends/Query)
+    "BLE001", # Do not catch blind exception: Exception
+    "UP006",  # Use list instead of List
+    "UP035",  # typing.List is deprecated
+    "RUF010", # Use explicit conversion flag
+    "RUF022", # __all__ is not sorted
+    "G201",   # Logging .exception() should be used instead of .error(..., exc_info=True)
+    "RET501", # Do not explicitly return None
+    "PLR1711",# Useless return statement
+    "DTZ011", # datetime.date.today() used
+    "DTZ003", # datetime.datetime.utcnow() used
+    "UP045",  # Use X | None for type annotations
+]
+
+[lint.per-file-ignores]
+# Ignorar reglas específicas en archivos específicos si es necesario
+"__init__.py" = ["F401"]

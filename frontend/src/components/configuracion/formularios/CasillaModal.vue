@@ -293,8 +293,6 @@ function handleSubmit() {
     ...form,
     seccion_id: props.seccionId  // ✅ Incluir seccion_id
   }
-  console.log('📤 Payload a enviar:', payload)
-  console.log('📋 seccionId prop:', props.seccionId)
   emit('guardar', payload)
 }
 </script>

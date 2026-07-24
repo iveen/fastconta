@@ -105,7 +105,7 @@ async def get_mis_empresas(
         empresas = result.scalars().all()
         return [EmpresaSimple.model_validate(e) for e in empresas]
     except Exception as e:
-        logger.exception(f"Error en get_mis_empresas: {e!s}")
+        logger.exception("Error en get_mis_empresas")
         raise HTTPException(
             status_code=500,
             detail=f"Error al cargar empresas: {e!s}"

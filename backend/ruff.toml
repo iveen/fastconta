@@ -17,6 +17,7 @@ ignore = [
     "DTZ011", # datetime.date.today() used
     "DTZ003", # datetime.datetime.utcnow() used
     "UP045",  # Use X | None for type annotations
+    "UP017",  # Use `datetime.UTC` alias help: Convert to `datetime.UTC` alias
 ]
 
 [lint.per-file-ignores]

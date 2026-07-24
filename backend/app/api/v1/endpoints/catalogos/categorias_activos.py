@@ -3,13 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.schemas.catalogos.categoria_activo import (
+from app.schemas.sat.categoria_activo import (
     CategoriaActivoFijoCreate,
     CategoriaActivoFijoListResponse,
     CategoriaActivoFijoResponse,
     CategoriaActivoFijoUpdate,
 )
-from app.services.catalogos.categoria_activo_service import CategoriaActivoService
+from app.services.sat.categoria_activo_service import CategoriaActivoService
 
 router = APIRouter(
     prefix="/categorias-activos",

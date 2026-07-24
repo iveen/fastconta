@@ -3,13 +3,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.schemas.catalogos.actividad_economica import (
+from app.schemas.sat.actividad_economica import (
     ActividadEconomicaCreate,
     ActividadEconomicaListResponse,
     ActividadEconomicaResponse,
     ActividadEconomicaUpdate,
 )
-from app.services.catalogos.actividad_economica_service import ActividadEconomicaService
+from app.services.sat.actividad_economica_service import (
+    ActividadEconomicaService,
+)
 
 router = APIRouter(
     prefix="/actividades-economicas",

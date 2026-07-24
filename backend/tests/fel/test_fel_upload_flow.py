@@ -39,7 +39,7 @@ async def test_upload_zip_creates_job(client, sample_zip_with_xmls):
         
         # Configurar mocks
         mock_user.return_value = AsyncMock(
-            id=1, email="test@test.com", tenant_id=1, role_code="admin"
+            id=1, email="test@test.com", tenant_id=1, role_code="tenant_manager"
         )
         mock_db.return_value = AsyncMock()
         

@@ -3,13 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.schemas.catalogos.estado_libro import (
+from app.schemas.sat.estado_libro import (
     EstadoLibroCreate,
     EstadoLibroListResponse,
     EstadoLibroResponse,
     EstadoLibroUpdate,
 )
-from app.services.catalogos.estado_libro_service import EstadoLibroService
+from app.services.sat.estado_libro_service import EstadoLibroService
 
 router = APIRouter(
     prefix="/estados-libro",

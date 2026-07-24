@@ -33,7 +33,6 @@
         <span>{{ error }}</span>
         <button @click="error = ''" class="text-sm underline hover:no-underline">Cerrar</button>
       </div>
-
       <div v-if="successMsg" class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg flex justify-between items-center">
         <span>{{ successMsg }}</span>
         <button @click="successMsg = ''" class="text-sm underline hover:no-underline">Cerrar</button>
@@ -96,8 +95,7 @@
                     {{ empresa.regimen_fiscal?.nombre || '-' }}
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm">
-                    <span v-if="empresa.cuenta_utilidad_periodo_id && empresa.cuenta_utilidades_acumuladas_id"
-                      class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                    <span v-if="empresa.cuenta_utilidad_periodo_id && empresa.cuenta_utilidades_acumuladas_id" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
                       ✅ Configurada
                     </span>
                     <span v-else class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
@@ -105,8 +103,7 @@
                     </span>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm">
-                    <span v-if="empresa.is_active"
-                      class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                    <span v-if="empresa.is_active" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
                       Activa
                     </span>
                     <span v-else class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
@@ -114,29 +111,13 @@
                     </span>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-right space-x-2">
-                    <button @click="abrirModalEditar(empresa)"
-                      class="text-blue-600 hover:text-blue-900 font-medium">
-                      Editar
-                    </button>
-                    <button @click="abrirConfiguracion(empresa)"
-                      class="text-green-600 hover:text-green-900 font-medium">
-                      Configurar
-                    </button>
-                    <button
-                      @click="empresaExpandida = empresaExpandida?.id === empresa.id ? null : empresa"
-                      class="text-purple-600 hover:text-purple-900 font-medium"
-                    >
+                    <button @click="abrirModalEditar(empresa)" class="text-blue-600 hover:text-blue-900 font-medium">Editar</button>
+                    <button @click="abrirConfiguracion(empresa)" class="text-green-600 hover:text-green-900 font-medium">Configurar</button>
+                    <button @click="empresaExpandida = empresaExpandida?.id === empresa.id ? null : empresa" class="text-purple-600 hover:text-purple-900 font-medium">
                       {{ empresaExpandida?.id === empresa.id ? 'Ocultar' : 'Domicilios' }}
                     </button>
-                    <button v-if="empresa.is_active"
-                      @click="confirmarEliminar(empresa)"
-                      class="text-red-600 hover:text-red-900 font-medium">
-                      Desactivar
-                    </button>
-                    <button
-                      @click="empresaExpandidaRep = empresaExpandidaRep?.id === empresa.id ? null : empresa"
-                      class="text-indigo-600 hover:text-indigo-900 font-medium"
-                    >
+                    <button v-if="empresa.is_active" @click="confirmarEliminar(empresa)" class="text-red-600 hover:text-red-900 font-medium">Desactivar</button>
+                    <button @click="empresaExpandidaRep = empresaExpandidaRep?.id === empresa.id ? null : empresa" class="text-indigo-600 hover:text-indigo-900 font-medium">
                       {{ empresaExpandidaRep?.id === empresa.id ? 'Ocultar' : 'Representantes' }}
                     </button>
                   </td>
@@ -144,21 +125,13 @@
                 <!-- Fila expandible de domicilios -->
                 <tr v-if="empresaExpandida?.id === empresa.id">
                   <td colspan="6" class="px-6 py-4 bg-gray-50 border-t border-gray-200">
-                    <DomicilioManager
-                      :empresa-id="empresa.id"
-                      :tenant-id="currentTenantIdForComponents"
-                      @updated="cargarEmpresas"
-                    />
+                    <DomicilioManager :empresa-id="empresa.id" :tenant-id="currentTenantIdForComponents" @updated="cargarEmpresas" />
                   </td>
                 </tr>
                 <!-- Fila expandible de representantes legales -->
                 <tr v-if="empresaExpandidaRep?.id === empresa.id">
                   <td colspan="6" class="px-6 py-4 bg-gray-50 border-t border-gray-200">
-                    <RepresentanteManager
-                      :empresa-id="empresa.id"
-                      :tenant-id="currentTenantIdForComponents"
-                      @updated="cargarEmpresas"
-                    />
+                    <RepresentanteManager :empresa-id="empresa.id" :tenant-id="currentTenantIdForComponents" @updated="cargarEmpresas" />
                   </td>
                 </tr>
               </template>
@@ -205,6 +178,7 @@
                 </p>
                 <p v-else class="text-xs text-gray-500 mt-1">Formato: 1234567-8</p>
               </div>
+
               <!-- Nombre Comercial -->
               <div>
                 <label class="block text-gray-700 text-sm font-bold mb-1">Nombre Comercial</label>
@@ -214,6 +188,7 @@
                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
+
               <!-- Razón Social -->
               <div class="md:col-span-2">
                 <label class="block text-gray-700 text-sm font-bold mb-1">Razón Social (Nombre) *</label>
@@ -224,6 +199,7 @@
                   required
                 />
               </div>
+
               <!-- Fecha Constitución -->
               <div>
                 <label class="block text-gray-700 text-sm font-bold mb-1">Fecha de Constitución</label>
@@ -237,54 +213,36 @@
                 />
                 <p class="text-xs text-gray-500 mt-1">Formato: dd/mm/yyyy</p>
               </div>
-              <!-- Régimen Fiscal -->
-              <div class="relative">
+
+              <!-- 🆕 Régimen Fiscal (Dropdown simple) -->
+              <div>
                 <label class="block text-gray-700 text-sm font-bold mb-1">Régimen Fiscal</label>
-                <input
-                  v-model="busquedaRegimen"
-                  @focus="dropdownRegimen = true"
-                  @blur="handleBlurRegimen"
-                  @input="dropdownRegimen = true"
-                  placeholder="Buscar régimen..."
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-                <ul v-if="dropdownRegimen" class="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
-                  <li v-if="regimenesFiltrados.length === 0" class="text-gray-500 cursor-default select-none relative py-2 px-4">
-                    No se encontraron regímenes
-                  </li>
-                  <li v-for="regimen in regimenesFiltrados"
-                    :key="regimen.id"
-                    @mousedown="seleccionarRegimen(regimen)"
-                    class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
-                    <span class="font-bold">{{ regimen.codigo }}</span>
-                    <span class="ml-2">{{ regimen.nombre }}</span>
-                  </li>
-                </ul>
+                <select
+                  v-model="formEmpresa.regimen_fiscal_id"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                >
+                  <option :value="null">-- Seleccionar --</option>
+                  <option v-for="regimen in regimenes" :key="regimen.id" :value="regimen.id">
+                    {{ regimen.codigo }} - {{ regimen.nombre }}
+                  </option>
+                </select>
               </div>
-              <!-- Tipo de Persona -->
-              <div class="relative">
+
+              <!-- 🆕 Tipo de Persona (Dropdown simple) -->
+              <div>
                 <label class="block text-gray-700 text-sm font-bold mb-1">Tipo de Persona</label>
-                <input
-                  v-model="busquedaTipoPersona"
-                  @focus="dropdownTipoPersona = true"
-                  @blur="handleBlurTipoPersona"
-                  @input="dropdownTipoPersona = true"
-                  placeholder="Buscar tipo..."
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-                <ul v-if="dropdownTipoPersona" class="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
-                  <li v-if="tiposPersonaFiltrados.length === 0" class="text-gray-500 cursor-default select-none relative py-2 px-4">
-                    No se encontraron tipos
-                  </li>
-                  <li v-for="tipo in tiposPersonaFiltrados"
-                    :key="tipo.id"
-                    @mousedown="seleccionarTipoPersona(tipo)"
-                    class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
+                <select
+                  v-model="formEmpresa.tipo_persona_id"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                >
+                  <option :value="null">-- Seleccionar --</option>
+                  <option v-for="tipo in tiposPersona" :key="tipo.id" :value="tipo.id">
                     {{ tipo.nombre }}
-                  </li>
-                </ul>
+                  </option>
+                </select>
               </div>
-              <!-- Actividad Económica -->
+
+              <!-- Actividad Económica (Buscador con dropdown, se mantiene) -->
               <div class="md:col-span-2 relative">
                 <label class="block text-gray-700 text-sm font-bold mb-1">Actividad Económica</label>
                 <input
@@ -300,15 +258,16 @@
                     No se encontraron actividades
                   </li>
                   <li v-for="act in actividadesFiltradas"
-                    :key="act.id"
-                    @mousedown="seleccionarActividad(act)"
-                    class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
+                      :key="act.id"
+                      @mousedown="seleccionarActividad(act)"
+                      class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
                     <span class="font-bold">{{ act.codigo_sat }}</span>
                     <span class="ml-2">{{ act.nombre_actividad }}</span>
                   </li>
                 </ul>
               </div>
             </div>
+
             <div class="flex justify-end space-x-3 pt-4 border-t">
               <button
                 type="button"
@@ -337,6 +296,7 @@
           <p class="text-sm text-gray-500 mb-4">Empresa: <span class="font-medium">{{ empresaConfig?.nombre }}</span></p>
           <div v-if="errorConfig" class="bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded mb-4 text-sm">{{ errorConfig }}</div>
           <div v-if="successConfig" class="bg-green-100 border border-green-400 text-green-700 px-3 py-2 rounded mb-4 text-sm">{{ successConfig }}</div>
+          
           <div class="space-y-5">
             <!-- Búsqueda: Utilidad del Período -->
             <div class="relative">
@@ -350,21 +310,17 @@
                   @input="dropdownUtilidad = true"
                   placeholder="Buscar (ej. 3.4, Utilidad, Resultado)..."
                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                >
+                />
                 <ul v-if="dropdownUtilidad" class="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
-                  <li v-if="cuentasFiltradasUtilidad.length === 0" class="text-gray-500 cursor-default select-none relative py-2 px-4">
-                    No se encontraron cuentas
-                  </li>
-                  <li v-for="cuenta in cuentasFiltradasUtilidad"
-                    :key="cuenta.id"
-                    @mousedown="seleccionarUtilidad(cuenta)"
-                    class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
+                  <li v-if="cuentasFiltradasUtilidad.length === 0" class="text-gray-500 cursor-default select-none relative py-2 px-4">No se encontraron cuentas</li>
+                  <li v-for="cuenta in cuentasFiltradasUtilidad" :key="cuenta.id" @mousedown="seleccionarUtilidad(cuenta)" class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
                     <span class="font-bold">{{ cuenta.codigo }}</span>
                     <span class="ml-2">{{ cuenta.nombre }}</span>
                   </li>
                 </ul>
               </div>
             </div>
+
             <!-- Búsqueda: Utilidades Acumuladas -->
             <div class="relative">
               <label class="block text-gray-700 text-sm font-bold mb-1">Cuenta Utilidades/Pérdidas Acumuladas</label>
@@ -377,15 +333,10 @@
                   @input="dropdownAcumulada = true"
                   placeholder="Buscar (ej. 3.3, Acumuladas)..."
                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                >
+                />
                 <ul v-if="dropdownAcumulada" class="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
-                  <li v-if="cuentasFiltradasAcumulada.length === 0" class="text-gray-500 cursor-default select-none relative py-2 px-4">
-                    No se encontraron cuentas
-                  </li>
-                  <li v-for="cuenta in cuentasFiltradasAcumulada"
-                    :key="cuenta.id"
-                    @mousedown="seleccionarAcumulada(cuenta)"
-                    class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
+                  <li v-if="cuentasFiltradasAcumulada.length === 0" class="text-gray-500 cursor-default select-none relative py-2 px-4">No se encontraron cuentas</li>
+                  <li v-for="cuenta in cuentasFiltradasAcumulada" :key="cuenta.id" @mousedown="seleccionarAcumulada(cuenta)" class="cursor-pointer select-none relative py-2 pl-3 pr-4 hover:bg-indigo-600 hover:text-white text-gray-900">
                     <span class="font-bold">{{ cuenta.codigo }}</span>
                     <span class="ml-2">{{ cuenta.nombre }}</span>
                   </li>
@@ -393,12 +344,14 @@
               </div>
             </div>
           </div>
+
           <div class="mt-6 flex justify-end space-x-3">
             <button @click="cerrarConfigModal" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Cancelar</button>
             <button
               @click="guardarConfiguracion"
               :disabled="cargandoConfig || !configForm.cuenta_utilidad_periodo_id || !configForm.cuenta_utilidades_acumuladas_id"
-              class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
+              class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            >
               {{ cargandoConfig ? 'Guardando...' : 'Guardar Configuración' }}
             </button>
           </div>
@@ -445,6 +398,7 @@ const empresaEditando = ref(null)
 const cargandoModal = ref(false)
 const cargandoCatalogos = ref(false)
 const errorModal = ref('')
+
 const formEmpresa = ref({
   nit: '',
   nombre: '',
@@ -462,15 +416,11 @@ const regimenes = ref([])
 const tiposPersona = ref([])
 const actividadesEconomicas = ref([])
 
-// Dropdowns con búsqueda
-const busquedaRegimen = ref('')
-const dropdownRegimen = ref(false)
-const busquedaTipoPersona = ref('')
-const dropdownTipoPersona = ref(false)
+// 🆕 Dropdowns con búsqueda (SOLO para Actividad Económica)
 const busquedaActividad = ref('')
 const dropdownActividad = ref(false)
 
-// Debounce manual
+// Debounce manual para NIT
 let debounceTimerNit = null
 const debounceValidarNit = () => {
   clearTimeout(debounceTimerNit)
@@ -482,24 +432,7 @@ const debounceValidarNit = () => {
   }, 500)
 }
 
-// Computed para filtrado de catálogos
-const regimenesFiltrados = computed(() => {
-  const termino = busquedaRegimen.value.toLowerCase()
-  if (!termino) return regimenes.value
-  return regimenes.value.filter(r =>
-    r.nombre.toLowerCase().includes(termino) ||
-    (r.codigo && r.codigo.toLowerCase().includes(termino))
-  )
-})
-
-const tiposPersonaFiltrados = computed(() => {
-  const termino = busquedaTipoPersona.value.toLowerCase()
-  if (!termino) return tiposPersona.value
-  return tiposPersona.value.filter(t =>
-    t.nombre.toLowerCase().includes(termino)
-  )
-})
-
+// 🆕 Computed para filtrado (SOLO para Actividad Económica)
 const actividadesFiltradas = computed(() => {
   const termino = busquedaActividad.value.toLowerCase()
   if (!termino) return actividadesEconomicas.value
@@ -509,7 +442,7 @@ const actividadesFiltradas = computed(() => {
   )
 })
 
-// ⭐ Computed: tenant_id para componentes hijos (DomicilioManager, RepresentanteManager)
+// ⭐ Computed: tenant_id para componentes hijos
 const currentTenantIdForComponents = computed(() => {
   if (authStore.isSuperAdmin) {
     return superAdminStore.currentTenantId || null
@@ -587,13 +520,9 @@ const cargarCatalogos = async () => {
       api.get('/tipos-persona/lista'),
       api.get('/actividades-economicas/activas')
     ])
-    regimenes.value = (resRegimenes.data || []).filter(r =>
-      r.is_active !== false && r.activo !== false
-    )
+    regimenes.value = (resRegimenes.data || []).filter(r => r.is_active !== false && r.activo !== false)
     tiposPersona.value = resTipos.data || []
-    actividadesEconomicas.value = (resActividades.data || []).filter(a =>
-      a.activa !== false && a.is_active !== false
-    )
+    actividadesEconomicas.value = (resActividades.data || []).filter(a => a.activa !== false && a.is_active !== false)
   } catch (err) {
     console.error('❌ Error cargando catálogos:', err)
   } finally {
@@ -622,32 +551,12 @@ const formatearFecha = (event) => {
 }
 
 // ============================================
-// Selección de dropdowns
+// Selección de dropdowns (SOLO Actividad Económica)
 // ============================================
-const seleccionarRegimen = (regimen) => {
-  formEmpresa.value.regimen_fiscal_id = regimen.id
-  busquedaRegimen.value = `${regimen.codigo || ''} - ${regimen.nombre}`.replace(/^ - /, '')
-  dropdownRegimen.value = false
-}
-
-const seleccionarTipoPersona = (tipo) => {
-  formEmpresa.value.tipo_persona_id = tipo.id
-  busquedaTipoPersona.value = tipo.nombre
-  dropdownTipoPersona.value = false
-}
-
 const seleccionarActividad = (act) => {
   formEmpresa.value.actividad_economica_id = act.id
   busquedaActividad.value = `${act.codigo_sat || ''} - ${act.nombre_actividad}`.replace(/^ - /, '')
   dropdownActividad.value = false
-}
-
-const handleBlurRegimen = () => {
-  setTimeout(() => { dropdownRegimen.value = false }, 200)
-}
-
-const handleBlurTipoPersona = () => {
-  setTimeout(() => { dropdownTipoPersona.value = false }, 200)
 }
 
 const handleBlurActividad = () => {
@@ -655,26 +564,21 @@ const handleBlurActividad = () => {
 }
 
 // ============================================
-// Cargar Empresas (con soporte SuperAdmin)
+// Cargar Empresas
 // ============================================
 const cargarEmpresas = async () => {
-  // Si es superadmin y no hay tenant seleccionado, no cargar
   if (authStore.isSuperAdmin && !superAdminStore.currentTenantId) {
     empresas.value = []
     return
   }
-
   cargandoLista.value = true
   error.value = ''
-  
   try {
     if (authStore.isSuperAdmin) {
-      // Superadmin: cargar empresas del tenant seleccionado
       const params = { tenant_id: superAdminStore.currentTenantId }
       const resp = await api.get('/empresas/', { params })
       empresas.value = resp.data
     } else {
-      // Usuario regular: cargar empresas de su propio tenant
       if (!companyStore.hasCompanies) {
         try {
           await companyStore.loadCompanies()
@@ -692,12 +596,10 @@ const cargarEmpresas = async () => {
   }
 }
 
-// ⭐ Watch: Cuando cambia el contexto del superadmin, recargar empresas
 watch(
   () => superAdminStore.currentTenantId,
   (newTenantId, oldTenantId) => {
     if (newTenantId !== oldTenantId) {
-      // Resetear estados expandibles
       empresaExpandida.value = null
       empresaExpandidaRep.value = null
       cargarEmpresas()
@@ -705,7 +607,6 @@ watch(
   }
 )
 
-// Watch para usuarios regulares
 watch(() => companyStore.availableCompanies, (newCompanies) => {
   if (!authStore.isSuperAdmin) {
     empresas.value = newCompanies
@@ -716,12 +617,10 @@ watch(() => companyStore.availableCompanies, (newCompanies) => {
 // Modal Crear
 // ============================================
 const abrirModalCrear = async () => {
-  // Validar que haya contexto si es superadmin
   if (authStore.isSuperAdmin && !superAdminStore.currentTenantId) {
     error.value = 'Debe seleccionar un tenant antes de crear una empresa'
     return
   }
-
   modoEdicion.value = false
   empresaEditando.value = null
   formEmpresa.value = {
@@ -735,9 +634,7 @@ const abrirModalCrear = async () => {
     tipo_persona_id: '',
     actividad_economica_id: ''
   }
-  busquedaRegimen.value = ''
-  busquedaTipoPersona.value = ''
-  busquedaActividad.value = ''
+  busquedaActividad.value = '' // 🆕 Solo limpiamos este
   nitValido.value = true
   nitMensaje.value = ''
   errorModal.value = ''
@@ -775,14 +672,7 @@ const abrirModalEditar = async (empresa) => {
   showModalEmpresa.value = true
   await cargarCatalogos()
   
-  if (empresa.regimen_fiscal_id) {
-    const r = regimenes.value.find(r => r.id === empresa.regimen_fiscal_id)
-    if (r) busquedaRegimen.value = `${r.codigo || ''} - ${r.nombre}`.replace(/^ - /, '')
-  }
-  if (empresa.tipo_persona_id) {
-    const t = tiposPersona.value.find(t => t.id === empresa.tipo_persona_id)
-    if (t) busquedaTipoPersona.value = t.nombre
-  }
+  // 🆕 Solo necesitamos restaurar el texto de búsqueda para Actividad Económica
   if (empresa.actividad_economica_id) {
     const a = actividadesEconomicas.value.find(a => a.id === empresa.actividad_economica_id)
     if (a) busquedaActividad.value = `${a.codigo_sat || ''} - ${a.nombre_actividad}`.replace(/^ - /, '')
@@ -803,8 +693,15 @@ const guardarEmpresa = async () => {
     errorModal.value = 'El NIT ingresado no es válido o ya está en uso.'
     return
   }
+  
+  console.log('🔹 Iniciando guardado...')
+  console.log('🔹 formEmpresa:', formEmpresa.value)
+  console.log('🔹 modoEdicion:', modoEdicion.value)
+  console.log('🔹 isSuperAdmin:', authStore.isSuperAdmin)
+  
   cargandoModal.value = true
   errorModal.value = ''
+  
   try {
     const payload = {
       nit: formEmpresa.value.nit,
@@ -817,21 +714,30 @@ const guardarEmpresa = async () => {
       actividad_economica_id: formEmpresa.value.actividad_economica_id || null
     }
     
-    // ⭐ Si es superadmin, enviar tenant_id en los params
+    console.log('🔹 Payload a enviar:', payload)
+    
     const params = authStore.isSuperAdmin && superAdminStore.currentTenantId
       ? { tenant_id: superAdminStore.currentTenantId }
       : {}
     
+    console.log('🔹 Params:', params)
+    
     if (modoEdicion.value && empresaEditando.value) {
+      console.log('🔹 Actualizando empresa ID:', empresaEditando.value.id)
       await api.put(`/empresas/${empresaEditando.value.id}`, payload, { params })
       successMsg.value = '✅ Empresa actualizada exitosamente'
     } else {
+      console.log('🔹 Creando nueva empresa...')
       await api.post('/empresas/', payload, { params })
       successMsg.value = '✅ Empresa creada exitosamente'
     }
+    
+    console.log('✅ Empresa guardada exitosamente')
     cerrarModalEmpresa()
     await cargarEmpresas()
   } catch (err) {
+    console.error('❌ Error al guardar empresa:', err)
+    console.error('❌ Response:', err.response?.data)
     const detail = err.response?.data?.detail
     errorModal.value = (err.response?.status === 403 && detail) ? detail : (detail || 'Error al guardar empresa')
   } finally {
@@ -874,22 +780,18 @@ const abrirConfiguracion = async (empresa) => {
   busquedaAcumulada.value = ''
   dropdownUtilidad.value = false
   dropdownAcumulada.value = false
-  
   try {
     const params = authStore.isSuperAdmin && superAdminStore.currentTenantId
       ? { tenant_id: superAdminStore.currentTenantId }
       : {}
-    
     const resCuentas = await api.get('/plan-cuentas/', { params: { ...params, empresa_id: empresa.id } })
     cuentasPatrimonio.value = resCuentas.data.filter(c => c.tipo === 'patrimonio' && c.activa)
-    
     const resEmpresa = await api.get(`/empresas/${empresa.id}`, { params })
     const data = resEmpresa.data
     configForm.value = {
       cuenta_utilidad_periodo_id: data.cuenta_utilidad_periodo_id || '',
       cuenta_utilidades_acumuladas_id: data.cuenta_utilidades_acumuladas_id || ''
     }
-    
     if (configForm.value.cuenta_utilidad_periodo_id) {
       const c = cuentasPatrimonio.value.find(c => c.id === configForm.value.cuenta_utilidad_periodo_id)
       if (c) busquedaUtilidad.value = `${c.codigo} - ${c.nombre}`
@@ -932,12 +834,10 @@ const guardarConfiguracion = async () => {
     const params = authStore.isSuperAdmin && superAdminStore.currentTenantId
       ? { tenant_id: superAdminStore.currentTenantId }
       : {}
-    
     const payload = {
       cuenta_utilidad_periodo_id: configForm.value.cuenta_utilidad_periodo_id || null,
       cuenta_utilidades_acumuladas_id: configForm.value.cuenta_utilidades_acumuladas_id || null
     }
-    
     await api.put(`/empresas/${empresaConfig.value.id}`, payload, { params })
     successConfig.value = '✅ Configuración guardada correctamente.'
     await cargarEmpresas()
@@ -959,8 +859,6 @@ const cerrarConfigModal = () => {
 // Inicialización
 // ============================================
 onMounted(async () => {
-  // Si es superadmin, cargar tenants (el SuperAdminContextSelector lo hará)
-  // Si no, cargar empresas directamente
   if (!authStore.isSuperAdmin) {
     await cargarEmpresas()
   }

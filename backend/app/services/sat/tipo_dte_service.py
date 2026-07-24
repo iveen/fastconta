@@ -3,7 +3,7 @@ import io
 from uuid import UUID
 
 from app.models.global_models import TipoDTE
-from app.schemas.catalogos.tipo_dte import (
+from app.schemas.sat.tipo_dte import (
     TipoDTEImportResult,
 )
 from sqlalchemy import func, select
@@ -175,7 +175,7 @@ class TipoDTEService:
                     self.db.add(nuevo)
                     resultado.creados += 1
             except Exception as e:
-                resultado.errores.append(f"Fila {fila}: {str(e)}")
+                resultado.errores.append(f"Fila {fila}: {e!s}")
 
         await self.db.commit()
         return resultado

@@ -19,11 +19,12 @@ class ActividadEconomicaService:
     ) -> tuple[list[ActividadEconomicaSAT], int]:
         query = select(ActividadEconomicaSAT)
         count_query = select(func.count()).select_from(ActividadEconomicaSAT)
-
+        
+        # ✅ CORREGIDO: Usar is_active en lugar de activa
         if activa is not None:
-            query = query.where(ActividadEconomicaSAT.activa == activa)
-            count_query = count_query.where(ActividadEconomicaSAT.activa == activa)
-
+            query = query.where(ActividadEconomicaSAT.is_active.is_(activa))
+            count_query = count_query.where(ActividadEconomicaSAT.is_active.is_(activa))
+            
         if search:
             filtro = or_(
                 ActividadEconomicaSAT.codigo_sat.ilike(f"%{search}%"),
@@ -32,16 +33,17 @@ class ActividadEconomicaService:
             )
             query = query.where(filtro)
             count_query = count_query.where(filtro)
-
+            
         total = (await self.db.execute(count_query)).scalar_one()
         query = query.order_by(ActividadEconomicaSAT.codigo_sat).offset(skip).limit(limit)
         result = await self.db.execute(query)
         return list(result.scalars().all()), total
 
+    # ✅ CORREGIDO: Usar is_active en lugar de active
     async def obtener_todos_activas(self) -> list[ActividadEconomicaSAT]:
         query = (
             select(ActividadEconomicaSAT)
-            .where(ActividadEconomicaSAT.active.is_(True))
+            .where(ActividadEconomicaSAT.is_active.is_(True))
             .order_by(ActividadEconomicaSAT.codigo_sat)
         )
         result = await self.db.execute(query)
@@ -60,7 +62,6 @@ class ActividadEconomicaService:
         )
         if existente.scalar_one_or_none():
             raise ValueError(f"Ya existe una actividad con código SAT '{data['codigo_sat']}'")
-
         actividad = ActividadEconomicaSAT(**data)
         self.db.add(actividad)
         await self.db.commit()
@@ -71,10 +72,8 @@ class ActividadEconomicaService:
         actividad = await self.obtener_por_id(actividad_id)
         if not actividad:
             return None
-
         for campo, valor in data.items():
             setattr(actividad, campo, valor)
-
         await self.db.commit()
         await self.db.refresh(actividad)
         return actividad
@@ -83,6 +82,7 @@ class ActividadEconomicaService:
         actividad = await self.obtener_por_id(actividad_id)
         if not actividad:
             return False
-        actividad.activa = False
+        # ✅ CORREGIDO: Usar is_active para el soft delete
+        actividad.is_active = False
         await self.db.commit()
         return True

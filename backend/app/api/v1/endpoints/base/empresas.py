@@ -11,7 +11,6 @@ from sqlalchemy.orm import selectinload
 from app.core.security import DataScope, get_data_scope
 from app.db.session import get_public_db, get_tenant_db
 from app.dependencies import require_role
-from app.models.global_models import Tenant
 from app.models.tenant_models import Empresa
 from app.schemas.base.empresa import (
     EmpresaCreate,
@@ -106,10 +105,10 @@ async def get_mis_empresas(
         empresas = result.scalars().all()
         return [EmpresaSimple.model_validate(e) for e in empresas]
     except Exception as e:
-        logger.error(f"Error en get_mis_empresas: {str(e)}", exc_info=True)
+        logger.exception(f"Error en get_mis_empresas: {e!s}")
         raise HTTPException(
             status_code=500,
-            detail=f"Error al cargar empresas: {str(e)}"
+            detail=f"Error al cargar empresas: {e!s}"
         )
 
 
@@ -135,22 +134,35 @@ async def list_empresas(
 @router.post("/", response_model=EmpresaOut, status_code=status.HTTP_201_CREATED)
 async def create_empresa(
     payload: EmpresaCreate,
-    db: AsyncSession = Depends(get_tenant_db),
-    _: dict = Depends(require_role("admin", "superadmin"))
+    scope: DataScope = Depends(get_data_scope),
+    tenant_id: int | None = Query(None, description="ID del tenant (requerido para superadmin)"),
+    db: AsyncSession = Depends(get_public_db),
+    _: dict = Depends(require_role("tenant_manager", "superadmin"))
 ):
-    # ✅ ELIMINADO: Validación de max_empresas (ya no existe)
-    # El modelo de negocio ahora es por usuario, no por empresa
+    """Crea una nueva empresa en el schema del tenant."""
     
-    # 1. Validar NIT (formato + unicidad)
-    tenant_id = db.info["current_user"]["tenant_id"]
-    tenant_result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
-    tenant = tenant_result.scalar_one()
-    schema_name = tenant.schema_name
+    # 1. Resolver el tenant_id objetivo
+    target_tenant_id = tenant_id if scope.role_code == "superadmin" else scope.tenant_id
     
+    # 2. Obtener el schema_name del tenant desde la BD pública
+    res = await db.execute(
+        text("SELECT schema_name FROM public.tenants WHERE id = :tid"),
+        {"tid": target_tenant_id}
+    )
+    row = res.first()
+    if not row:
+        raise HTTPException(404, detail="Tenant no encontrado")
+    schema_name = row[0]
+    
+    # 3. Configurar search_path para esta transacción
+    await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
+    
+    # 4. Validar NIT (formato + unicidad)
     await _validar_nit(db, schema_name, payload.nit)
     
-    # 2. Crear empresa
+    # 5. Crear la instancia de la empresa
     empresa = Empresa(
+        tenant_id=target_tenant_id,  # ✅ CRUCIAL: Asignar el tenant_id explícitamente
         nombre=payload.nombre,
         nit=payload.nit,
         razon_social=payload.razon_social,
@@ -162,18 +174,27 @@ async def create_empresa(
         direccion=payload.direccion,
     )
     db.add(empresa)
+    
     try:
-        await db.commit()
+        # ✅ PASO A: Flush envía el INSERT a la BD y obtiene el ID y defaults del servidor
+        await db.flush()
+        
+        # ✅ PASO B: Refresh recarga el objeto dentro de la MISMA transacción 
+        # (el search_path AÚN es válido aquí)
         await db.refresh(empresa)
+        
+        # ✅ PASO C: Commit cierra la transacción (ya no importa que se pierda el search_path)
+        await db.commit()
+        
     except IntegrityError:
         await db.rollback()
+        logger.error(f"IntegrityError al crear empresa: NIT duplicado '{payload.nit}'")
         raise HTTPException(
             status_code=409,
             detail=f"Ya existe una empresa con el NIT '{payload.nit}'."
         )
-    
+        
     return EmpresaOut.model_validate(empresa)
-
 
 # ============================================================
 # 3. Obtener empresa por ID
@@ -211,7 +232,8 @@ async def update_empresa(
     payload: EmpresaUpdate,
     tenant_id: int | None = Query(None, description="ID del tenant (requerido para superadmin)"),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    _: dict = Depends(require_role("tenant_manager", "superadmin")) 
 ):
     schema_name = await _resolver_schema(db, scope, tenant_id)
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
@@ -250,7 +272,8 @@ async def deactivate_empresa(
     empresa_id: int,  # ✅ BIGINT (era str)
     tenant_id: int | None = Query(None, description="ID del tenant (requerido para superadmin)"),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
+    _: dict = Depends(require_role("tenant_manager", "superadmin")) 
 ):
     schema_name = await _resolver_schema(db, scope, tenant_id)
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
@@ -262,7 +285,6 @@ async def deactivate_empresa(
     
     empresa.is_active = False
     await db.commit()
-    return None
 
 
 # ============================================================

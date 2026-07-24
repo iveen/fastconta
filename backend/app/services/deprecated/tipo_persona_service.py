@@ -8,45 +8,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = getLogger(__name__)
 
-
 class TipoPersonaService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
     async def obtener_todos(self) -> list[TipoPersona]:
         query = select(TipoPersona).order_by(TipoPersona.nombre)
-        
-        print(f"🔥 SQL: {str(query.compile(compile_kwargs={'literal_binds': True}))}")
-        
         result = await self.db.execute(query)
-        
-        # 🔥 PRUEBA 1: scalars().all() (original)
-        print(f"🔥 PRUEBA 1 - scalars().all(): {len(result.scalars().all())} objetos")
-        
-        # 🔥 PRUEBA 2: all() sin scalars
-        result2 = await self.db.execute(query)
-        rows = result2.all()
-        print(f"🔥 PRUEBA 2 - all(): {len(rows)} filas")
-        if rows:
-            print(f"🔥 Primera fila tipo: {type(rows[0])}")
-            print(f"🔥 Primera fila: {rows[0]}")
-        
-        # 🔥 PRUEBA 3: iterar manualmente
-        result3 = await self.db.execute(query)
-        count = 0
-        for row in result3:
-            count += 1
-            print(f"🔥 PRUEBA 3 - Fila {count}: {row}")
-        print(f"🔥 PRUEBA 3 - Total iterando: {count}")
-        
-        # 🔥 PRUEBA 4: first()
-        result4 = await self.db.execute(query)
-        first = result4.scalars().first()
-        print(f"🔥 PRUEBA 4 - first(): {first}")
-        
-        # Retornar usando el método que funcione
-        result5 = await self.db.execute(query)
-        return [row[0] for row in result5.all()]  # ← Usar all() en lugar de scalars()
+        return [row[0] for row in result.all()]
+
+    # ✅ AGREGAR ESTE MÉTODO QUE FALTABA
+    async def obtener_todos_activos(self) -> list[TipoPersona]:
+        """Obtiene todos los tipos de persona activos (para dropdowns)"""
+        query = (
+            select(TipoPersona)
+            .where(TipoPersona.is_active.is_(True))  # Usa is_active por herencia de SoftDelete
+            .order_by(TipoPersona.nombre)
+        )
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
 
     async def obtener_por_id(self, tipo_id: UUID) -> TipoPersona | None:
         query = select(TipoPersona).where(TipoPersona.id == tipo_id)
@@ -59,7 +39,6 @@ class TipoPersonaService:
         )
         if existente.scalar_one_or_none():
             raise ValueError(f"Ya existe un tipo de persona con nombre '{data['nombre']}'")
-
         tipo = TipoPersona(**data)
         self.db.add(tipo)
         await self.db.commit()
@@ -70,10 +49,8 @@ class TipoPersonaService:
         tipo = await self.obtener_por_id(tipo_id)
         if not tipo:
             return None
-
         for campo, valor in data.items():
             setattr(tipo, campo, valor)
-
         await self.db.commit()
         await self.db.refresh(tipo)
         return tipo

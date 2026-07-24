@@ -12,7 +12,7 @@ class ActividadEconomicaBase(BaseModel):
     codigo_sat: str = Field(..., min_length=1, max_length=20, examples=["01101"])
     nombre_actividad: str = Field(..., min_length=1, max_length=255)
     seccion: str | None = Field(None, max_length=255)
-    activa: bool = True
+    is_active: bool = True
 
 
 class ActividadEconomicaCreate(ActividadEconomicaBase):
@@ -22,7 +22,7 @@ class ActividadEconomicaCreate(ActividadEconomicaBase):
 class ActividadEconomicaUpdate(BaseModel):
     nombre_actividad: str | None = None
     seccion: str | None = None
-    activa: bool | None = None
+    is_active: bool | None = None
 
 
 # ============================================================
@@ -45,7 +45,7 @@ class ActividadEconomicaListResponse(BaseModel):
     codigo_sat: str
     nombre_actividad: str
     seccion: str | None = None
-    activa: bool
+    is_active: bool
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

@@ -29,6 +29,17 @@ class TipoPersonaService:
         result = await self.db.execute(query)
         return list(result.scalars().all()), total
 
+    
+    async def obtener_todos_activos(self) -> list[TipoPersona]:
+        """Obtiene todos los tipos de persona activos (para dropdowns)"""
+        query = (
+            select(TipoPersona)
+            .where(TipoPersona.is_active.is_(True))  # Usa is_active por herencia de SoftDelete
+            .order_by(TipoPersona.nombre)
+        )
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+
     async def obtener_por_id(self, tipo_id: UUID) -> TipoPersona | None:
         """Obtiene un tipo de persona por ID"""
         query = select(TipoPersona).where(TipoPersona.id == tipo_id)

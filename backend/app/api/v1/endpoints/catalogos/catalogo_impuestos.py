@@ -3,13 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.schemas.catalogos.impuesto import (
+from app.schemas.sat.impuesto import (
     ImpuestoCreate,
     ImpuestoListResponse,
     ImpuestoResponse,
     ImpuestoUpdate,
 )
-from app.services.catalogos.impuesto_service import ImpuestoService
+from app.services.sat.impuesto_service import ImpuestoService
 
 router = APIRouter(prefix="/impuestos", tags=["Catálogos - Impuestos"])
 

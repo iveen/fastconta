@@ -3,13 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.schemas.catalogos.tipo_libro import (
+from app.schemas.sat.tipo_libro import (
     TipoLibroCreate,
     TipoLibroListResponse,
     TipoLibroResponse,
     TipoLibroUpdate,
 )
-from app.services.catalogos.tipo_libro_service import TipoLibroService
+from app.services.sat.tipo_libro_service import TipoLibroService
 
 router = APIRouter(
     prefix="/tipos-libro",

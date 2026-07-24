@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.schemas.catalogos.tipo_dte import (
+from app.schemas.sat.tipo_dte import (
     TipoDTECreate,
     TipoDTEImportResult,
     TipoDTEListResponse,

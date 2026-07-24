@@ -210,18 +210,18 @@ watch(() => form.value.tasa_depreciacion_anual_aplicada, (nuevaTasa) => {
 })
 
 onMounted(async () => {
-  console.log('🔄 Cargando categorías...')
+
   await activosStore.fetchCategorias()
-  console.log('✅ Categorías cargadas:', activosStore.categorias.length)
+
   
   const empresaId = route.query.empresa_id
   if (empresaId) {
     try {
       const res = await planCuentasService.getCuentas(empresaId)
       cuentasPlan.value = res.data
-      console.log('✅ Plan de cuentas cargado:', cuentasPlan.value.length, 'cuentas')
+      
     } catch (err) {
-      console.error('❌ Error cargando plan de cuentas:', err)
+      
       cuentasPlan.value = []
     }
   }
@@ -261,8 +261,7 @@ const cancelar = () => {
 
 // ✅ FUNCIÓN GUARDAR CORREGIDA
 const guardarActivo = async () => {
-  console.log('🚀 [DEBUG] guardarActivo iniciado')
-  console.log('📦 [DEBUG] Form data:', JSON.parse(JSON.stringify(form.value)))
+
   
   // Validaciones básicas
   if (!form.value.categoria_id) {
@@ -282,13 +281,13 @@ const guardarActivo = async () => {
 
   cargando.value = true
   try {
-    console.log('📡 [DEBUG] Enviando petición a backend...')
+    
     
     let response
     // ✅ DETECTAR SI ES EDICIÓN O CREACIÓN
     if (isEdit.value && route.params.id) {
       // 🔹 MODO EDICIÓN: Llamar a actualizarActivo
-      console.log('✏️ [DEBUG] Modo edición - Actualizando activo ID:', route.params.id)
+      
       response = await activosFijosService.actualizarActivo(
         empresaId, 
         route.params.id, 
@@ -297,12 +296,12 @@ const guardarActivo = async () => {
       toast.success('Activo actualizado exitosamente')
     } else {
       // 🔹 MODO CREACIÓN: Llamar a crearActivo
-      console.log('➕ [DEBUG] Modo creación - Creando nuevo activo')
+      
       response = await activosFijosService.crearActivo(empresaId, form.value)
       toast.success('Activo creado exitosamente')
     }
     
-    console.log('✅ [DEBUG] Respuesta del backend:', response.data)
+    
     
     // ✅ Navegar de vuelta al listado con path absoluto
     router.push({ 

@@ -203,7 +203,6 @@ const success = ref(false)
 const handleSubmit = async () => {
   loading.value = true
   error.value = ''
-  
   try {
     await publicRegistrationApi.register(form)
     success.value = true
@@ -216,9 +215,12 @@ const handleSubmit = async () => {
 
 onMounted(async () => {
   try {
-    const response = await publicApi.get('/regimenes-fiscales/activos')
-    regimenes.value = response.data
-    console.log('✅ Regímenes cargados:', response.data)
+    // ✅ CORREGIDO: Ruta correcta + parámetros + acceder a .data.data
+    const response = await publicApi.get('/regimenes-fiscales/', {
+      params: { is_active: true, limit: 200 }
+    })
+    regimenes.value = response.data.data || []
+    
   } catch (err) {
     console.error('Error cargando regímenes:', err)
     console.error('Status:', err.response?.status)

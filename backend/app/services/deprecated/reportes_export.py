@@ -20,6 +20,7 @@ def _serializar(valor):
         return valor.isoformat()
     return valor
 
+
 # ================================================================
 #  EXCEL
 # ================================================================
@@ -32,15 +33,14 @@ def generar_balance_comprobacion_excel(datos: dict) -> io.BytesIO:
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     header_font_white = Font(bold=True, size=11, color="FFFFFF")
     thin_border = Border(
-        left=Side(style='thin'), right=Side(style='thin'),
-        top=Side(style='thin'), bottom=Side(style='thin')
+        left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin")
     )
 
     # Título
-    ws.merge_cells('A1:E1')
-    ws['A1'] = "Balance de Comprobación"
-    ws['A1'].font = Font(bold=True, size=14)
-    ws['A1'].alignment = Alignment(horizontal='center')
+    ws.merge_cells("A1:E1")
+    ws["A1"] = "Balance de Comprobación"
+    ws["A1"].font = Font(bold=True, size=14)
+    ws["A1"].alignment = Alignment(horizontal="center")
 
     # Encabezados
     headers = ["Código", "Cuenta", "Debe", "Haber", "Saldo"]
@@ -48,7 +48,7 @@ def generar_balance_comprobacion_excel(datos: dict) -> io.BytesIO:
         cell = ws.cell(row=3, column=col, value=header)
         cell.font = header_font_white
         cell.fill = header_fill
-        cell.alignment = Alignment(horizontal='center')
+        cell.alignment = Alignment(horizontal="center")
         cell.border = thin_border
 
     # Datos
@@ -60,11 +60,11 @@ def generar_balance_comprobacion_excel(datos: dict) -> io.BytesIO:
         ws.cell(row=i, column=5, value=float(fila["saldo"])).border = thin_border
 
     # Ancho columnas
-    ws.column_dimensions['A'].width = 15
-    ws.column_dimensions['B'].width = 45
-    ws.column_dimensions['C'].width = 18
-    ws.column_dimensions['D'].width = 18
-    ws.column_dimensions['E'].width = 18
+    ws.column_dimensions["A"].width = 15
+    ws.column_dimensions["B"].width = 45
+    ws.column_dimensions["C"].width = 18
+    ws.column_dimensions["D"].width = 18
+    ws.column_dimensions["E"].width = 18
 
     output = io.BytesIO()
     wb.save(output)
@@ -80,19 +80,18 @@ def generar_estado_resultados_excel(datos: dict) -> io.BytesIO:
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     header_font_white = Font(bold=True, size=11, color="FFFFFF")
     thin_border = Border(
-        left=Side(style='thin'), right=Side(style='thin'),
-        top=Side(style='thin'), bottom=Side(style='thin')
+        left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin")
     )
 
     # Título
-    ws.merge_cells('A1:C1')
-    ws['A1'] = "Estado de Resultados"
-    ws['A1'].font = Font(bold=True, size=14)
-    ws['A1'].alignment = Alignment(horizontal='center')
+    ws.merge_cells("A1:C1")
+    ws["A1"] = "Estado de Resultados"
+    ws["A1"].font = Font(bold=True, size=14)
+    ws["A1"].alignment = Alignment(horizontal="center")
 
     row = 3
     # Ingresos
-    ws.merge_cells(f'A{row}:C{row}')
+    ws.merge_cells(f"A{row}:C{row}")
     ws.cell(row=row, column=1, value="INGRESOS").font = Font(bold=True, size=12)
     row += 1
     for col, h in enumerate(["Código", "Cuenta", "Monto"], 1):
@@ -112,7 +111,7 @@ def generar_estado_resultados_excel(datos: dict) -> io.BytesIO:
     row += 2
 
     # Gastos
-    ws.merge_cells(f'A{row}:C{row}')
+    ws.merge_cells(f"A{row}:C{row}")
     ws.cell(row=row, column=1, value="GASTOS").font = Font(bold=True, size=12)
     row += 1
     for col, h in enumerate(["Código", "Cuenta", "Monto"], 1):
@@ -135,9 +134,9 @@ def generar_estado_resultados_excel(datos: dict) -> io.BytesIO:
     ws.cell(row=row, column=1, value="UTILIDAD NETA").font = Font(bold=True, size=12, color="008000")
     ws.cell(row=row, column=3, value=float(datos["utilidad_neta"])).font = Font(bold=True, size=12, color="008000")
 
-    ws.column_dimensions['A'].width = 20
-    ws.column_dimensions['B'].width = 50
-    ws.column_dimensions['C'].width = 20
+    ws.column_dimensions["A"].width = 20
+    ws.column_dimensions["B"].width = 50
+    ws.column_dimensions["C"].width = 20
 
     output = io.BytesIO()
     wb.save(output)
@@ -153,18 +152,17 @@ def generar_balance_general_excel(datos: dict) -> io.BytesIO:
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     header_font_white = Font(bold=True, size=11, color="FFFFFF")
     thin_border = Border(
-        left=Side(style='thin'), right=Side(style='thin'),
-        top=Side(style='thin'), bottom=Side(style='thin')
+        left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin")
     )
 
-    ws.merge_cells('A1:C1')
-    ws['A1'] = "Balance General"
-    ws['A1'].font = Font(bold=True, size=14)
-    ws['A1'].alignment = Alignment(horizontal='center')
+    ws.merge_cells("A1:C1")
+    ws["A1"] = "Balance General"
+    ws["A1"].font = Font(bold=True, size=14)
+    ws["A1"].alignment = Alignment(horizontal="center")
 
     row = 3
     for seccion, titulo in [("activos", "ACTIVOS"), ("pasivos", "PASIVOS"), ("patrimonio", "PATRIMONIO")]:
-        ws.merge_cells(f'A{row}:C{row}')
+        ws.merge_cells(f"A{row}:C{row}")
         ws.cell(row=row, column=1, value=titulo).font = Font(bold=True, size=12)
         row += 1
         for col, h in enumerate(["Código", "Cuenta", "Saldo"], 1):
@@ -186,14 +184,15 @@ def generar_balance_general_excel(datos: dict) -> io.BytesIO:
     ws.cell(row=row, column=1, value="UTILIDAD DEL EJERCICIO").font = Font(bold=True, size=12, color="008000")
     ws.cell(row=row, column=3, value=float(datos["utilidad_ejercicio"])).font = Font(bold=True, size=12, color="008000")
 
-    ws.column_dimensions['A'].width = 20
-    ws.column_dimensions['B'].width = 50
-    ws.column_dimensions['C'].width = 20
+    ws.column_dimensions["A"].width = 20
+    ws.column_dimensions["B"].width = 50
+    ws.column_dimensions["C"].width = 20
 
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
     return output
+
 
 # ================================================================
 #  PDF
@@ -204,28 +203,34 @@ def generar_balance_comprobacion_pdf(datos: dict) -> io.BytesIO:
     elements = []
     styles = getSampleStyleSheet()
 
-    elements.append(Paragraph("Balance de Comprobación", styles['Title']))
-    elements.append(Spacer(1, 0.25*inch))
+    elements.append(Paragraph("Balance de Comprobación", styles["Title"]))
+    elements.append(Spacer(1, 0.25 * inch))
 
     # Tabla
     data = [["Código", "Cuenta", "Debe", "Haber", "Saldo"]]
     for f in datos.get("filas", []):
-        data.append([
-            f["codigo"],
-            f["nombre"],
-            f"{float(f['sum_debe']):,.2f}",
-            f"{float(f['sum_haber']):,.2f}",
-            f"{float(f['saldo']):,.2f}"
-        ])
+        data.append(
+            [
+                f["codigo"],
+                f["nombre"],
+                f"{float(f['sum_debe']):,.2f}",
+                f"{float(f['sum_haber']):,.2f}",
+                f"{float(f['saldo']):,.2f}",
+            ]
+        )
 
-    table = Table(data, colWidths=[1.0*inch, 2.8*inch, 1.0*inch, 1.0*inch, 1.0*inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#4472C4")),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('ALIGN', (2,0), (-1,-1), 'RIGHT'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-    ]))
+    table = Table(data, colWidths=[1.0 * inch, 2.8 * inch, 1.0 * inch, 1.0 * inch, 1.0 * inch])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4472C4")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ]
+        )
+    )
     elements.append(table)
     doc.build(elements)
     buffer.seek(0)
@@ -238,46 +243,54 @@ def generar_estado_resultados_pdf(datos: dict) -> io.BytesIO:
     elements = []
     styles = getSampleStyleSheet()
 
-    elements.append(Paragraph("Estado de Resultados", styles['Title']))
-    elements.append(Spacer(1, 0.25*inch))
+    elements.append(Paragraph("Estado de Resultados", styles["Title"]))
+    elements.append(Spacer(1, 0.25 * inch))
 
     # Ingresos
-    elements.append(Paragraph("INGRESOS", styles['Heading2']))
+    elements.append(Paragraph("INGRESOS", styles["Heading2"]))
     data = [["Código", "Cuenta", "Monto"]]
     for ing in datos.get("ingresos", []):
         data.append([ing["codigo"], ing["nombre"], f"{float(ing['saldo']):,.2f}"])
     data.append(["", "Total Ingresos", f"{float(datos['total_ingresos']):,.2f}"])
-    table = Table(data, colWidths=[1.0*inch, 3.0*inch, 1.5*inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#4472C4")),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('ALIGN', (2,0), (-1,-1), 'RIGHT'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-        ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-        ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
-    ]))
+    table = Table(data, colWidths=[1.0 * inch, 3.0 * inch, 1.5 * inch])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4472C4")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+                ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+                ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+            ]
+        )
+    )
     elements.append(table)
-    elements.append(Spacer(1, 0.25*inch))
+    elements.append(Spacer(1, 0.25 * inch))
 
     # Gastos
-    elements.append(Paragraph("GASTOS", styles['Heading2']))
+    elements.append(Paragraph("GASTOS", styles["Heading2"]))
     data = [["Código", "Cuenta", "Monto"]]
     for gas in datos.get("gastos", []):
         data.append([gas["codigo"], gas["nombre"], f"{float(gas['saldo']):,.2f}"])
     data.append(["", "Total Gastos", f"{float(datos['total_gastos']):,.2f}"])
-    table = Table(data, colWidths=[1.0*inch, 3.0*inch, 1.5*inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#4472C4")),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('ALIGN', (2,0), (-1,-1), 'RIGHT'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-        ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
-    ]))
+    table = Table(data, colWidths=[1.0 * inch, 3.0 * inch, 1.5 * inch])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4472C4")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+                ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+            ]
+        )
+    )
     elements.append(table)
-    elements.append(Spacer(1, 0.25*inch))
+    elements.append(Spacer(1, 0.25 * inch))
 
     # Utilidad
-    elements.append(Paragraph(f"<b>UTILIDAD NETA: {float(datos['utilidad_neta']):,.2f}</b>", styles['Normal']))
+    elements.append(Paragraph(f"<b>UTILIDAD NETA: {float(datos['utilidad_neta']):,.2f}</b>", styles["Normal"]))
 
     doc.build(elements)
     buffer.seek(0)
@@ -290,27 +303,33 @@ def generar_balance_general_pdf(datos: dict) -> io.BytesIO:
     elements = []
     styles = getSampleStyleSheet()
 
-    elements.append(Paragraph("Balance General", styles['Title']))
-    elements.append(Spacer(1, 0.25*inch))
+    elements.append(Paragraph("Balance General", styles["Title"]))
+    elements.append(Spacer(1, 0.25 * inch))
 
     for seccion, titulo in [("activos", "ACTIVOS"), ("pasivos", "PASIVOS"), ("patrimonio", "PATRIMONIO")]:
-        elements.append(Paragraph(titulo, styles['Heading2']))
+        elements.append(Paragraph(titulo, styles["Heading2"]))
         data = [["Código", "Cuenta", "Saldo"]]
         for f in datos.get(seccion, []):
             data.append([f["codigo"], f["nombre"], f"{float(f['saldo']):,.2f}"])
         data.append(["", f"Total {titulo}", f"{float(datos[f'total_{seccion}']):,.2f}"])
-        table = Table(data, colWidths=[1.0*inch, 3.0*inch, 1.5*inch])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#4472C4")),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-            ('ALIGN', (2,0), (-1,-1), 'RIGHT'),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-            ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
-        ]))
+        table = Table(data, colWidths=[1.0 * inch, 3.0 * inch, 1.5 * inch])
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4472C4")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+                    ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+                ]
+            )
+        )
         elements.append(table)
-        elements.append(Spacer(1, 0.15*inch))
+        elements.append(Spacer(1, 0.15 * inch))
 
-    elements.append(Paragraph(f"<b>UTILIDAD DEL EJERCICIO: {float(datos['utilidad_ejercicio']):,.2f}</b>", styles['Normal']))
+    elements.append(
+        Paragraph(f"<b>UTILIDAD DEL EJERCICIO: {float(datos['utilidad_ejercicio']):,.2f}</b>", styles["Normal"])
+    )
 
     doc.build(elements)
     buffer.seek(0)

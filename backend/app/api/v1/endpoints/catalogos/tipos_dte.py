@@ -1,4 +1,5 @@
 """Router para gestión de Tipos DTE"""
+
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
@@ -35,9 +36,7 @@ async def listar_tipos_dte(
     service: TipoDTEService = Depends(get_service),
 ):
     """Lista tipos DTE con filtros y paginación"""
-    dtes, total = await service.obtener_todos(
-        activo=activo, es_factura=es_factura, skip=skip, limit=limit
-    )
+    dtes, total = await service.obtener_todos(activo=activo, es_factura=es_factura, skip=skip, limit=limit)
     return {
         "data": [TipoDTEListResponse.model_validate(d).model_dump() for d in dtes],
         "total": total,

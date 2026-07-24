@@ -1,5 +1,6 @@
 # app/api/v1/endpoints/representantes_legales.py
 """Endpoints para gestión de Representantes Legales por Empresa"""
+
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -37,33 +38,35 @@ async def _resolver_schema(
             raise HTTPException(400, detail="Superadmin debe especificar tenant_id")
         res = await db.execute(
             text("SELECT schema_name FROM public.tenants WHERE id = :tid"),
-            {"tid": tenant_id}  # ✅ int (no str)
+            {"tid": tenant_id},  # ✅ int (no str)
         )
     else:
         res = await db.execute(
             text("SELECT schema_name FROM public.tenants WHERE id = :tid"),
-            {"tid": scope.tenant_id}  # ✅ int (no str)
+            {"tid": scope.tenant_id},  # ✅ int (no str)
         )
-    
+
     row = res.first()
     if not row:
         raise HTTPException(404, detail="Tenant no encontrado")
-    
+
     schema_name = row[0]
     if not schema_name.strip().replace("_", "").isalnum():
         raise HTTPException(500, detail="Esquema con formato inválido")
-    
+
     return schema_name
 
 
 async def _verificar_empresa(
-    db: AsyncSession, schema_name: str, empresa_id: int  # ✅ BIGINT
+    db: AsyncSession,
+    schema_name: str,
+    empresa_id: int,  # ✅ BIGINT
 ) -> None:
     """Verifica que la empresa exista en el schema del tenant."""
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
     result = await db.execute(select(Empresa).where(Empresa.id == empresa_id))
     empresa = result.scalar_one_or_none()
-    
+
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
 
@@ -87,10 +90,8 @@ async def listar_representantes(
     """Lista todos los representantes legales de una empresa"""
     schema_name = await _resolver_schema(db, scope, tenant_id)
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
-    
-    representantes = await service.obtener_representantes_por_empresa(
-        empresa_id, solo_activos=solo_activos
-    )
+
+    representantes = await service.obtener_representantes_por_empresa(empresa_id, solo_activos=solo_activos)
     return [RepresentanteLegalOut.model_validate(r) for r in representantes]
 
 
@@ -110,7 +111,7 @@ async def crear_representante(
     schema_name = await _resolver_schema(db, scope, tenant_id)
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
     await _verificar_empresa(db, schema_name, empresa_id)
-    
+
     # ✅ Validar que no exista duplicado
     es_duplicado = await service.verificar_duplicado(
         empresa_id=empresa_id,
@@ -120,9 +121,9 @@ async def crear_representante(
     if es_duplicado:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Ya existe un representante legal con {payload.tipo_identificacion} '{payload.numero_identificacion}' en esta empresa."
+            detail=f"Ya existe un representante legal con {payload.tipo_identificacion} '{payload.numero_identificacion}' en esta empresa.",
         )
-    
+
     data = payload.model_dump()
     data["empresa_id"] = empresa_id
     representante = await service.crear_representante(data)
@@ -145,21 +146,21 @@ async def actualizar_representante(
     """Actualiza un representante legal existente"""
     schema_name = await _resolver_schema(db, scope, tenant_id)
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
-    
+
     # Si cambia el identificador, validar que no sea duplicado
     update_data = payload.model_dump(exclude_unset=True)
     if "tipo_identificacion" in update_data or "numero_identificacion" in update_data:
         tipo_id = update_data.get("tipo_identificacion")
         numero_id = update_data.get("numero_identificacion")
-        
+
         # Obtener valores actuales si no están en el payload
         representante_actual = await service.obtener_representante_por_id(representante_id, empresa_id)
         if representante_actual is None:
             raise HTTPException(status_code=404, detail="Representante legal no encontrado")
-        
+
         tipo_id = tipo_id or representante_actual.tipo_identificacion
         numero_id = numero_id or representante_actual.numero_identificacion
-        
+
         es_duplicado = await service.verificar_duplicado(
             empresa_id=empresa_id,
             tipo_identificacion=tipo_id,
@@ -169,13 +170,13 @@ async def actualizar_representante(
         if es_duplicado:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Ya existe otro representante legal con {tipo_id} '{numero_id}' en esta empresa."
+                detail=f"Ya existe otro representante legal con {tipo_id} '{numero_id}' en esta empresa.",
             )
-    
+
     representante = await service.actualizar_representante(representante_id, empresa_id, update_data)
     if representante is None:
         raise HTTPException(status_code=404, detail="Representante legal no encontrado")
-    
+
     return RepresentanteLegalOut.model_validate(representante)
 
 
@@ -194,9 +195,9 @@ async def eliminar_representante(
     """Elimina un representante legal (soft delete)"""
     schema_name = await _resolver_schema(db, scope, tenant_id)
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
-    
+
     eliminado = await service.eliminar_representante(representante_id, empresa_id)
     if not eliminado:
         raise HTTPException(status_code=404, detail="Representante legal no encontrado")
-    
+
     return None

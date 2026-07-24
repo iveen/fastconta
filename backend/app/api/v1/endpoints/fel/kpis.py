@@ -1,6 +1,7 @@
 """
 Endpoints para KPIs de Facturas Electrónicas (FEL).
 """
+
 import logging
 from datetime import date
 
@@ -51,13 +52,9 @@ async def _set_schema_for_query(
 async def get_fel_kpis(
     empresa_id: int | None = Query(None, description="ID de la empresa"),
     fecha_inicio: date = Query(
-        default_factory=lambda: date.today().replace(day=1),
-        description="Fecha de inicio del período (YYYY-MM-DD)"
+        default_factory=lambda: date.today().replace(day=1), description="Fecha de inicio del período (YYYY-MM-DD)"
     ),
-    fecha_fin: date = Query(
-        default_factory=date.today,
-        description="Fecha de fin del período (YYYY-MM-DD)"
-    ),
+    fecha_fin: date = Query(default_factory=date.today, description="Fecha de fin del período (YYYY-MM-DD)"),
     tenant_id: int | None = Query(None),
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_public_db),
@@ -65,7 +62,7 @@ async def get_fel_kpis(
 ):
     """
     Obtiene los KPIs de facturas electrónicas para un período.
-    
+
     Incluye:
     - Compras, Ventas Locales y Exportaciones (sin IVA)
     - Crédito Fiscal y Débito Fiscal
@@ -74,26 +71,20 @@ async def get_fel_kpis(
     - Series temporales por mes para gráficos
     """
     if fecha_inicio > fecha_fin:
-        raise HTTPException(
-            400,
-            detail="La fecha de inicio debe ser anterior a la fecha de fin"
-        )
-    
+        raise HTTPException(400, detail="La fecha de inicio debe ser anterior a la fecha de fin")
+
     # Limitar rango máximo a 5 años para evitar consultas pesadas
     dias_maximos = 365 * 5
     if (fecha_fin - fecha_inicio).days > dias_maximos:
-        raise HTTPException(
-            400,
-            detail=f"El rango máximo permitido es de {dias_maximos} días"
-        )
-    
+        raise HTTPException(400, detail=f"El rango máximo permitido es de {dias_maximos} días")
+
     # Configurar schema del tenant
     await _set_schema_for_query(db, scope, tenant_id)
-    
+
     empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
     if not empresa_id_final:
         raise HTTPException(400, detail="Debe especificar una empresa")
-    
+
     # Obtener nombre de la empresa
     emp_res = await db.execute(
         text("SELECT nombre FROM empresas WHERE id = :eid"),
@@ -101,7 +92,7 @@ async def get_fel_kpis(
     )
     empresa_row = emp_res.first()
     empresa_nombre = empresa_row[0] if empresa_row else None
-    
+
     return await FELKPIsService.get_kpis(
         db=db,
         empresa_id=empresa_id_final,

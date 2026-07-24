@@ -8,15 +8,18 @@ Responsabilidades:
 
 NO gestiona items → eso lo hace ItemService.
 """
+
+from datetime import UTC
 from typing import List
 from uuid import UUID
+
+from sqlalchemy import and_, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.models.global_models import InventarioImportacionJob
 from app.models.tenant_models import InventarioItem, InventarioToma
 from app.schemas.inventario.toma import TomaCreate, TomaUpdate
-from sqlalchemy import and_, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload
 
 
 class TomaService:
@@ -69,9 +72,7 @@ class TomaService:
         mes: int | None = None,
     ) -> List[InventarioToma]:
         """Lista tomas con filtros opcionales, ordenadas por período descendente."""
-        stmt = select(InventarioToma).where(
-            InventarioToma.tenant_id == tenant_id
-        )
+        stmt = select(InventarioToma).where(InventarioToma.tenant_id == tenant_id)
         if empresa_id:
             stmt = stmt.where(InventarioToma.empresa_id == empresa_id)
         if estado:
@@ -99,10 +100,8 @@ class TomaService:
         stmt = (
             select(InventarioToma)
             .options(
-                selectinload(InventarioToma.items)
-                    .joinedload(InventarioItem.bodega),
-                selectinload(InventarioToma.items)
-                    .joinedload(InventarioItem.producto),
+                selectinload(InventarioToma.items).joinedload(InventarioItem.bodega),
+                selectinload(InventarioToma.items).joinedload(InventarioItem.producto),
                 joinedload(InventarioToma.empresa),
             )
             .where(
@@ -136,7 +135,7 @@ class TomaService:
         """
         Elimina la toma y todos sus items (CASCADE).
         Solo si está en BORRADOR.
-        
+
         ⚠️ IMPORTANTE: También marca como TOMA_ELIMINADA cualquier job
         PENDIENTE/PROCESANDO asociado a esta toma (tabla global).
         """
@@ -152,26 +151,24 @@ class TomaService:
     async def _marcar_jobs_como_eliminados(self, toma_id: int) -> None:
         """
         Marca jobs globales asociados a una toma como TOMA_ELIMINADA.
-        
+
         La tabla InventarioImportacionJob está en schema public (global),
         por lo que no necesita cambio de search_path.
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         stmt_update = (
             update(InventarioImportacionJob)
             .where(
                 and_(
                     InventarioImportacionJob.toma_id == toma_id,
-                    InventarioImportacionJob.estado.in_(
-                        ["PENDIENTE", "PROCESANDO"]
-                    ),
+                    InventarioImportacionJob.estado.in_(["PENDIENTE", "PROCESANDO"]),
                 )
             )
             .values(
                 estado="TOMA_ELIMINADA",
                 mensaje_error="La toma de inventario fue eliminada",
-                finalizado_en=datetime.now(timezone.utc),
+                finalizado_en=datetime.now(UTC),
             )
         )
         await self.db.execute(stmt_update)
@@ -189,9 +186,7 @@ class TomaService:
             raise ValueError("Solo se pueden confirmar tomas en estado BORRADOR")
 
         # Verificar que tenga items (consulta directa por si no vienen cargados)
-        stmt_items = select(InventarioItem.id).where(
-            InventarioItem.toma_id == toma.id
-        ).limit(1)
+        stmt_items = select(InventarioItem.id).where(InventarioItem.toma_id == toma.id).limit(1)
         result = await self.db.execute(stmt_items)
         if not result.scalar_one_or_none():
             raise ValueError("No se puede confirmar una toma sin items")

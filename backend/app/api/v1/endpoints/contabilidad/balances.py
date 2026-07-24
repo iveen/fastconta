@@ -101,12 +101,12 @@ async def _calcular_saldos(
     for cuenta in cuentas:
         stmt = (
             select(
-                func.coalesce(func.sum(
-                    case((DetallePartida.tipo_movimiento == 'debe', DetallePartida.monto), else_=0)
-                ), 0).label('sum_debe'),
-                func.coalesce(func.sum(
-                    case((DetallePartida.tipo_movimiento == 'haber', DetallePartida.monto), else_=0)
-                ), 0).label('sum_haber'),
+                func.coalesce(
+                    func.sum(case((DetallePartida.tipo_movimiento == "debe", DetallePartida.monto), else_=0)), 0
+                ).label("sum_debe"),
+                func.coalesce(
+                    func.sum(case((DetallePartida.tipo_movimiento == "haber", DetallePartida.monto), else_=0)), 0
+                ).label("sum_haber"),
             )
             .select_from(DetallePartida)
             .join(Partida, DetallePartida.partida_id == Partida.id)
@@ -120,21 +120,23 @@ async def _calcular_saldos(
         result_sum = await db.execute(stmt)
         sum_debe, sum_haber = result_sum.one()
 
-        if cuenta.naturaleza == 'deudora':
+        if cuenta.naturaleza == "deudora":
             saldo = sum_debe - sum_haber
         else:
             saldo = sum_haber - sum_debe
 
-        filas.append(FilaBalance(
-            cuenta_id=cuenta.id,
-            codigo=cuenta.codigo,
-            nombre=cuenta.nombre,
-            tipo=cuenta.tipo,
-            naturaleza=cuenta.naturaleza,
-            sum_debe=sum_debe,
-            sum_haber=sum_haber,
-            saldo=saldo,
-        ))
+        filas.append(
+            FilaBalance(
+                cuenta_id=cuenta.id,
+                codigo=cuenta.codigo,
+                nombre=cuenta.nombre,
+                tipo=cuenta.tipo,
+                naturaleza=cuenta.naturaleza,
+                sum_debe=sum_debe,
+                sum_haber=sum_haber,
+                saldo=saldo,
+            )
+        )
     return filas
 
 
@@ -156,12 +158,7 @@ def _build_report(
         Column("Saldo", "saldo", width=18, alignment=ColumnAlignment.RIGHT, type=ColumnType.CURRENCY),
     ]
 
-    builder = ReportBuilder() \
-        .title(title) \
-        .subtitle(subtitle) \
-        .company(company_name) \
-        .period(period) \
-        .columns(columns)
+    builder = ReportBuilder().title(title).subtitle(subtitle).company(company_name).period(period).columns(columns)
 
     for section in sections_data:
         rows = [Row(data=fila.model_dump()) for fila in section["filas"]]
@@ -257,15 +254,15 @@ async def estado_resultados(
         .where(
             CuentaContable.is_active.is_(True),
             CuentaContable.empresa_id == empresa.id,
-            CuentaContable.tipo.in_(['ingreso', 'gasto']),
+            CuentaContable.tipo.in_(["ingreso", "gasto"]),
         )
         .order_by(CuentaContable.codigo)
     )
     cuentas = result.scalars().all()
     filas = await _calcular_saldos(db, cuentas, fecha_inicio, fecha_fin)
 
-    ingresos = [f for f in filas if f.tipo == 'ingreso']
-    gastos = [f for f in filas if f.tipo == 'gasto']
+    ingresos = [f for f in filas if f.tipo == "ingreso"]
+    gastos = [f for f in filas if f.tipo == "gasto"]
     total_ingresos = sum(f.saldo for f in ingresos if f.saldo > 0)
     total_gastos = sum(f.saldo for f in gastos if f.saldo > 0)
     utilidad_neta = total_ingresos - total_gastos
@@ -293,17 +290,35 @@ async def estado_resultados(
             {
                 "title": "INGRESOS",
                 "filas": ingresos,
-                "totals": {"codigo": "", "nombre": "Total Ingresos", "sum_debe": 0, "sum_haber": 0, "saldo": total_ingresos},
+                "totals": {
+                    "codigo": "",
+                    "nombre": "Total Ingresos",
+                    "sum_debe": 0,
+                    "sum_haber": 0,
+                    "saldo": total_ingresos,
+                },
             },
             {
                 "title": "GASTOS",
                 "filas": gastos,
-                "totals": {"codigo": "", "nombre": "Total Gastos", "sum_debe": 0, "sum_haber": 0, "saldo": total_gastos},
+                "totals": {
+                    "codigo": "",
+                    "nombre": "Total Gastos",
+                    "sum_debe": 0,
+                    "sum_haber": 0,
+                    "saldo": total_gastos,
+                },
             },
             {
                 "title": "UTILIDAD NETA",
                 "filas": [],
-                "totals": {"codigo": "", "nombre": "Utilidad Neta", "sum_debe": 0, "sum_haber": 0, "saldo": utilidad_neta},
+                "totals": {
+                    "codigo": "",
+                    "nombre": "Utilidad Neta",
+                    "sum_debe": 0,
+                    "sum_haber": 0,
+                    "saldo": utilidad_neta,
+                },
             },
         ],
     )
@@ -331,16 +346,16 @@ async def balance_general(
         .where(
             CuentaContable.is_active.is_(True),
             CuentaContable.empresa_id == empresa.id,
-            CuentaContable.tipo.in_(['activo', 'pasivo', 'patrimonio']),
+            CuentaContable.tipo.in_(["activo", "pasivo", "patrimonio"]),
         )
         .order_by(CuentaContable.codigo)
     )
     cuentas = result.scalars().all()
     filas = await _calcular_saldos(db, cuentas, fecha_fin=fecha)
 
-    activos = [f for f in filas if f.tipo == 'activo']
-    pasivos = [f for f in filas if f.tipo == 'pasivo']
-    patrimonio = [f for f in filas if f.tipo == 'patrimonio']
+    activos = [f for f in filas if f.tipo == "activo"]
+    pasivos = [f for f in filas if f.tipo == "pasivo"]
+    patrimonio = [f for f in filas if f.tipo == "patrimonio"]
     total_activos = sum(f.saldo for f in activos)
     total_pasivos = sum(f.saldo for f in pasivos)
     total_patrimonio = sum(f.saldo for f in patrimonio)
@@ -353,8 +368,8 @@ async def balance_general(
         .join(CuentaContable, DetallePartida.cuenta_id == CuentaContable.id)
         .where(
             CuentaContable.empresa_id == empresa.id,
-            CuentaContable.tipo == 'ingreso',
-            DetallePartida.tipo_movimiento == 'haber',
+            CuentaContable.tipo == "ingreso",
+            DetallePartida.tipo_movimiento == "haber",
             Partida.fecha <= fecha,
         )
     )
@@ -365,13 +380,13 @@ async def balance_general(
         .join(CuentaContable, DetallePartida.cuenta_id == CuentaContable.id)
         .where(
             CuentaContable.empresa_id == empresa.id,
-            CuentaContable.tipo == 'gasto',
-            DetallePartida.tipo_movimiento == 'debe',
+            CuentaContable.tipo == "gasto",
+            DetallePartida.tipo_movimiento == "debe",
             Partida.fecha <= fecha,
         )
     )
-    total_ingresos = (await db.execute(stmt_ingresos)).scalar() or Decimal('0.00')
-    total_gastos = (await db.execute(stmt_gastos)).scalar() or Decimal('0.00')
+    total_ingresos = (await db.execute(stmt_ingresos)).scalar() or Decimal("0.00")
+    total_gastos = (await db.execute(stmt_gastos)).scalar() or Decimal("0.00")
     utilidad_ejercicio = total_ingresos - total_gastos
 
     if formato == ReportFormat.JSON:
@@ -398,22 +413,46 @@ async def balance_general(
             {
                 "title": "ACTIVOS",
                 "filas": activos,
-                "totals": {"codigo": "", "nombre": "Total Activos", "sum_debe": 0, "sum_haber": 0, "saldo": total_activos},
+                "totals": {
+                    "codigo": "",
+                    "nombre": "Total Activos",
+                    "sum_debe": 0,
+                    "sum_haber": 0,
+                    "saldo": total_activos,
+                },
             },
             {
                 "title": "PASIVOS",
                 "filas": pasivos,
-                "totals": {"codigo": "", "nombre": "Total Pasivos", "sum_debe": 0, "sum_haber": 0, "saldo": total_pasivos},
+                "totals": {
+                    "codigo": "",
+                    "nombre": "Total Pasivos",
+                    "sum_debe": 0,
+                    "sum_haber": 0,
+                    "saldo": total_pasivos,
+                },
             },
             {
                 "title": "PATRIMONIO",
                 "filas": patrimonio,
-                "totals": {"codigo": "", "nombre": "Total Patrimonio", "sum_debe": 0, "sum_haber": 0, "saldo": total_patrimonio},
+                "totals": {
+                    "codigo": "",
+                    "nombre": "Total Patrimonio",
+                    "sum_debe": 0,
+                    "sum_haber": 0,
+                    "saldo": total_patrimonio,
+                },
             },
             {
                 "title": "UTILIDAD DEL EJERCICIO",
                 "filas": [],
-                "totals": {"codigo": "", "nombre": "Utilidad del Ejercicio", "sum_debe": 0, "sum_haber": 0, "saldo": utilidad_ejercicio},
+                "totals": {
+                    "codigo": "",
+                    "nombre": "Utilidad del Ejercicio",
+                    "sum_debe": 0,
+                    "sum_haber": 0,
+                    "saldo": utilidad_ejercicio,
+                },
             },
         ],
     )

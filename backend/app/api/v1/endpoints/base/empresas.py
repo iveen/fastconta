@@ -1,5 +1,6 @@
 # app/api/v1/endpoints/empresas.py
 """Endpoints para gestión de Empresas"""
+
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -31,7 +32,7 @@ router = APIRouter()
 async def _resolver_schema(
     db: AsyncSession,
     scope: DataScope,
-    tenant_id: int | None = None  # ✅ BIGINT (era str)
+    tenant_id: int | None = None,  # ✅ BIGINT (era str)
 ) -> str:
     """Resuelve el schema_name a usar según el rol del usuario."""
     if scope.role_code == "superadmin":
@@ -39,22 +40,22 @@ async def _resolver_schema(
             raise HTTPException(400, detail="Superadmin debe especificar un tenant_id")
         res = await db.execute(
             text("SELECT schema_name FROM public.tenants WHERE id = :tid"),
-            {"tid": tenant_id}  # ✅ int (no str)
+            {"tid": tenant_id},  # ✅ int (no str)
         )
     else:
         res = await db.execute(
             text("SELECT schema_name FROM public.tenants WHERE id = :tid"),
-            {"tid": scope.tenant_id}  # ✅ int (no str)
+            {"tid": scope.tenant_id},  # ✅ int (no str)
         )
-    
+
     row = res.first()
     if not row:
         raise HTTPException(404, detail="Tenant no encontrado")
-    
+
     schema_name = row[0]
     if not schema_name.strip().replace("_", "").isalnum():
         raise HTTPException(500, detail="Esquema con formato inválido")
-    
+
     return schema_name
 
 
@@ -65,51 +66,39 @@ async def _validar_nit(
     db: AsyncSession,
     schema_name: str,
     nit: str,
-    empresa_id_excluir: int | None = None  # ✅ BIGINT (era str)
+    empresa_id_excluir: int | None = None,  # ✅ BIGINT (era str)
 ) -> None:
     """Valida el formato del NIT y su unicidad dentro del tenant."""
     if not validar_nit_guatemala(nit):
         raise HTTPException(
-            status_code=400,
-            detail=f"El NIT '{nit}' no es válido según las reglas de la SAT de Guatemala."
+            status_code=400, detail=f"El NIT '{nit}' no es válido según las reglas de la SAT de Guatemala."
         )
-    
+
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
     query = select(Empresa).where(Empresa.nit == nit)
     if empresa_id_excluir:
         query = query.where(Empresa.id != empresa_id_excluir)
-    
+
     result = await db.execute(query)
     if result.scalar_one_or_none() is not None:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Ya existe una empresa con el NIT '{nit}' en esta firma."
-        )
+        raise HTTPException(status_code=409, detail=f"Ya existe una empresa con el NIT '{nit}' en esta firma.")
 
 
 # ============================================================
 # 0. Listar empresas activas (dropdown de contexto)
 # ============================================================
 @router.get("/mis-empresas", response_model=list[EmpresaSimple])
-async def get_mis_empresas(
-    db: AsyncSession = Depends(get_tenant_db)
-):
+async def get_mis_empresas(db: AsyncSession = Depends(get_tenant_db)):
     """Endpoint para el dropdown de contexto de empresa."""
     try:
         result = await db.execute(
-            select(Empresa)
-            .where(Empresa.is_active.is_(True))
-            .order_by(Empresa.nombre)
-            .limit(100)
+            select(Empresa).where(Empresa.is_active.is_(True)).order_by(Empresa.nombre).limit(100)
         )
         empresas = result.scalars().all()
         return [EmpresaSimple.model_validate(e) for e in empresas]
     except Exception as e:
         logger.exception("Error en get_mis_empresas")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error al cargar empresas: {e!s}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error al cargar empresas: {e!s}")
 
 
 # ============================================================
@@ -119,7 +108,7 @@ async def get_mis_empresas(
 async def list_empresas(
     tenant_id: int | None = Query(None, description="ID del tenant (requerido para superadmin)"),  # ✅ BIGINT
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
 ):
     schema_name = await _resolver_schema(db, scope, tenant_id)
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
@@ -137,29 +126,26 @@ async def create_empresa(
     scope: DataScope = Depends(get_data_scope),
     tenant_id: int | None = Query(None, description="ID del tenant (requerido para superadmin)"),
     db: AsyncSession = Depends(get_public_db),
-    _: dict = Depends(require_role("tenant_manager", "superadmin"))
+    _: dict = Depends(require_role("tenant_manager", "superadmin")),
 ):
     """Crea una nueva empresa en el schema del tenant."""
-    
+
     # 1. Resolver el tenant_id objetivo
     target_tenant_id = tenant_id if scope.role_code == "superadmin" else scope.tenant_id
-    
+
     # 2. Obtener el schema_name del tenant desde la BD pública
-    res = await db.execute(
-        text("SELECT schema_name FROM public.tenants WHERE id = :tid"),
-        {"tid": target_tenant_id}
-    )
+    res = await db.execute(text("SELECT schema_name FROM public.tenants WHERE id = :tid"), {"tid": target_tenant_id})
     row = res.first()
     if not row:
         raise HTTPException(404, detail="Tenant no encontrado")
     schema_name = row[0]
-    
+
     # 3. Configurar search_path para esta transacción
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
-    
+
     # 4. Validar NIT (formato + unicidad)
     await _validar_nit(db, schema_name, payload.nit)
-    
+
     # 5. Crear la instancia de la empresa
     empresa = Empresa(
         tenant_id=target_tenant_id,  # ✅ CRUCIAL: Asignar el tenant_id explícitamente
@@ -174,27 +160,25 @@ async def create_empresa(
         direccion=payload.direccion,
     )
     db.add(empresa)
-    
+
     try:
         # ✅ PASO A: Flush envía el INSERT a la BD y obtiene el ID y defaults del servidor
         await db.flush()
-        
-        # ✅ PASO B: Refresh recarga el objeto dentro de la MISMA transacción 
+
+        # ✅ PASO B: Refresh recarga el objeto dentro de la MISMA transacción
         # (el search_path AÚN es válido aquí)
         await db.refresh(empresa)
-        
+
         # ✅ PASO C: Commit cierra la transacción (ya no importa que se pierda el search_path)
         await db.commit()
-        
+
     except IntegrityError:
         await db.rollback()
         logger.error(f"IntegrityError al crear empresa: NIT duplicado '{payload.nit}'")
-        raise HTTPException(
-            status_code=409,
-            detail=f"Ya existe una empresa con el NIT '{payload.nit}'."
-        )
-        
+        raise HTTPException(status_code=409, detail=f"Ya existe una empresa con el NIT '{payload.nit}'.")
+
     return EmpresaOut.model_validate(empresa)
+
 
 # ============================================================
 # 3. Obtener empresa por ID
@@ -204,7 +188,7 @@ async def get_empresa(
     empresa_id: int,  # ✅ BIGINT (era str)
     tenant_id: int | None = Query(None, description="ID del tenant (requerido para superadmin)"),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
 ):
     schema_name = await _resolver_schema(db, scope, tenant_id)
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
@@ -213,7 +197,7 @@ async def get_empresa(
         .options(
             selectinload(Empresa.regimen_fiscal),
             selectinload(Empresa.tipo_persona),
-            selectinload(Empresa.actividad_economica)
+            selectinload(Empresa.actividad_economica),
         )
         .where(Empresa.id == empresa_id)
     )
@@ -233,34 +217,31 @@ async def update_empresa(
     tenant_id: int | None = Query(None, description="ID del tenant (requerido para superadmin)"),
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_public_db),
-    _: dict = Depends(require_role("tenant_manager", "superadmin")) 
+    _: dict = Depends(require_role("tenant_manager", "superadmin")),
 ):
     schema_name = await _resolver_schema(db, scope, tenant_id)
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
     result = await db.execute(select(Empresa).where(Empresa.id == empresa_id))
     empresa = result.scalar_one_or_none()
-    
+
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
-    
+
     # Si el NIT cambió, validarlo
     update_data = payload.model_dump(exclude_unset=True)
     if "nit" in update_data and update_data["nit"] != empresa.nit:
         await _validar_nit(db, schema_name, update_data["nit"], empresa_id_excluir=empresa_id)
-    
+
     for field, value in update_data.items():
         setattr(empresa, field, value)
-    
+
     try:
         await db.commit()
         await db.refresh(empresa)
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(
-            status_code=409,
-            detail=f"Ya existe otra empresa con el NIT '{update_data.get('nit')}'."
-        )
-    
+        raise HTTPException(status_code=409, detail=f"Ya existe otra empresa con el NIT '{update_data.get('nit')}'.")
+
     return EmpresaOut.model_validate(empresa)
 
 
@@ -273,16 +254,16 @@ async def deactivate_empresa(
     tenant_id: int | None = Query(None, description="ID del tenant (requerido para superadmin)"),
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_public_db),
-    _: dict = Depends(require_role("tenant_manager", "superadmin")) 
+    _: dict = Depends(require_role("tenant_manager", "superadmin")),
 ):
     schema_name = await _resolver_schema(db, scope, tenant_id)
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
     result = await db.execute(select(Empresa).where(Empresa.id == empresa_id))
     empresa = result.scalar_one_or_none()
-    
+
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
-    
+
     empresa.is_active = False
     await db.commit()
 
@@ -295,7 +276,7 @@ async def validar_nit_endpoint(
     payload: NitValidarRequest,
     tenant_id: int | None = Query(None),  # ✅ BIGINT
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
 ):
     """Valida formato y unicidad del NIT sin crear la empresa."""
     schema_name = await _resolver_schema(db, scope, tenant_id)

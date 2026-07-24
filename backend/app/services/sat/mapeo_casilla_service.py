@@ -3,12 +3,13 @@
 from io import BytesIO
 from uuid import UUID
 
-from app.models.global_models import CasillaSat, MapeoCasillaCuenta
-from app.schemas.sat.mapeo_casilla import TIPOS_MOVIMIENTO
-from app.utils.excel_handler import ExcelHandler
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+
+from app.models.global_models import CasillaSat, MapeoCasillaCuenta
+from app.schemas.sat.mapeo_casilla import TIPOS_MOVIMIENTO
+from app.utils.excel_handler import ExcelHandler
 
 # Columnas para exportación
 COLUMNAS_EXPORT = [
@@ -44,10 +45,7 @@ class MapeoCasillaCuentaService:
         limit: int = 50,
     ) -> tuple[list[MapeoCasillaCuenta], int]:
         """Lista mapeos con filtros exactos (incluye NULL)"""
-        query = (
-            select(MapeoCasillaCuenta)
-            .options(selectinload(MapeoCasillaCuenta.casilla))
-        )
+        query = select(MapeoCasillaCuenta).options(selectinload(MapeoCasillaCuenta.casilla))
 
         if casilla_id is not None:
             query = query.where(MapeoCasillaCuenta.casilla_id == casilla_id)
@@ -73,9 +71,7 @@ class MapeoCasillaCuentaService:
         result = await self.db.execute(query)
         return result.scalars().first()
 
-    async def obtener_por_casilla(
-        self, casilla_id: UUID, tenant_id: UUID | None = None
-    ) -> list[MapeoCasillaCuenta]:
+    async def obtener_por_casilla(self, casilla_id: UUID, tenant_id: UUID | None = None) -> list[MapeoCasillaCuenta]:
         """Obtiene mapeos de una casilla (prioriza tenant específico, fallback global)"""
         query = (
             select(MapeoCasillaCuenta)
@@ -85,10 +81,7 @@ class MapeoCasillaCuentaService:
 
         if tenant_id is not None:
             # Traer mapeos del tenant O globales
-            query = query.where(
-                (MapeoCasillaCuenta.tenant_id == tenant_id)
-                | (MapeoCasillaCuenta.tenant_id.is_(None))
-            )
+            query = query.where((MapeoCasillaCuenta.tenant_id == tenant_id) | (MapeoCasillaCuenta.tenant_id.is_(None)))
         else:
             # Solo globales
             query = query.where(MapeoCasillaCuenta.tenant_id.is_(None))
@@ -121,9 +114,7 @@ class MapeoCasillaCuentaService:
         await self.db.refresh(mapeo)
         return mapeo
 
-    async def actualizar(
-        self, mapeo_id: UUID, data: dict
-    ) -> MapeoCasillaCuenta | None:
+    async def actualizar(self, mapeo_id: UUID, data: dict) -> MapeoCasillaCuenta | None:
         """Actualiza un mapeo"""
         mapeo = await self.obtener_por_id(mapeo_id)
         if mapeo is None:
@@ -135,9 +126,7 @@ class MapeoCasillaCuentaService:
             nuevo_tenant = data.get("tenant_id", mapeo.tenant_id)
             nuevo_empresa = data.get("empresa_id", mapeo.empresa_id)
 
-            existente = await self._buscar_existente(
-                nuevo_casilla, nuevo_tenant, nuevo_empresa, exclude_id=mapeo_id
-            )
+            existente = await self._buscar_existente(nuevo_casilla, nuevo_tenant, nuevo_empresa, exclude_id=mapeo_id)
             if existente is not None:
                 raise ValueError("Ya existe otro mapeo con esta combinación.")
 
@@ -181,14 +170,9 @@ class MapeoCasillaCuentaService:
     # ============================================================
     # IMPORT/EXPORT
     # ============================================================
-    async def exportar_excel(
-        self, tenant_id: UUID | None = None, empresa_id: UUID | None = None
-    ) -> BytesIO:
+    async def exportar_excel(self, tenant_id: UUID | None = None, empresa_id: UUID | None = None) -> BytesIO:
         """Exporta mapeos a Excel"""
-        query = (
-            select(MapeoCasillaCuenta)
-            .options(selectinload(MapeoCasillaCuenta.casilla))
-        )
+        query = select(MapeoCasillaCuenta).options(selectinload(MapeoCasillaCuenta.casilla))
         if tenant_id is not None:
             query = query.where(MapeoCasillaCuenta.tenant_id.is_(tenant_id))
         if empresa_id is not None:
@@ -204,14 +188,16 @@ class MapeoCasillaCuentaService:
             elif m.tenant_id is not None:
                 ambito = "TENANT"
 
-            datos.append({
-                "casilla_codigo": m.casilla.codigo if m.casilla else "",
-                "casilla_nombre": m.casilla.nombre if m.casilla else "",
-                "codigo_cuenta_sugerido": m.codigo_cuenta_sugerido,
-                "nombre_cuenta_sugerido": m.nombre_cuenta_sugerido,
-                "tipo_movimiento": m.tipo_movimiento,
-                "ambito": ambito,
-            })
+            datos.append(
+                {
+                    "casilla_codigo": m.casilla.codigo if m.casilla else "",
+                    "casilla_nombre": m.casilla.nombre if m.casilla else "",
+                    "codigo_cuenta_sugerido": m.codigo_cuenta_sugerido,
+                    "nombre_cuenta_sugerido": m.nombre_cuenta_sugerido,
+                    "tipo_movimiento": m.tipo_movimiento,
+                    "ambito": ambito,
+                }
+            )
 
         return ExcelHandler.exportar_a_excel(
             datos=datos,

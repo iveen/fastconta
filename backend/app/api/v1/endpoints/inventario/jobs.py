@@ -5,6 +5,7 @@ Flujos:
 - Usuario normal: consultar sus jobs, cancelar jobs pendientes
 - Superadmin: monitoreo global de todos los jobs del sistema
 """
+
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -33,9 +34,7 @@ def _job_a_response(job: InventarioImportacionJob) -> ImportacionJobResponse:
         filas_con_error=job.filas_con_error,
         porcentaje=job.porcentaje,
         mensaje_error=job.mensaje_error,
-        importacion_public_id=(
-            str(job.importacion_id) if job.importacion_id else None
-        ),
+        importacion_public_id=(str(job.importacion_id) if job.importacion_id else None),
         iniciado_en=job.iniciado_en,
         finalizado_en=job.finalizado_en,
     )
@@ -126,8 +125,7 @@ async def consultar_estado_job(
     response_model=ImportacionJobResponse,
     summary="Cancelar un job pendiente",
     description=(
-        "Cancela un job que aún no ha empezado a procesarse. "
-        "Solo jobs en estado PENDIENTE pueden ser cancelados."
+        "Cancela un job que aún no ha empezado a procesarse. Solo jobs en estado PENDIENTE pueden ser cancelados."
     ),
 )
 async def cancelar_job(
@@ -179,8 +177,7 @@ async def cancelar_job(
     response_model=list[ImportacionJobResponse],
     summary="Listar todos los jobs (superadmin)",
     description=(
-        "Endpoint exclusivo para superadmin. Lista todos los jobs "
-        "de importación del sistema, con filtros opcionales."
+        "Endpoint exclusivo para superadmin. Lista todos los jobs de importación del sistema, con filtros opcionales."
     ),
     dependencies=[Depends(require_role("superadmin"))],
 )

@@ -1,9 +1,11 @@
 """Service para Categorías de Activos Fijos"""
+
 from uuid import UUID
 
-from app.models.global_models import CategoriaActivoFijo
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.global_models import CategoriaActivoFijo
 
 
 class CategoriaActivoService:
@@ -55,8 +57,8 @@ class CategoriaActivoService:
     async def crear(self, data: dict) -> CategoriaActivoFijo:
         existente = await self.db.execute(
             select(CategoriaActivoFijo).where(
-                (CategoriaActivoFijo.nombre == data["nombre"]) |
-                (CategoriaActivoFijo.codigo_prefijo == data["codigo_prefijo"])
+                (CategoriaActivoFijo.nombre == data["nombre"])
+                | (CategoriaActivoFijo.codigo_prefijo == data["codigo_prefijo"])
             )
         )
         if existente.scalar_one_or_none():

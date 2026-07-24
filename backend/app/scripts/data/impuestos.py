@@ -4,6 +4,7 @@ Incluye los impuestos principales que aplican a la mayoría de contribuyentes.
 Los impuestos especiales (petróleo, bebidas, tabaco, etc.) se manejan en
 el catálogo separado CatalogoImpuestoEspecial.
 """
+
 from decimal import Decimal
 
 IMPUESTOS = [
@@ -16,7 +17,7 @@ IMPUESTOS = [
         "limite_inferior": Decimal("0.00"),
         "limite_superior": None,
         "frecuencia_pago": "MENSUAL",
-        "frecuencia_liquidacion": "MENSUAL"
+        "frecuencia_liquidacion": "MENSUAL",
     },
     {
         "codigo": "IVA_EXENTO",
@@ -27,7 +28,7 @@ IMPUESTOS = [
         "limite_inferior": Decimal("0.00"),
         "limite_superior": None,
         "frecuencia_pago": "MENSUAL",
-        "frecuencia_liquidacion": "MENSUAL"
+        "frecuencia_liquidacion": "MENSUAL",
     },
     {
         "codigo": "ISR",
@@ -38,7 +39,7 @@ IMPUESTOS = [
         "limite_inferior": Decimal("0.00"),
         "limite_superior": None,
         "frecuencia_pago": "VARIABLE",
-        "frecuencia_liquidacion": "ANUAL"
+        "frecuencia_liquidacion": "ANUAL",
     },
     {
         "codigo": "ISO",
@@ -49,6 +50,6 @@ IMPUESTOS = [
         "limite_inferior": Decimal("0.00"),
         "limite_superior": None,
         "frecuencia_pago": "TRIMESTRAL",
-        "frecuencia_liquidacion": "ANUAL"
+        "frecuencia_liquidacion": "ANUAL",
     },
 ]

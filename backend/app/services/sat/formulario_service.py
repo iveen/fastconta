@@ -1,6 +1,10 @@
 # app/services/configuracion_fiscal/formulario_service.py
 from datetime import date
 
+from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
 from app.models.global_models import (
     CasillaSat,
     ExclusionCasilla,
@@ -8,9 +12,6 @@ from app.models.global_models import (
     ReglaFiltradoFactura,
     SeccionFormulario,
 )
-from sqlalchemy import func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 
 class FormularioSatService:
@@ -49,16 +50,13 @@ class FormularioSatService:
             select(FormularioSat)
             .where(FormularioSat.id == formulario_id)
             .options(
-                selectinload(FormularioSat.secciones)
-                .selectinload(SeccionFormulario.casillas),
+                selectinload(FormularioSat.secciones).selectinload(SeccionFormulario.casillas),
             )
         )
         result = await self.db.execute(query)
         return result.scalars().first()
 
-    async def obtener_vigente(
-        self, codigo: str, fecha: date | None = None
-    ) -> FormularioSat | None:
+    async def obtener_vigente(self, codigo: str, fecha: date | None = None) -> FormularioSat | None:
         """Obtiene la versión vigente de un formulario para una fecha"""
         if fecha is None:
             fecha = date.today()
@@ -74,8 +72,7 @@ class FormularioSatService:
                 ),
             )
             .options(
-                selectinload(FormularioSat.secciones)
-                .selectinload(SeccionFormulario.casillas),
+                selectinload(FormularioSat.secciones).selectinload(SeccionFormulario.casillas),
             )
         )
         result = await self.db.execute(query)
@@ -102,7 +99,9 @@ class FormularioSatService:
     # CRUD
     # ============================================================
     async def crear(
-        self, data: dict, usuario_id: int | None = None  # ✅ int (era UUID)
+        self,
+        data: dict,
+        usuario_id: int | None = None,  # ✅ int (era UUID)
     ) -> FormularioSat:
         """Crea un nuevo formulario con secciones automáticas"""
         formulario = FormularioSat(**data, created_by=usuario_id)
@@ -117,10 +116,7 @@ class FormularioSatService:
         query = (
             select(FormularioSat)
             .where(FormularioSat.id == formulario.id)
-            .options(
-                selectinload(FormularioSat.secciones)
-                .selectinload(SeccionFormulario.casillas)
-            )
+            .options(selectinload(FormularioSat.secciones).selectinload(SeccionFormulario.casillas))
         )
         result = await self.db.execute(query)
         return result.scalars().first()
@@ -145,10 +141,7 @@ class FormularioSatService:
         query = (
             select(FormularioSat)
             .where(FormularioSat.id == formulario_id)
-            .options(
-                selectinload(FormularioSat.secciones)
-                .selectinload(SeccionFormulario.casillas)
-            )
+            .options(selectinload(FormularioSat.secciones).selectinload(SeccionFormulario.casillas))
         )
         result = await self.db.execute(query)
         return result.scalars().first()
@@ -270,12 +263,7 @@ class FormularioSatService:
         if copiar_reglas:
             for casilla_orig_id, nueva_casilla in mapa_casillas.items():
                 casilla_orig = next(
-                    (
-                        c
-                        for s in original.secciones
-                        for c in s.casillas
-                        if c.id == casilla_orig_id
-                    ),
+                    (c for s in original.secciones for c in s.casillas if c.id == casilla_orig_id),
                     None,
                 )
                 if casilla_orig is None:
@@ -298,12 +286,7 @@ class FormularioSatService:
         if copiar_exclusiones:
             for casilla_orig_id, nueva_casilla in mapa_casillas.items():
                 casilla_orig = next(
-                    (
-                        c
-                        for s in original.secciones
-                        for c in s.casillas
-                        if c.id == casilla_orig_id
-                    ),
+                    (c for s in original.secciones for c in s.casillas if c.id == casilla_orig_id),
                     None,
                 )
                 if casilla_orig is None:

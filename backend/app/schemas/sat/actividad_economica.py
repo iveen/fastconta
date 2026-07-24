@@ -1,4 +1,5 @@
 """Schemas para Actividades Económicas SAT"""
+
 from datetime import datetime
 from uuid import UUID
 

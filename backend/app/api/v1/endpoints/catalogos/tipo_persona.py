@@ -1,4 +1,5 @@
 """Endpoint para Tipos de Persona"""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +14,7 @@ from app.services.deprecated.tipo_persona_service import TipoPersonaService
 router = APIRouter(prefix="/tipos-persona", tags=["Catálogos - Tipos de Persona"])
 
 
-def get_service(db: AsyncSession = Depends(get_db)) -> TipoPersonaService: #noqa B008
+def get_service(db: AsyncSession = Depends(get_db)) -> TipoPersonaService:
     return TipoPersonaService(db)
 
 
@@ -22,11 +23,11 @@ async def listar_tipos_persona(
     search: str | None = Query(None, description="Buscar por nombre"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
-    service: TipoPersonaService = Depends(get_service), #noqa B008
+    service: TipoPersonaService = Depends(get_service),
 ):
     """Lista tipos de persona con estructura paginada"""
     tipos, total = await service.obtener_todos(search=search, skip=skip, limit=limit)
-    
+
     return {
         "data": [TipoPersonaResponse.model_validate(t).model_dump() for t in tipos],
         "total": total,
@@ -37,16 +38,16 @@ async def listar_tipos_persona(
 
 @router.get("/lista", response_model=list[TipoPersonaResponse])
 async def listar_tipos_persona_activos(
-    service: TipoPersonaService = Depends(get_service), #noqa B008
+    service: TipoPersonaService = Depends(get_service),
 ):
     """Lista todos los tipos de persona activos (para dropdowns)"""
-    return await service.obtener_todos_activos() 
+    return await service.obtener_todos_activos()
 
 
 @router.get("/{tipo_id}", response_model=TipoPersonaResponse)
 async def obtener_tipo_persona(
     tipo_id: int,  # ✅ BIGINT (era UUID)
-    service: TipoPersonaService = Depends(get_service), #noqa B008
+    service: TipoPersonaService = Depends(get_service),
 ):
     """Obtiene un tipo de persona por ID"""
     tipo = await service.obtener_por_id(tipo_id)
@@ -58,7 +59,7 @@ async def obtener_tipo_persona(
 @router.post("/", response_model=TipoPersonaResponse, status_code=201)
 async def crear_tipo_persona(
     data: TipoPersonaCreate,
-    service: TipoPersonaService = Depends(get_service), #noqa B008
+    service: TipoPersonaService = Depends(get_service),
 ):
     """Crea un nuevo tipo de persona"""
     try:
@@ -71,7 +72,7 @@ async def crear_tipo_persona(
 async def actualizar_tipo_persona(
     tipo_id: int,  # ✅ BIGINT (era UUID)
     data: TipoPersonaUpdate,
-    service: TipoPersonaService = Depends(get_service), #noqa B008
+    service: TipoPersonaService = Depends(get_service),
 ):
     """Actualiza un tipo de persona"""
     tipo = await service.actualizar(tipo_id, data.model_dump(exclude_unset=True))
@@ -83,7 +84,7 @@ async def actualizar_tipo_persona(
 @router.delete("/{tipo_id}", status_code=204)
 async def eliminar_tipo_persona(
     tipo_id: int,  # ✅ BIGINT (era UUID)
-    service: TipoPersonaService = Depends(get_service), #noqa B008
+    service: TipoPersonaService = Depends(get_service),
 ):
     """Elimina un tipo de persona (soft delete)"""
     if not await service.eliminar(tipo_id):

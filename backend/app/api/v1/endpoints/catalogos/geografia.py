@@ -1,4 +1,5 @@
 """Endpoint para Geografía (Departamentos y Municipios)"""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -88,7 +89,7 @@ async def listar_municipios(
 ):
     """Lista municipios, opcionalmente filtrados por departamento"""
     municipios = await service.obtener_municipios(departamento_id)
-    
+
     # Enriquecer con nombre del departamento
     response = []
     for m in municipios:
@@ -107,7 +108,7 @@ async def obtener_municipio(
     mun = await service.obtener_municipio_por_id(mun_id)
     if not mun:
         raise HTTPException(status_code=404, detail="Municipio no encontrado")
-    
+
     data = MunicipioResponse.model_validate(mun).model_dump()
     data["departamento_nombre"] = mun.departamento.nombre if mun.departamento else None
     return data

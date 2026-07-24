@@ -1,4 +1,5 @@
 """Endpoint para gestión de Regímenes Fiscales"""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,9 +37,7 @@ async def listar_regimenes(
     service: RegimenFiscalService = Depends(get_service),
 ):
     """Lista regímenes fiscales con filtros y paginación"""
-    regimenes, total = await service.obtener_todos(
-        is_active=is_active, search=search, skip=skip, limit=limit
-    )
+    regimenes, total = await service.obtener_todos(is_active=is_active, search=search, skip=skip, limit=limit)
     return {
         "data": [RegimenFiscalListResponse.model_validate(r).model_dump() for r in regimenes],
         "total": total,
@@ -73,7 +72,7 @@ async def obtener_regimen(
             status_code=404,
             detail="Régimen fiscal no encontrado",
         )
-    
+
     # Construir respuesta con formularios asociados
     formularios = await service.obtener_formularios_asociados(regimen_id)
     response_data = RegimenFiscalResponse.model_validate(regimen).model_dump()

@@ -34,9 +34,7 @@ async def listar_secciones(
     service: SeccionFormularioService = Depends(get_service),
 ):
     """Lista secciones de un formulario ordenadas"""
-    secciones, total = await service.obtener_por_formulario(
-        formulario_id=formulario_id, skip=skip, limit=limit
-    )
+    secciones, total = await service.obtener_por_formulario(formulario_id=formulario_id, skip=skip, limit=limit)
     return {
         "data": [SeccionFormularioListResponse.model_validate(s) for s in secciones],
         "total": total,
@@ -64,11 +62,7 @@ async def obtener_seccion(
 # ============================================================
 # CREAR
 # ============================================================
-@router.post(
-        "/", 
-        response_model=SeccionFormularioResponse,
-        status_code=status.HTTP_201_CREATED
-)
+@router.post("/", response_model=SeccionFormularioResponse, status_code=status.HTTP_201_CREATED)
 async def crear_seccion(
     data: SeccionFormularioCreate,
     service: SeccionFormularioService = Depends(get_service),
@@ -121,7 +115,7 @@ async def eliminar_seccion(
         )
     if seccion.es_automatica:
         raise HTTPException(status_code=403, detail="No se puede eliminar una sección automática")
-    
+
     eliminado = await service.eliminar(seccion_id)
     if not eliminado:
         raise HTTPException(

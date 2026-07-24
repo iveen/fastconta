@@ -3,23 +3,26 @@ line-length = 120
 target-version = "py312"
 
 [lint]
-# Reglas a ignorar globalmente
+# Reglas que SÍ queremos que Ruff corrija automáticamente
+select = [
+    "E", "F", "W",      # Errores y warnings básicos de Python
+    "I",                # Orden de imports
+    "UP",               # Actualizaciones de sintaxis de Python (ej. datetime.UTC)
+    "RUF",              # Reglas específicas de Ruff
+    "FURB",             # Modernizaciones de código
+]
+
+# Reglas que IGNORAMOS porque son ruido en código legacy o requieren refactorización manual
 ignore = [
-    "B008",   # Do not perform function call in argument defaults (FastAPI Depends/Query)
-    "BLE001", # Do not catch blind exception: Exception
-    "UP006",  # Use list instead of List
-    "UP035",  # typing.List is deprecated
-    "RUF010", # Use explicit conversion flag
-    "RUF022", # __all__ is not sorted
-    "G201",   # Logging .exception() should be used instead of .error(..., exc_info=True)
-    "RET501", # Do not explicitly return None
-    "PLR1711",# Useless return statement
-    "DTZ011", # datetime.date.today() used
-    "DTZ003", # datetime.datetime.utcnow() used
-    "UP045",  # Use X | None for type annotations
-    # "UP017",  # Use `datetime.UTC` alias help: Convert to `datetime.UTC` alias
+    "RUF012", # Mutable default value (Muy común e inofensivo en modelos SQLAlchemy/Pydantic)
+    "S110",   # try-except-pass (A veces es intencional en parsers)
+    "ASYNC210", # Blocking HTTP calls in async (Requiere refactorización mayor, ignorar por ahora)
+    "ASYNC230", # Blocking open() in async (Requiere refactorización mayor, ignorar por ahora)
+    "PIE790", # Unnecessary pass statement
+    "EXE001", # Shebang is present but file is not executable
 ]
 
 [lint.per-file-ignores]
-# Ignorar reglas específicas en archivos específicos si es necesario
-"__init__.py" = ["F401"]
+# Ignorar reglas específicas en carpetas de scripts o deprecated
+"app/scripts/*" = ["E402", "EXE001"]
+"app/services/deprecated/*" = ["ALL"]

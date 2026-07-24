@@ -1,9 +1,10 @@
 """
 Endpoints para gestión de jobs de importación FEL.
 """
+
 import logging
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import List
 
@@ -143,7 +144,7 @@ async def cancelar_fel_job(
         )
 
     job.estado = "CANCELADO"
-    job.finalizado_en = datetime.now(timezone.utc)
+    job.finalizado_en = datetime.now(UTC)
     job.locked_at = None
     job.mensaje_error = "Cancelado por el usuario"
     await db.commit()
@@ -162,9 +163,7 @@ async def cancelar_fel_job(
 )
 async def reprocesar_fel_job(
     job_id: int,
-    solo_errores: bool = Query(
-        False, description="Si es True, solo reprocesa los XMLs que fallaron"
-    ),
+    solo_errores: bool = Query(False, description="Si es True, solo reprocesa los XMLs que fallaron"),
     background_tasks: BackgroundTasks = ...,
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_public_db),
@@ -199,10 +198,7 @@ async def reprocesar_fel_job(
     if not zip_path.exists():
         raise HTTPException(
             400,
-            detail=(
-                "El archivo ZIP original ya no está disponible en disco. "
-                "Por favor, suba el archivo nuevamente."
-            ),
+            detail=("El archivo ZIP original ya no está disponible en disco. Por favor, suba el archivo nuevamente."),
         )
 
     schema_name = await _set_schema_for_query(db, scope)
@@ -240,31 +236,26 @@ async def reprocesar_fel_job(
                 except UnicodeDecodeError:
                     xml_text = xml_bytes.decode("utf-8", errors="replace")
 
-                xml_files.append({
-                    "filename": file_info.filename,
-                    "xml_text": xml_text,
-                    "raw_bytes": xml_bytes,
-                })
+                xml_files.append(
+                    {
+                        "filename": file_info.filename,
+                        "xml_text": xml_text,
+                        "raw_bytes": xml_bytes,
+                    }
+                )
     except Exception as e:
         raise HTTPException(500, detail=f"Error leyendo ZIP original: {str(e)}")
 
     if solo_errores and job.errores:
         archivos_con_error = {
-            err.get("file", "")
-            for err in job.errores
-            if err.get("error") != "Duplicada (ya existe en el sistema)"
+            err.get("file", "") for err in job.errores if err.get("error") != "Duplicada (ya existe en el sistema)"
         }
-        xml_files = [
-            xf for xf in xml_files if xf["filename"] in archivos_con_error
-        ]
+        xml_files = [xf for xf in xml_files if xf["filename"] in archivos_con_error]
 
         if not xml_files:
             raise HTTPException(
                 400,
-                detail=(
-                    "No hay XMLs con error para reprocesar "
-                    "(todos los errores fueron duplicadas)."
-                ),
+                detail=("No hay XMLs con error para reprocesar (todos los errores fueron duplicadas)."),
             )
 
     if not xml_files:
@@ -303,8 +294,5 @@ async def reprocesar_fel_job(
         filename=nuevo_job.archivo_original,
         total_files=len(xml_files),
         estado=nuevo_job.estado,
-        message=(
-            f"Re-procesamiento programado: {len(xml_files)} XMLs "
-            f"({'solo errores' if solo_errores else 'todos'})"
-        ),
+        message=(f"Re-procesamiento programado: {len(xml_files)} XMLs ({'solo errores' if solo_errores else 'todos'})"),
     )

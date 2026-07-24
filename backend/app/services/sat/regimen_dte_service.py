@@ -1,10 +1,12 @@
 """Service para Configuración Régimen-DTE"""
+
 from uuid import UUID
 
-from app.models.global_models import RegimenDteConfig, RegimenFiscal, TipoDTE
 from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+
+from app.models.global_models import RegimenDteConfig, RegimenFiscal, TipoDTE
 
 
 class RegimenDteService:
@@ -90,17 +92,12 @@ class RegimenDteService:
         )
         result = await self.db.execute(query)
         dtes = result.scalars().all()
-        return [
-            {"id": d.id, "codigo": d.codigo, "descripcion": d.descripcion}
-            for d in dtes
-        ]
+        return [{"id": d.id, "codigo": d.codigo, "descripcion": d.descripcion} for d in dtes]
 
     # ============================================================
     # ASOCIAR UN DTE A UN RÉGIMEN
     # ============================================================
-    async def asociar(
-        self, regimen_id: UUID, dte_id: UUID, es_exclusivo: bool = False
-    ) -> RegimenDteConfig:
+    async def asociar(self, regimen_id: UUID, dte_id: UUID, es_exclusivo: bool = False) -> RegimenDteConfig:
         regimen = await self.db.get(RegimenFiscal, regimen_id)
         if not regimen:
             raise ValueError("Régimen fiscal no encontrado")
@@ -176,9 +173,7 @@ class RegimenDteService:
         if not regimen:
             raise ValueError("Régimen fiscal no encontrado")
 
-        existentes_query = select(RegimenDteConfig.dte_id).where(
-            RegimenDteConfig.regimen_id == regimen_id
-        )
+        existentes_query = select(RegimenDteConfig.dte_id).where(RegimenDteConfig.regimen_id == regimen_id)
         existentes_result = await self.db.execute(existentes_query)
         existentes = set(existentes_result.scalars().all())
 

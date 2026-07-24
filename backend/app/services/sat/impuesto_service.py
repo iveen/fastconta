@@ -1,8 +1,9 @@
 """Service para Catálogo de Impuestos"""
 
-from app.models.global_models import CatalogoImpuesto
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.global_models import CatalogoImpuesto
 
 
 class ImpuestoService:
@@ -25,8 +26,7 @@ class ImpuestoService:
         if search:
             search_term = f"%{search}%"
             query = query.where(
-                (CatalogoImpuesto.codigo.ilike(search_term)) |
-                (CatalogoImpuesto.nombre.ilike(search_term))
+                (CatalogoImpuesto.codigo.ilike(search_term)) | (CatalogoImpuesto.nombre.ilike(search_term))
             )
 
         count_query = select(func.count()).select_from(query.subquery())
@@ -40,9 +40,7 @@ class ImpuestoService:
 
     async def obtener_todos_activos(self) -> list[CatalogoImpuesto]:
         """Lista todos los impuestos activos"""
-        query = select(CatalogoImpuesto).where(
-            CatalogoImpuesto.is_active.is_(True) 
-        ).order_by(CatalogoImpuesto.codigo)
+        query = select(CatalogoImpuesto).where(CatalogoImpuesto.is_active.is_(True)).order_by(CatalogoImpuesto.codigo)
         result = await self.db.execute(query)
         return result.scalars().all()
 

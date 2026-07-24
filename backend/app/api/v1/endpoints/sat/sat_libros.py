@@ -30,16 +30,16 @@ async def generar_libro_iva(
     tenant_id: int | None = Query(None, description="ID del tenant (requerido para superadmin)"),
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_public_db),
-    empresa_from_header: Empresa | None = Depends(get_active_empresa)
+    empresa_from_header: Empresa | None = Depends(get_active_empresa),
 ):
     await set_tenant_search_path(db, scope, tenant_id)
-    
+
     if empresa_from_header:
         payload.empresa_id = empresa_from_header.id
-        
+
     if not payload.empresa_id:
         raise HTTPException(status_code=400, detail="Debe especificar una empresa")
-        
+
     return await procesar_y_generar_libro_sat(db=db, payload=payload)
 
 
@@ -55,25 +55,21 @@ async def consultar_libro_iva(
     tenant_id: int | None = Query(None, description="ID del tenant"),
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_public_db),
-    empresa_from_header: Empresa | None = Depends(get_active_empresa)
+    empresa_from_header: Empresa | None = Depends(get_active_empresa),
 ):
     await set_tenant_search_path(db, scope, tenant_id)
-    
+
     empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
     if not empresa_id_final:
         raise HTTPException(status_code=400, detail="Debe especificar una empresa")
 
     libro = await obtener_libro_detallado(
-        db=db, 
-        empresa_id=empresa_id_final,
-        tipo_libro_id=tipo_libro_id, 
-        anio=anio, 
-        mes=mes
+        db=db, empresa_id=empresa_id_final, tipo_libro_id=tipo_libro_id, anio=anio, mes=mes
     )
-    
+
     if not libro:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No se encontró registro para este periodo.")
-        
+
     return libro
 
 
@@ -85,16 +81,16 @@ async def cerrar_libro_iva(
     libro_id: int,  # ✅ BIGINT
     tenant_id: int | None = Query(None, description="ID del tenant"),
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
 ):
     await set_tenant_search_path(db, scope, tenant_id)
-    
+
     user_info = db.info.get("current_user") or {}
     # ✅ CORRECCIÓN CRÍTICA: El 'sub' del JWT es string, debe ser int para la FK
     usuario_id_str = user_info.get("sub")
     if not usuario_id_str:
         raise HTTPException(status_code=401, detail="Usuario no autenticado.")
-        
+
     try:
         usuario_id = int(usuario_id_str)
     except (ValueError, TypeError):

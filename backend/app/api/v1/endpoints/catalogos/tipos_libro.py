@@ -1,4 +1,5 @@
 """Endpoint para Tipos de Libro SAT"""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,9 +31,7 @@ async def listar_tipos_libro(
     service: TipoLibroService = Depends(get_service),
 ):
     """Lista tipos de libro con paginación"""
-    tipos, total = await service.obtener_todos(
-        is_active=is_active, search=search, skip=skip, limit=limit
-    )
+    tipos, total = await service.obtener_todos(is_active=is_active, search=search, skip=skip, limit=limit)
     return {
         "data": [TipoLibroListResponse.model_validate(t).model_dump() for t in tipos],
         "total": total,

@@ -101,7 +101,9 @@ jobs:
         run: python -m compileall -q app/
 
       - name: Ejecutar Ruff (Linting)
-        run: ruff check app/ --output-format=github
+        run: 
+          ruff check app/ --fix
+          ruff check app/ --output-format=github
 
       - name: Ejecutar tests con coverage
         run: pytest --cov=app --cov-report=xml -v

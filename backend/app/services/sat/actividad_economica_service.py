@@ -1,9 +1,11 @@
 """Service para Actividades Económicas SAT"""
+
 from uuid import UUID
 
-from app.models.global_models import ActividadEconomicaSAT
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.global_models import ActividadEconomicaSAT
 
 
 class ActividadEconomicaService:
@@ -42,7 +44,7 @@ class ActividadEconomicaService:
         query = (
             select(ActividadEconomicaSAT)
             .where(ActividadEconomicaSAT.is_active.is_(True))
-            .order_by(ActividadEconomicaSAT.codigo_sat) 
+            .order_by(ActividadEconomicaSAT.codigo_sat)
         )
         result = await self.db.execute(query)
         return list(result.scalars().all())
@@ -54,9 +56,7 @@ class ActividadEconomicaService:
 
     async def crear(self, data: dict) -> ActividadEconomicaSAT:
         existente = await self.db.execute(
-            select(ActividadEconomicaSAT).where(
-                ActividadEconomicaSAT.codigo_sat == data["codigo_sat"]
-            )
+            select(ActividadEconomicaSAT).where(ActividadEconomicaSAT.codigo_sat == data["codigo_sat"])
         )
         if existente.scalar_one_or_none():
             raise ValueError(f"Ya existe una actividad con código SAT '{data['codigo_sat']}'")

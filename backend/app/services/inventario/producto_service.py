@@ -1,9 +1,10 @@
 from typing import List
 
-from app.models.tenant_models import InventarioProducto
-from app.schemas.inventario.producto import ProductoCreate, ProductoUpdate
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
+
+from app.models.tenant_models import InventarioProducto
+from app.schemas.inventario.producto import ProductoCreate, ProductoUpdate
 
 
 class ProductoService:
@@ -56,9 +57,7 @@ class ProductoService:
             )
         return query.order_by(InventarioProducto.codigo).all()
 
-    def obtener_por_codigo(
-        self, tenant_id: int, empresa_id: int, codigo: str
-    ) -> InventarioProducto | None:
+    def obtener_por_codigo(self, tenant_id: int, empresa_id: int, codigo: str) -> InventarioProducto | None:
         return (
             self.db.query(InventarioProducto)
             .filter(
@@ -93,6 +92,7 @@ class ProductoService:
     ) -> None:
         """Soft delete del producto."""
         from sqlalchemy.sql import func
+
         producto.is_active = False
         producto.deleted_at = func.now()
         producto.updated_by = usuario_id
@@ -106,10 +106,7 @@ class ProductoService:
         public_id = data_dict.pop("cuenta_inventario_public_id", None)
         if public_id:
             from app.models.tenant_models import CuentaContable
-            cuenta = (
-                self.db.query(CuentaContable)
-                .filter_by(public_id=public_id)
-                .first()
-            )
+
+            cuenta = self.db.query(CuentaContable).filter_by(public_id=public_id).first()
             data_dict["cuenta_inventario_id"] = cuenta.id if cuenta else None
         return data_dict

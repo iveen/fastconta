@@ -1,12 +1,15 @@
 """Service para Tipos de Persona"""
+
 from logging import getLogger
 from uuid import UUID
 
-from app.models.global_models import TipoPersona
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.global_models import TipoPersona
+
 logger = getLogger(__name__)
+
 
 class TipoPersonaService:
     def __init__(self, db: AsyncSession):
@@ -34,9 +37,7 @@ class TipoPersonaService:
         return result.scalar_one_or_none()
 
     async def crear(self, data: dict) -> TipoPersona:
-        existente = await self.db.execute(
-            select(TipoPersona).where(TipoPersona.nombre == data["nombre"])
-        )
+        existente = await self.db.execute(select(TipoPersona).where(TipoPersona.nombre == data["nombre"]))
         if existente.scalar_one_or_none():
             raise ValueError(f"Ya existe un tipo de persona con nombre '{data['nombre']}'")
         tipo = TipoPersona(**data)

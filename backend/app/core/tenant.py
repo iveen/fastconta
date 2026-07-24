@@ -1,17 +1,21 @@
-import os
 import asyncio
+import os
 from pathlib import Path
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+
 from alembic.config import Config
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from alembic import command
 
 ALEMBIC_TENANT_INI = str(Path(__file__).parent.parent.parent / "alembic_tenant.ini")
+
 
 async def tenant_schema_exists(db: AsyncSession, schema_name: str) -> bool:
     query = text("SELECT schema_name FROM information_schema.schemata WHERE schema_name = :schema")
     result = await db.execute(query, {"schema": schema_name})
     return result.scalar_one_or_none() is not None
+
 
 async def create_tenant_schema(db: AsyncSession, schema_name: str) -> None:
 
@@ -36,7 +40,8 @@ async def create_tenant_schema(db: AsyncSession, schema_name: str) -> None:
     await db.commit()
 
     # 5. Aplicar todas las migraciones de tenant en el nuevo schema
-    await db.execute(text(f"""
+    await db.execute(
+        text(f"""
     DO $$
     DECLARE r RECORD;
     BEGIN
@@ -49,7 +54,8 @@ async def create_tenant_schema(db: AsyncSession, schema_name: str) -> None:
         EXECUTE 'ALTER SEQUENCE {schema_name}.' || r.sequencename || ' OWNER TO fastconta_user';
     END LOOP;
     END $$;
-    """))
+    """)
+    )
     await db.commit()
     os.environ["TENANT_SCHEMA"] = schema_name
     alembic_cfg = Config(ALEMBIC_TENANT_INI)

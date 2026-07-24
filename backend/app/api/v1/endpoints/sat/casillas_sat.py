@@ -34,9 +34,7 @@ async def listar_casillas(
     service: CasillaSatService = Depends(get_service),
 ):
     """Lista casillas de una sección"""
-    casillas, total = await service.obtener_por_seccion(
-        seccion_id=seccion_id, skip=skip, limit=limit
-    )
+    casillas, total = await service.obtener_por_seccion(seccion_id=seccion_id, skip=skip, limit=limit)
     return {
         "data": [CasillaSatListResponse.model_validate(c) for c in casillas],
         "total": total,
@@ -95,10 +93,10 @@ async def actualizar_casilla(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Casilla no encontrada",
         )
-    
+
     if casilla.es_automatica:
         raise HTTPException(status_code=403, detail="No se puede modificar una casilla automática")
-    
+
     casilla = await service.actualizar(casilla_id, data.model_dump(exclude_unset=True))
 
     return casilla
@@ -120,7 +118,7 @@ async def eliminar_casilla(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Casilla no encontrada",
         )
-    
+
     if casilla.es_automatica:
         raise HTTPException(status_code=403, detail="No se puede eliminar una casilla automática")
 

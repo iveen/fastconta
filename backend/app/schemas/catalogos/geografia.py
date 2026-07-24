@@ -1,4 +1,5 @@
 """Schemas para Geografía (Departamentos y Municipios)"""
+
 from datetime import datetime
 from uuid import UUID
 
@@ -9,7 +10,7 @@ class MunicipioBrief(BaseModel):
     id: UUID
     codigo_iso: str
     nombre: str
-    
+
     model_config = {"from_attributes": True}
 
 
@@ -32,7 +33,7 @@ class DepartamentoUpdate(BaseModel):
 class DepartamentoResponse(DepartamentoBase):
     id: int  # ✅ BIGINT (era UUID)
     public_id: UUID | None = None
-    municipios: list[MunicipioBrief] = []  
+    municipios: list[MunicipioBrief] = []
     created_at: datetime | None = None
     updated_at: datetime | None = None
     created_by: int | None = None
@@ -52,8 +53,6 @@ class MunicipioBase(BaseModel):
 
 class MunicipioCreate(MunicipioBase):
     pass
-
-
 
 
 class MunicipioUpdate(BaseModel):

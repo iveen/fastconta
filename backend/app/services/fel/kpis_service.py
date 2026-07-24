@@ -2,10 +2,14 @@
 Servicio de KPIs para Facturas Electrónicas (FEL).
 Consultas SQL optimizadas para PostgreSQL.
 """
+
 import logging
 from datetime import date
 from decimal import Decimal
 from typing import List
+
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.fel.kpis import (
     KPIsConteos,
@@ -13,8 +17,6 @@ from app.schemas.fel.kpis import (
     KPIsResponse,
     SerieTemporalPoint,
 )
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,7 @@ class FELKPIsService:
     ) -> KPIsResponse:
         """
         Calcula todos los KPIs para un rango de fechas.
-        
+
         Args:
             db: Sesión de BD (con search_path ya configurado al schema del tenant)
             empresa_id: ID de la empresa
@@ -41,20 +43,14 @@ class FELKPIsService:
             empresa_nombre: Nombre de la empresa (opcional)
         """
         # 1. KPIs financieros agregados
-        financieros = await FELKPIsService._calcular_financieros(
-            db, empresa_id, fecha_inicio, fecha_fin
-        )
-        
+        financieros = await FELKPIsService._calcular_financieros(db, empresa_id, fecha_inicio, fecha_fin)
+
         # 2. Conteos de documentos
-        conteos = await FELKPIsService._calcular_conteos(
-            db, empresa_id, fecha_inicio, fecha_fin
-        )
-        
+        conteos = await FELKPIsService._calcular_conteos(db, empresa_id, fecha_inicio, fecha_fin)
+
         # 3. Series temporales (agrupadas por mes)
-        series = await FELKPIsService._calcular_series_temporales(
-            db, empresa_id, fecha_inicio, fecha_fin
-        )
-        
+        series = await FELKPIsService._calcular_series_temporales(db, empresa_id, fecha_inicio, fecha_fin)
+
         return KPIsResponse(
             empresa_id=empresa_id,
             empresa_nombre=empresa_nombre,
@@ -133,20 +129,23 @@ class FELKPIsService:
             WHERE empresa_id = :empresa_id
               AND fecha_emision BETWEEN :fecha_inicio AND :fecha_fin
         """)
-        
-        result = await db.execute(query, {
-            "empresa_id": empresa_id,
-            "fecha_inicio": fecha_inicio,
-            "fecha_fin": fecha_fin,
-        })
+
+        result = await db.execute(
+            query,
+            {
+                "empresa_id": empresa_id,
+                "fecha_inicio": fecha_inicio,
+                "fecha_fin": fecha_fin,
+            },
+        )
         row = result.first()
-        
+
         if not row:
             return KPIsFinancieros()
-        
+
         credito = Decimal(str(row.credito_fiscal or 0))
         debito = Decimal(str(row.debito_fiscal or 0))
-        
+
         return KPIsFinancieros(
             compras_sin_iva=Decimal(str(row.compras_sin_iva or 0)),
             ventas_locales_sin_iva=Decimal(str(row.ventas_locales_sin_iva or 0)),
@@ -176,17 +175,20 @@ class FELKPIsService:
             WHERE empresa_id = :empresa_id
               AND fecha_emision BETWEEN :fecha_inicio AND :fecha_fin
         """)
-        
-        result = await db.execute(query, {
-            "empresa_id": empresa_id,
-            "fecha_inicio": fecha_inicio,
-            "fecha_fin": fecha_fin,
-        })
+
+        result = await db.execute(
+            query,
+            {
+                "empresa_id": empresa_id,
+                "fecha_inicio": fecha_inicio,
+                "fecha_fin": fecha_fin,
+            },
+        )
         row = result.first()
-        
+
         if not row:
             return KPIsConteos()
-        
+
         return KPIsConteos(
             emitidos=row.emitidos or 0,
             recibidos=row.recibidos or 0,
@@ -257,13 +259,16 @@ class FELKPIsService:
             GROUP BY TO_CHAR(fecha_emision, 'YYYY-MM')
             ORDER BY periodo ASC
         """)
-        
-        result = await db.execute(query, {
-            "empresa_id": empresa_id,
-            "fecha_inicio": fecha_inicio,
-            "fecha_fin": fecha_fin,
-        })
-        
+
+        result = await db.execute(
+            query,
+            {
+                "empresa_id": empresa_id,
+                "fecha_inicio": fecha_inicio,
+                "fecha_fin": fecha_fin,
+            },
+        )
+
         return [
             SerieTemporalPoint(
                 periodo=row.periodo,

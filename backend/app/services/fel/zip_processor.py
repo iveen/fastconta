@@ -2,9 +2,13 @@
 Procesador en background de ZIPs FEL.
 Maneja la persistencia progresiva del job y notificación por email.
 """
+
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
+
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.email.service import email_service
 from app.core.file_handlers import FileContent
@@ -13,8 +17,6 @@ from app.models.global_models import FELImportJob
 from app.services.facturas.contabilidad_service import clasificar_gasto_sat
 from app.services.facturas.tipo_cambio_service import obtener_tipo_cambio
 from app.services.fel.context import FelIngestionContext
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +47,8 @@ class FELZipProcessor:
 
             # Marcar como procesando
             job.estado = "PROCESANDO"
-            job.iniciado_en = datetime.now(timezone.utc)
-            job.locked_at = datetime.now(timezone.utc)
+            job.iniciado_en = datetime.now(UTC)
+            job.locked_at = datetime.now(UTC)
             await db.commit()
 
             try:
@@ -63,7 +65,7 @@ class FELZipProcessor:
                         await db.refresh(job)
                         if job.estado == "CANCELADO":
                             logger.info(f"⏹️ Job {job_id} cancelado por el usuario")
-                            job.finalizado_en = datetime.now(timezone.utc)
+                            job.finalizado_en = datetime.now(UTC)
                             job.locked_at = None
                             job.mensaje_error = "Cancelado por el usuario"
                             await db.commit()
@@ -78,7 +80,7 @@ class FELZipProcessor:
                                     archivos_totales=job.archivos_totales,
                                 )
                                 job.notificado = True
-                                job.notificado_en = datetime.now(timezone.utc)
+                                job.notificado_en = datetime.now(UTC)
                                 await db.commit()
                             except Exception as email_err:
                                 logger.error(f"Error enviando email de cancelación: {email_err}")
@@ -98,10 +100,12 @@ class FELZipProcessor:
                         result = await FelIngestionContext.ingest(xml_content, db)
 
                         if not result.success:
-                            errores.append({
-                                "file": xml_data["filename"],
-                                "error": result.error or "Error de parseo",
-                            })
+                            errores.append(
+                                {
+                                    "file": xml_data["filename"],
+                                    "error": result.error or "Error de parseo",
+                                }
+                            )
                             job.archivos_procesados += 1
                             job.porcentaje = int((job.archivos_procesados / job.archivos_totales) * 100)
                             await db.commit()
@@ -120,10 +124,12 @@ class FELZipProcessor:
 
                         if dup.first():
                             facturas_duplicadas += 1
-                            errores.append({
-                                "file": xml_data["filename"],
-                                "error": "Duplicada (ya existe en el sistema)",
-                            })
+                            errores.append(
+                                {
+                                    "file": xml_data["filename"],
+                                    "error": "Duplicada (ya existe en el sistema)",
+                                }
+                            )
                             job.archivos_procesados += 1
                             job.porcentaje = int((job.archivos_procesados / job.archivos_totales) * 100)
                             await db.commit()
@@ -138,10 +144,12 @@ class FELZipProcessor:
                         elif rec == empresa_nit:
                             tipo_op = "Compra"
                         else:
-                            errores.append({
-                                "file": xml_data["filename"],
-                                "error": "La empresa no participa en esta factura",
-                            })
+                            errores.append(
+                                {
+                                    "file": xml_data["filename"],
+                                    "error": "La empresa no participa en esta factura",
+                                }
+                            )
                             job.archivos_procesados += 1
                             job.porcentaje = int((job.archivos_procesados / job.archivos_totales) * 100)
                             await db.commit()
@@ -160,19 +168,26 @@ class FELZipProcessor:
 
                         # 7. Crear factura en BD
                         await _crear_factura_background(
-                            db, datos, empresa_id, tipo_op,
-                            clasificacion_inicial, tc,
-                            xml_data["filename"], xml_data["xml_text"],
+                            db,
+                            datos,
+                            empresa_id,
+                            tipo_op,
+                            clasificacion_inicial,
+                            tc,
+                            xml_data["filename"],
+                            xml_data["xml_text"],
                         )
 
                         facturas_creadas += 1
 
                     except Exception as e:
                         logger.error(f"Error procesando {xml_data['filename']}: {e}", exc_info=True)
-                        errores.append({
-                            "file": xml_data["filename"],
-                            "error": str(e),
-                        })
+                        errores.append(
+                            {
+                                "file": xml_data["filename"],
+                                "error": str(e),
+                            }
+                        )
 
                     # Actualizar progreso (commit por cada archivo para no perder avance)
                     job.archivos_procesados += 1
@@ -185,7 +200,7 @@ class FELZipProcessor:
 
                 # Completar job
                 job.estado = "COMPLETADO"
-                job.finalizado_en = datetime.now(timezone.utc)
+                job.finalizado_en = datetime.now(UTC)
                 job.locked_at = None
                 await db.commit()
 
@@ -201,7 +216,7 @@ class FELZipProcessor:
                         facturas_con_error=len(errores),
                     )
                     job.notificado = True
-                    job.notificado_en = datetime.now(timezone.utc)
+                    job.notificado_en = datetime.now(UTC)
                     await db.commit()
                 except Exception as e:
                     logger.error(f"Error enviando email de completado: {e}", exc_info=True)
@@ -216,7 +231,7 @@ class FELZipProcessor:
                 logger.error(f"❌ Job {job_id} falló: {e}", exc_info=True)
                 job.estado = "FALLIDO"
                 job.mensaje_error = str(e)[:1000]
-                job.finalizado_en = datetime.now(timezone.utc)
+                job.finalizado_en = datetime.now(UTC)
                 job.locked_at = None
                 await db.commit()
 
@@ -229,7 +244,7 @@ class FELZipProcessor:
                         error_mensaje=str(e)[:500],
                     )
                     job.notificado = True
-                    job.notificado_en = datetime.now(timezone.utc)
+                    job.notificado_en = datetime.now(UTC)
                     await db.commit()
                 except Exception as email_err:
                     logger.error(f"Error enviando email de fallo: {email_err}", exc_info=True)
@@ -285,17 +300,19 @@ async def _crear_factura_background(
     await db.flush()
 
     for it in items:
-        db.add(FacturaDetalle(
-            factura_id=factura.id,
-            cantidad=it["cantidad"],
-            descripcion=it["descripcion"],
-            precio_unitario=it["precio_unitario"],
-            total_linea=it["total_linea"],
-            iva_linea=it.get("iva_linea", 0),
-            precio_unitario_gtq=float(it["precio_unitario"]) * tc_float,
-            total_linea_gtq=float(it["total_linea"]) * tc_float,
-            iva_linea_gtq=float(it.get("iva_linea", 0)) * tc_float,
-            bien_o_servicio=it.get("bien_o_servicio", "B"),
-        ))
+        db.add(
+            FacturaDetalle(
+                factura_id=factura.id,
+                cantidad=it["cantidad"],
+                descripcion=it["descripcion"],
+                precio_unitario=it["precio_unitario"],
+                total_linea=it["total_linea"],
+                iva_linea=it.get("iva_linea", 0),
+                precio_unitario_gtq=float(it["precio_unitario"]) * tc_float,
+                total_linea_gtq=float(it["total_linea"]) * tc_float,
+                iva_linea_gtq=float(it.get("iva_linea", 0)) * tc_float,
+                bien_o_servicio=it.get("bien_o_servicio", "B"),
+            )
+        )
 
     return factura

@@ -1,8 +1,9 @@
 """Service para Tipos de Libro SAT"""
 
-from app.models.global_models import TipoLibro
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.global_models import TipoLibro
 
 
 class TipoLibroService:
@@ -24,10 +25,7 @@ class TipoLibroService:
 
         if search:
             search_term = f"%{search}%"
-            query = query.where(
-                (TipoLibro.codigo.ilike(search_term)) |
-                (TipoLibro.nombre.ilike(search_term))
-            )
+            query = query.where((TipoLibro.codigo.ilike(search_term)) | (TipoLibro.nombre.ilike(search_term)))
 
         count_query = select(func.count()).select_from(query.subquery())
         total = (await self.db.execute(count_query)).scalar() or 0
@@ -40,9 +38,7 @@ class TipoLibroService:
 
     async def obtener_todos_activos(self) -> list[TipoLibro]:
         """Lista todos los tipos de libro activos"""
-        query = select(TipoLibro).where(
-            TipoLibro.is_active.is_(True)
-        ).order_by(TipoLibro.codigo)
+        query = select(TipoLibro).where(TipoLibro.is_active.is_(True)).order_by(TipoLibro.codigo)
         result = await self.db.execute(query)
         return result.scalars().all()
 

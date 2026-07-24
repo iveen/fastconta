@@ -1,4 +1,5 @@
 """Endpoint para Actividades Económicas SAT"""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,9 +33,7 @@ async def listar_actividades(
     service: ActividadEconomicaService = Depends(get_service),
 ):
     """Lista actividades económicas con paginación"""
-    actividades, total = await service.obtener_todos(
-        activa=activa, search=search, skip=skip, limit=limit
-    )
+    actividades, total = await service.obtener_todos(activa=activa, search=search, skip=skip, limit=limit)
     return {
         "data": [ActividadEconomicaListResponse.model_validate(a).model_dump() for a in actividades],
         "total": total,

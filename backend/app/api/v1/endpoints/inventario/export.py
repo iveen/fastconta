@@ -28,6 +28,7 @@ async def exportar_toma(
 ):
     # Validar que la toma existe y pertenece al tenant
     from sqlalchemy import and_, select
+
     stmt = select(InventarioToma).where(
         and_(
             InventarioToma.public_id == toma_public_id,
@@ -44,13 +45,9 @@ async def exportar_toma(
 
     svc = ExportService(db)
     try:
-        contenido, nombre_archivo = await svc.exportar_toma(
-            toma.id, scope.tenant_id, formato=formato
-        )
+        contenido, nombre_archivo = await svc.exportar_toma(toma.id, scope.tenant_id, formato=formato)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -58,15 +55,11 @@ async def exportar_toma(
         )
 
     media_type = (
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        if formato == "excel"
-        else "application/pdf"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if formato == "excel" else "application/pdf"
     )
 
     return Response(
         content=contenido,
         media_type=media_type,
-        headers={
-            "Content-Disposition": f'attachment; filename="{nombre_archivo}"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="{nombre_archivo}"'},
     )

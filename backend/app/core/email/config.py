@@ -1,4 +1,5 @@
 """Configuración de email desde variables de entorno."""
+
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,9 +11,11 @@ env_path = backend_dir / ".env"
 
 load_dotenv(dotenv_path=env_path, override=True)
 
+
 @dataclass
 class EmailConfig:
     """Configuración SMTP para envío de correos."""
+
     host: str
     port: int
     username: str
@@ -35,12 +38,13 @@ class EmailConfig:
             use_ssl=os.getenv("SMTP_SSL", "False").lower() == "true",
             from_email=os.getenv("FROM_EMAIL", "noreply@fastconta.app"),
             from_name=os.getenv("FROM_NAME", "FastConta"),
-            app_url=os.getenv("APP_URL", "https://fastconta.app"),  
+            app_url=os.getenv("APP_URL", "https://fastconta.app"),
         )
 
     def is_configured(self) -> bool:
         """Verifica si el email está configurado correctamente."""
         return bool(self.host and self.username and self.password)
+
 
 # Instancia global de configuración
 email_config = EmailConfig.from_env()

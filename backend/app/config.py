@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+
 class Settings(BaseSettings):
     DATABASE_HOST: str
     DATABASE_PORT: int
@@ -28,11 +29,8 @@ class Settings(BaseSettings):
         # Reemplaza asyncpg por psycopg2 (o el driver síncrono que tengas)
         return f"postgresql+psycopg2://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
 
 try:
     settings = Settings()

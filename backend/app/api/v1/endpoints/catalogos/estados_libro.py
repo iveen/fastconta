@@ -1,4 +1,5 @@
 """Endpoint para Estados de Libro SAT"""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,9 +31,7 @@ async def listar_estados_libro(
     service: EstadoLibroService = Depends(get_service),
 ):
     """Lista estados de libro con paginación"""
-    estados, total = await service.obtener_todos(
-        is_active=is_active, search=search, skip=skip, limit=limit
-    )
+    estados, total = await service.obtener_todos(is_active=is_active, search=search, skip=skip, limit=limit)
     return {
         "data": [EstadoLibroListResponse.model_validate(e).model_dump() for e in estados],
         "total": total,

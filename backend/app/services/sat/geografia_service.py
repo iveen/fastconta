@@ -3,10 +3,11 @@
 from io import BytesIO
 from uuid import UUID
 
-from app.models.global_models import Departamento, Municipio
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+
+from app.models.global_models import Departamento, Municipio
 
 # Columnas para exportación
 COLUMNAS_DEPTO_EXPORT = [
@@ -40,16 +41,12 @@ class GeografiaService:
         limit: int = 50,
     ) -> tuple[list[Departamento], int]:
         """Lista departamentos con conteo de municipios"""
-        query = (
-            select(Departamento)
-            .options(selectinload(Departamento.municipios))
-        )
+        query = select(Departamento).options(selectinload(Departamento.municipios))
 
         if search:
             search_pattern = f"%{search}%"
             query = query.where(
-                (Departamento.nombre.ilike(search_pattern))
-                | (Departamento.codigo_iso.ilike(search_pattern))
+                (Departamento.nombre.ilike(search_pattern)) | (Departamento.codigo_iso.ilike(search_pattern))
             )
 
         count_query = select(func.count()).select_from(query.subquery())
@@ -59,9 +56,7 @@ class GeografiaService:
         result = await self.db.execute(query)
         return list(result.scalars().all()), total
 
-    async def obtener_departamento_por_id(
-        self, departamento_id: UUID
-    ) -> Departamento | None:
+    async def obtener_departamento_por_id(self, departamento_id: UUID) -> Departamento | None:
         """Obtiene un departamento con sus municipios"""
         query = (
             select(Departamento)
@@ -71,9 +66,7 @@ class GeografiaService:
         result = await self.db.execute(query)
         return result.scalars().first()
 
-    async def obtener_departamento_por_codigo(
-        self, codigo_iso: str
-    ) -> Departamento | None:
+    async def obtener_departamento_por_codigo(self, codigo_iso: str) -> Departamento | None:
         """Obtiene un departamento por código ISO"""
         query = select(Departamento).where(Departamento.codigo_iso == codigo_iso)
         result = await self.db.execute(query)
@@ -81,10 +74,7 @@ class GeografiaService:
 
     async def obtener_todos_departamentos(self) -> list[Departamento]:
         """Obtiene todos los departamentos (para dropdowns)"""
-        query = (
-            select(Departamento)
-            .order_by(Departamento.nombre)
-        )
+        query = select(Departamento).order_by(Departamento.nombre)
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
@@ -95,9 +85,7 @@ class GeografiaService:
         """Crea un nuevo departamento"""
         existente = await self.obtener_departamento_por_codigo(data["codigo_iso"])
         if existente is not None:
-            raise ValueError(
-                f"Ya existe un departamento con código '{data['codigo_iso']}'"
-            )
+            raise ValueError(f"Ya existe un departamento con código '{data['codigo_iso']}'")
 
         depto = Departamento(**data)
         self.db.add(depto)
@@ -105,9 +93,7 @@ class GeografiaService:
         await self.db.refresh(depto)
         return depto
 
-    async def actualizar_departamento(
-        self, departamento_id: UUID, data: dict
-    ) -> Departamento | None:
+    async def actualizar_departamento(self, departamento_id: UUID, data: dict) -> Departamento | None:
         """Actualiza un departamento"""
         depto = await self.obtener_departamento_por_id(departamento_id)
         if depto is None:
@@ -142,19 +128,13 @@ class GeografiaService:
         limit: int = 100,
     ) -> tuple[list[Municipio], int]:
         """Lista municipios con filtros"""
-        query = (
-            select(Municipio)
-            .options(selectinload(Municipio.departamento))
-        )
+        query = select(Municipio).options(selectinload(Municipio.departamento))
 
         if departamento_id is not None:
             query = query.where(Municipio.departamento_id == departamento_id)
         if search:
             search_pattern = f"%{search}%"
-            query = query.where(
-                (Municipio.nombre.ilike(search_pattern))
-                | (Municipio.codigo_iso.ilike(search_pattern))
-            )
+            query = query.where((Municipio.nombre.ilike(search_pattern)) | (Municipio.codigo_iso.ilike(search_pattern)))
 
         count_query = select(func.count()).select_from(query.subquery())
         total = (await self.db.execute(count_query)).scalar() or 0
@@ -165,17 +145,11 @@ class GeografiaService:
 
     async def obtener_municipio_por_id(self, municipio_id: UUID) -> Municipio | None:
         """Obtiene un municipio con su departamento"""
-        query = (
-            select(Municipio)
-            .where(Municipio.id == municipio_id)
-            .options(selectinload(Municipio.departamento))
-        )
+        query = select(Municipio).where(Municipio.id == municipio_id).options(selectinload(Municipio.departamento))
         result = await self.db.execute(query)
         return result.scalars().first()
 
-    async def obtener_municipio_por_codigo(
-        self, codigo_iso: str
-    ) -> Municipio | None:
+    async def obtener_municipio_por_codigo(self, codigo_iso: str) -> Municipio | None:
         """Obtiene un municipio por código ISO"""
         query = select(Municipio).where(Municipio.codigo_iso == codigo_iso)
         result = await self.db.execute(query)
@@ -194,9 +168,7 @@ class GeografiaService:
         # Validar código único
         existente = await self.obtener_municipio_por_codigo(data["codigo_iso"])
         if existente is not None:
-            raise ValueError(
-                f"Ya existe un municipio con código '{data['codigo_iso']}'"
-            )
+            raise ValueError(f"Ya existe un municipio con código '{data['codigo_iso']}'")
 
         municipio = Municipio(**data)
         self.db.add(municipio)
@@ -204,9 +176,7 @@ class GeografiaService:
         await self.db.refresh(municipio)
         return municipio
 
-    async def actualizar_municipio(
-        self, municipio_id: UUID, data: dict
-    ) -> Municipio | None:
+    async def actualizar_municipio(self, municipio_id: UUID, data: dict) -> Municipio | None:
         """Actualiza un municipio"""
         municipio = await self.obtener_municipio_por_id(municipio_id)
         if municipio is None:
@@ -327,7 +297,7 @@ class GeografiaService:
     ) -> dict:
         """
         Importa departamentos y municipios desde Excel (2 hojas).
-        
+
         Returns:
             Dict con estadísticas de importación
         """

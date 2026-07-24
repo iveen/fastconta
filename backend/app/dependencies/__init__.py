@@ -7,10 +7,4 @@ from app.core.security import (
     require_write_access,
 )
 
-__all__ = [
-    "DataScope",
-    "get_data_scope",
-    "require_role",
-    "require_write_access",
-    "get_current_user"
-]
+__all__ = ["DataScope", "get_data_scope", "require_role", "require_write_access", "get_current_user"]

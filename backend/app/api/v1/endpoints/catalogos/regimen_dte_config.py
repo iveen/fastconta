@@ -1,4 +1,5 @@
 """Router para Configuración Régimen-DTE"""
+
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status

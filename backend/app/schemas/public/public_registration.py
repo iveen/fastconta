@@ -1,4 +1,5 @@
 """Schemas para registro público de tenants"""
+
 from datetime import datetime
 from uuid import UUID
 
@@ -9,6 +10,7 @@ from app.services.facturas.validacion_service import validar_nit_guatemala
 
 class TenantRequestCreate(BaseModel):
     """Schema para solicitar registro de un nuevo tenant"""
+
     company_name: str = Field(..., min_length=2, max_length=255)
     nit: str = Field(..., min_length=7, max_length=15)
     contact_name: str = Field(..., min_length=2, max_length=255)
@@ -18,15 +20,17 @@ class TenantRequestCreate(BaseModel):
     estimated_clients_count: int | None = Field(None, ge=1, le=1000)
     notes: str | None = Field(None, max_length=1000)
 
-    @field_validator('nit')
+    @field_validator("nit")
     @classmethod
     def validate_nit(cls, v: str) -> str:
         if not validar_nit_guatemala(v):
-            raise ValueError('NIT inválido')
+            raise ValueError("NIT inválido")
         return v.replace(" ", "").replace("-", "").upper()
+
 
 class TenantRequestResponse(BaseModel):
     """Respuesta después de crear una solicitud"""
+
     id: int
     public_id: UUID
     company_name: str
@@ -39,8 +43,10 @@ class TenantRequestResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+
 class TenantRequestListResponse(BaseModel):
     """Respuesta para listar solicitudes (SuperAdmin)"""
+
     id: int
     public_id: UUID
     company_name: str
@@ -58,8 +64,10 @@ class TenantRequestListResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+
 class TenantApprovalPayload(BaseModel):
     """Payload para aprobar una solicitud"""
+
     admin_email: EmailStr
     admin_password: str | None = None
     admin_full_name: str = Field(..., min_length=2, max_length=255)
@@ -68,6 +76,8 @@ class TenantApprovalPayload(BaseModel):
     trial_days: int | None = Field(None, ge=1, le=365)
     trial_max_usuarios: int | None = Field(None, ge=1, le=1000)
 
+
 class TenantRejectionPayload(BaseModel):
     """Payload para rechazar una solicitud"""
+
     reason: str = Field(..., min_length=5, max_length=500)

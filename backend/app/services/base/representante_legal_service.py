@@ -1,7 +1,9 @@
 """Servicio para gestión de Representantes Legales"""
-from app.models.tenant_models import RepresentanteLegal
+
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.tenant_models import RepresentanteLegal
 
 
 class RepresentanteLegalService:
@@ -12,12 +14,12 @@ class RepresentanteLegalService:
     # QUERIES
     # ============================================================
     async def obtener_representantes_por_empresa(
-        self, empresa_id: int, solo_activos: bool = True  # ✅ BIGINT
+        self,
+        empresa_id: int,
+        solo_activos: bool = True,  # ✅ BIGINT
     ) -> list[RepresentanteLegal]:
         """Obtiene todos los representantes legales de una empresa"""
-        query = select(RepresentanteLegal).where(
-            RepresentanteLegal.empresa_id == empresa_id
-        )
+        query = select(RepresentanteLegal).where(RepresentanteLegal.empresa_id == empresa_id)
         if solo_activos:
             # ✅ CORREGIDO: is_active (del mixin SoftDelete) en lugar de es_activo
             query = query.where(RepresentanteLegal.is_active.is_(True))
@@ -26,7 +28,9 @@ class RepresentanteLegalService:
         return list(result.scalars().all())
 
     async def obtener_representante_por_id(
-        self, representante_id: int, empresa_id: int  # ✅ BIGINT
+        self,
+        representante_id: int,
+        empresa_id: int,  # ✅ BIGINT
     ) -> RepresentanteLegal | None:
         """Obtiene un representante legal específico"""
         query = select(RepresentanteLegal).where(
@@ -77,7 +81,10 @@ class RepresentanteLegalService:
         return representante
 
     async def actualizar_representante(
-        self, representante_id: int, empresa_id: int, data: dict  # ✅ BIGINT
+        self,
+        representante_id: int,
+        empresa_id: int,
+        data: dict,  # ✅ BIGINT
     ) -> RepresentanteLegal | None:
         """Actualiza un representante legal existente"""
         representante = await self.obtener_representante_por_id(representante_id, empresa_id)
@@ -91,7 +98,9 @@ class RepresentanteLegalService:
         return representante
 
     async def eliminar_representante(
-        self, representante_id: int, empresa_id: int  # ✅ BIGINT
+        self,
+        representante_id: int,
+        empresa_id: int,  # ✅ BIGINT
     ) -> bool:
         """Elimina un representante legal (soft delete: is_active = False)"""
         representante = await self.obtener_representante_por_id(representante_id, empresa_id)

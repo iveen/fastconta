@@ -1,6 +1,10 @@
 from decimal import Decimal
 from typing import Literal
 
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload, selectinload
+
 from app.core.export.builder import ReportBuilder
 from app.core.export.excel_exporter import ExcelExporter
 from app.core.export.models import (
@@ -12,9 +16,6 @@ from app.core.export.models import (
 )
 from app.core.export.pdf_exporter import PdfExporter
 from app.models.tenant_models import InventarioItem, InventarioToma
-from sqlalchemy import and_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload
 
 
 class ExportService:
@@ -39,11 +40,10 @@ class ExportService:
         stmt = (
             select(InventarioToma)
             .options(
+                selectinload(InventarioToma.items).joinedload(InventarioItem.bodega),
                 selectinload(InventarioToma.items)
-                    .joinedload(InventarioItem.bodega),
-                selectinload(InventarioToma.items)
-                    .joinedload(InventarioItem.producto)
-                    .joinedload(InventarioItem.producto.cuenta_inventario),
+                .joinedload(InventarioItem.producto)
+                .joinedload(InventarioItem.producto.cuenta_inventario),
                 joinedload(InventarioToma.empresa),
             )
             .where(
@@ -86,20 +86,29 @@ class ExportService:
 
         # === DEFINIR COLUMNAS ===
         columnas_detalle = [
-            Column(header="Código", key="codigo", width=15,
-                   alignment=ColumnAlignment.LEFT, type=ColumnType.TEXT),
-            Column(header="Descripción", key="descripcion", width=40,
-                   alignment=ColumnAlignment.LEFT, type=ColumnType.TEXT),
-            Column(header="Bodega", key="bodega", width=15,
-                   alignment=ColumnAlignment.LEFT, type=ColumnType.TEXT),
-            Column(header="UM", key="unidad", width=8,
-                   alignment=ColumnAlignment.CENTER, type=ColumnType.TEXT),
-            Column(header="Cantidad", key="cantidad", width=12,
-                   alignment=ColumnAlignment.RIGHT, type=ColumnType.NUMBER),
-            Column(header="Costo Unit.", key="costo_unitario", width=15,
-                   alignment=ColumnAlignment.RIGHT, type=ColumnType.CURRENCY),
-            Column(header="Costo Total", key="costo_total", width=15,
-                   alignment=ColumnAlignment.RIGHT, type=ColumnType.CURRENCY),
+            Column(header="Código", key="codigo", width=15, alignment=ColumnAlignment.LEFT, type=ColumnType.TEXT),
+            Column(
+                header="Descripción", key="descripcion", width=40, alignment=ColumnAlignment.LEFT, type=ColumnType.TEXT
+            ),
+            Column(header="Bodega", key="bodega", width=15, alignment=ColumnAlignment.LEFT, type=ColumnType.TEXT),
+            Column(header="UM", key="unidad", width=8, alignment=ColumnAlignment.CENTER, type=ColumnType.TEXT),
+            Column(
+                header="Cantidad", key="cantidad", width=12, alignment=ColumnAlignment.RIGHT, type=ColumnType.NUMBER
+            ),
+            Column(
+                header="Costo Unit.",
+                key="costo_unitario",
+                width=15,
+                alignment=ColumnAlignment.RIGHT,
+                type=ColumnType.CURRENCY,
+            ),
+            Column(
+                header="Costo Total",
+                key="costo_total",
+                width=15,
+                alignment=ColumnAlignment.RIGHT,
+                type=ColumnType.CURRENCY,
+            ),
         ]
 
         # === CONSTRUIR REPORTE ===
@@ -125,38 +134,48 @@ class ExportService:
         )
 
         for item in items_ordenados:
-            bodega_nombre = (
-                item.bodega_codigo or (item.bodega.nombre if item.bodega else "Sin Bodega")
-            )
+            bodega_nombre = item.bodega_codigo or (item.bodega.nombre if item.bodega else "Sin Bodega")
 
             if bodega_actual and bodega_actual != bodega_nombre:
-                rows_detalle.append(Row(
-                    data={
-                        "codigo": "", "descripcion": "", "bodega": "",
-                        "unidad": "", "cantidad": "",
-                        "costo_unitario": "", "costo_total": "",
-                    },
-                    bold=True,
-                    background_color="#E0E0E0",
-                ))
+                rows_detalle.append(
+                    Row(
+                        data={
+                            "codigo": "",
+                            "descripcion": "",
+                            "bodega": "",
+                            "unidad": "",
+                            "cantidad": "",
+                            "costo_unitario": "",
+                            "costo_total": "",
+                        },
+                        bold=True,
+                        background_color="#E0E0E0",
+                    )
+                )
 
             bodega_actual = bodega_nombre
 
-            rows_detalle.append(Row(
-                data={
-                    "codigo": item.codigo or "",
-                    "descripcion": item.descripcion,
-                    "bodega": bodega_nombre,
-                    "unidad": item.unidad_medida or "UND",
-                    "cantidad": item.cantidad,
-                    "costo_unitario": item.costo_unitario,
-                    "costo_total": item.costo_total,
-                },
-            ))
+            rows_detalle.append(
+                Row(
+                    data={
+                        "codigo": item.codigo or "",
+                        "descripcion": item.descripcion,
+                        "bodega": bodega_nombre,
+                        "unidad": item.unidad_medida or "UND",
+                        "cantidad": item.cantidad,
+                        "costo_unitario": item.costo_unitario,
+                        "costo_total": item.costo_total,
+                    },
+                )
+            )
 
         totales_detalle = {
-            "codigo": "", "descripcion": "", "bodega": "",
-            "unidad": "", "cantidad": "", "costo_unitario": "",
+            "codigo": "",
+            "descripcion": "",
+            "bodega": "",
+            "unidad": "",
+            "cantidad": "",
+            "costo_unitario": "",
             "costo_total": toma.valor_total,
         }
 
@@ -170,9 +189,7 @@ class ExportService:
         # === SECCIÓN 2: RESUMEN POR BODEGA ===
         resumen_bodegas: dict[str, dict] = {}
         for item in toma.items:
-            bodega_nombre = (
-                item.bodega_codigo or (item.bodega.nombre if item.bodega else "Sin Bodega")
-            )
+            bodega_nombre = item.bodega_codigo or (item.bodega.nombre if item.bodega else "Sin Bodega")
             if bodega_nombre not in resumen_bodegas:
                 resumen_bodegas[bodega_nombre] = {
                     "total_items": 0,
@@ -182,11 +199,13 @@ class ExportService:
             resumen_bodegas[bodega_nombre]["valor_total"] += item.costo_total
 
         rows_resumen = [
-            Row(data={
-                "bodega": bodega,
-                "total_items": data["total_items"],
-                "valor_total": data["valor_total"],
-            })
+            Row(
+                data={
+                    "bodega": bodega,
+                    "total_items": data["total_items"],
+                    "valor_total": data["valor_total"],
+                }
+            )
             for bodega, data in sorted(
                 resumen_bodegas.items(),
                 key=lambda x: x[1]["valor_total"],
@@ -225,23 +244,33 @@ class ExportService:
 
         if resumen_cuentas:
             _columnas_cuentas = [
-                Column(header="Código", key="codigo", width=15,
-                       alignment=ColumnAlignment.LEFT, type=ColumnType.TEXT),
-                Column(header="Cuenta", key="nombre", width=40,
-                       alignment=ColumnAlignment.LEFT, type=ColumnType.TEXT),
-                Column(header="Total Items", key="total_items", width=15,
-                       alignment=ColumnAlignment.RIGHT, type=ColumnType.NUMBER),
-                Column(header="Valor Total", key="valor_total", width=20,
-                       alignment=ColumnAlignment.RIGHT, type=ColumnType.CURRENCY),
+                Column(header="Código", key="codigo", width=15, alignment=ColumnAlignment.LEFT, type=ColumnType.TEXT),
+                Column(header="Cuenta", key="nombre", width=40, alignment=ColumnAlignment.LEFT, type=ColumnType.TEXT),
+                Column(
+                    header="Total Items",
+                    key="total_items",
+                    width=15,
+                    alignment=ColumnAlignment.RIGHT,
+                    type=ColumnType.NUMBER,
+                ),
+                Column(
+                    header="Valor Total",
+                    key="valor_total",
+                    width=20,
+                    alignment=ColumnAlignment.RIGHT,
+                    type=ColumnType.CURRENCY,
+                ),
             ]
 
             rows_cuentas = [
-                Row(data={
-                    "codigo": data["codigo"],
-                    "nombre": data["nombre"],
-                    "total_items": data["total_items"],
-                    "valor_total": data["valor_total"],
-                })
+                Row(
+                    data={
+                        "codigo": data["codigo"],
+                        "nombre": data["nombre"],
+                        "total_items": data["total_items"],
+                        "valor_total": data["valor_total"],
+                    }
+                )
                 for key, data in sorted(
                     resumen_cuentas.items(),
                     key=lambda x: x[1]["codigo"],
@@ -263,11 +292,7 @@ class ExportService:
             )
 
         # === METADATA ADICIONAL ===
-        metadata_text = (
-            f"Tipo: {toma.tipo} | "
-            f"Método: {toma.metodo_valuacion} | "
-            f"Estado: {toma.estado}"
-        )
+        metadata_text = f"Tipo: {toma.tipo} | Método: {toma.metodo_valuacion} | Estado: {toma.estado}"
         if toma.observaciones:
             metadata_text += f" | Observaciones: {toma.observaciones}"
 

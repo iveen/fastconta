@@ -1,4 +1,5 @@
 """Handler ABC para lectura de archivos. No sabe de dominio."""
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
@@ -9,6 +10,7 @@ from fastapi import UploadFile
 @dataclass
 class FileContent:
     """Contenedor universal del contenido leído."""
+
     raw_bytes: bytes
     filename: str
     mime_type: str
@@ -23,8 +25,7 @@ class FileHandler(ABC):
     SUPPORTED_MIMES: tuple[str, ...] = ()
 
     @abstractmethod
-    async def read(self, upload_file: UploadFile) -> FileContent:
-        ...
+    async def read(self, upload_file: UploadFile) -> FileContent: ...
 
     @classmethod
     def supports(cls, filename: str, mime_type: str | None = None) -> bool:

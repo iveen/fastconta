@@ -19,8 +19,10 @@ router = APIRouter()
 # DEPENDENCIA: Sesión configurada para el schema del tenant
 # ============================================================
 async def get_tenant_db_for_cierre(
-    tenant_id_query: int | None = Query(None, alias="tenant_id", description="ID del tenant (requerido para superadmin)"),
-    scope: DataScope = Depends(get_data_scope)
+    tenant_id_query: int | None = Query(
+        None, alias="tenant_id", description="ID del tenant (requerido para superadmin)"
+    ),
+    scope: DataScope = Depends(get_data_scope),
 ) -> AsyncGenerator[AsyncSession, None]:
     """Crea una sesión y establece el search_path al esquema del tenant."""
     if scope.role_code == "superadmin":
@@ -34,7 +36,7 @@ async def get_tenant_db_for_cierre(
     try:
         res = await session.execute(
             text("SELECT schema_name FROM public.tenants WHERE id = :tid"),
-            {"tid": target_tenant_id}  # ✅ int (no str)
+            {"tid": target_tenant_id},  # ✅ int (no str)
         )
         row = res.first()
         if not row:
@@ -46,7 +48,7 @@ async def get_tenant_db_for_cierre(
         session.info["current_user"] = {
             "schema": schema_name,
             "tenant_id": target_tenant_id,
-            "role_code": scope.role_code
+            "role_code": scope.role_code,
         }
         yield session
     except Exception:
@@ -65,27 +67,21 @@ async def cierre_anual(
     periodo_id: int = Query(..., description="ID del período fiscal a cerrar"),  # ✅ BIGINT
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_tenant_db_for_cierre),
-    empresa_from_header: Empresa | None = Depends(get_active_empresa)
+    empresa_from_header: Empresa | None = Depends(get_active_empresa),
 ):
     try:
         empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
         if not empresa_id_final:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No se pudo determinar la empresa para el cierre."
+                status_code=status.HTTP_400_BAD_REQUEST, detail="No se pudo determinar la empresa para el cierre."
             )
-        resultado = await ejecutar_cierre_anual(
-            db=db,
-            empresa_id=empresa_id_final,
-            periodo_id=periodo_id
-        )
+        resultado = await ejecutar_cierre_anual(db=db, empresa_id=empresa_id_final, periodo_id=periodo_id)
         return resultado
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error interno al ejecutar el cierre: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error interno al ejecutar el cierre: {str(e)}"
         )
 
 
@@ -98,30 +94,24 @@ async def revertir_cierre(
     periodo_id: int = Query(..., description="ID del período fiscal a revertir"),  # ✅ BIGINT
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_tenant_db_for_cierre),
-    empresa_from_header: Empresa | None = Depends(get_active_empresa)
+    empresa_from_header: Empresa | None = Depends(get_active_empresa),
 ):
     if scope.role_code not in ["superadmin", "tenant_manager"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acceso denegado: Se requiere rol de Administrador de Tenant o Superadmin."
+            detail="Acceso denegado: Se requiere rol de Administrador de Tenant o Superadmin.",
         )
     try:
         empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
         if not empresa_id_final:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No se pudo determinar la empresa para el cierre."
+                status_code=status.HTTP_400_BAD_REQUEST, detail="No se pudo determinar la empresa para el cierre."
             )
-        resultado = await revertir_cierre_anual(
-            db=db,
-            empresa_id=empresa_id_final,
-            periodo_id=periodo_id
-        )
+        resultado = await revertir_cierre_anual(db=db, empresa_id=empresa_id_final, periodo_id=periodo_id)
         return resultado
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error interno al revertir el cierre: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error interno al revertir el cierre: {str(e)}"
         )

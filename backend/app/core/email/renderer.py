@@ -5,6 +5,7 @@ Responsabilidades:
 - Inyectar CSS compartido automáticamente
 - Renderizar con contexto de variables
 """
+
 import logging
 from pathlib import Path
 from typing import Any
@@ -24,14 +25,12 @@ class EmailRenderer:
         self.templates_dir = Path(__file__).parent / "templates"
 
         if not self.templates_dir.exists():
-            raise FileNotFoundError(
-                f"Directorio de templates no encontrado: {self.templates_dir}"
-            )
+            raise FileNotFoundError(f"Directorio de templates no encontrado: {self.templates_dir}")
 
         # Configurar Jinja2
         self.env = Environment(
             loader=FileSystemLoader(str(self.templates_dir)),
-            autoescape=select_autoescape(['html', 'xml']),
+            autoescape=select_autoescape(["html", "xml"]),
         )
 
         # ✅ Cargar CSS compartido
@@ -46,7 +45,7 @@ class EmailRenderer:
         css_path = self.templates_dir / "styles.css"
 
         if css_path.exists():
-            with open(css_path, 'r', encoding='utf-8') as f:
+            with open(css_path, "r", encoding="utf-8") as f:
                 self.shared_css = f.read()
             logger.debug(f"✅ CSS compartido cargado: {len(self.shared_css)} bytes")
         else:
@@ -67,9 +66,9 @@ class EmailRenderer:
             # ✅ Construir contexto con variables globales + CSS
             full_context = {
                 **(context or {}),
-                'app_url': email_config.app_url,
-                'from_name': email_config.from_name,
-                'shared_css': self.shared_css,  # ✅ CSS inyectado aquí
+                "app_url": email_config.app_url,
+                "from_name": email_config.from_name,
+                "shared_css": self.shared_css,  # ✅ CSS inyectado aquí
             }
 
             html = template.render(**full_context)

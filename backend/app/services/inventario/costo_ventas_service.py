@@ -1,13 +1,14 @@
 from datetime import date
 from decimal import Decimal
 
+from sqlalchemy import Date, and_, cast, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.tenant_models import (
     FacturaElectronica,
     InventarioItem,
     InventarioToma,
 )
-from sqlalchemy import Date, and_, cast, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class CostoVentasService:
@@ -39,48 +40,47 @@ class CostoVentasService:
             raise ValueError("Toma no encontrada")
 
         # === Inventario Final ===
-        stmt_final = select(
-            func.coalesce(func.sum(InventarioItem.costo_total), 0)
-        ).where(InventarioItem.toma_id == toma_id)
-        inv_final = (await self.db.execute(stmt_final)).scalar() or Decimal("0")
+        stmt_final = select(func.coalesce(func.sum(InventarioItem.costo_total), 0)).where(
+            InventarioItem.toma_id == toma_id
+        )
+        inv_final = (await self.db.execute(stmt_final)).scalar() or Decimal(0)
 
         # === Inventario Inicial (toma anterior CONFIRMADA/CONTABILIZADA) ===
-        stmt_anterior = select(InventarioToma).where(
-            and_(
-                InventarioToma.tenant_id == tenant_id,
-                InventarioToma.empresa_id == toma_actual.empresa_id,
-                (
-                    (InventarioToma.anio_periodo < toma_actual.anio_periodo) |
+        stmt_anterior = (
+            select(InventarioToma)
+            .where(
+                and_(
+                    InventarioToma.tenant_id == tenant_id,
+                    InventarioToma.empresa_id == toma_actual.empresa_id,
                     (
-                        (InventarioToma.anio_periodo == toma_actual.anio_periodo) &
-                        (InventarioToma.mes_periodo < toma_actual.mes_periodo)
-                    )
-                ),
-                InventarioToma.estado.in_(["CONFIRMADO", "CONTABILIZADO"]),
+                        (InventarioToma.anio_periodo < toma_actual.anio_periodo)
+                        | (
+                            (InventarioToma.anio_periodo == toma_actual.anio_periodo)
+                            & (InventarioToma.mes_periodo < toma_actual.mes_periodo)
+                        )
+                    ),
+                    InventarioToma.estado.in_(["CONFIRMADO", "CONTABILIZADO"]),
+                )
             )
-        ).order_by(
-            InventarioToma.anio_periodo.desc(),
-            InventarioToma.mes_periodo.desc(),
+            .order_by(
+                InventarioToma.anio_periodo.desc(),
+                InventarioToma.mes_periodo.desc(),
+            )
         )
         result_anterior = await self.db.execute(stmt_anterior)
         toma_anterior = result_anterior.scalar_one_or_none()
 
-        inv_inicial = Decimal("0")
+        inv_inicial = Decimal(0)
         if toma_anterior:
-            stmt_inv_inicial = select(
-                func.coalesce(func.sum(InventarioItem.costo_total), 0)
-            ).where(InventarioItem.toma_id == toma_anterior.id)
-            inv_inicial = (await self.db.execute(stmt_inv_inicial)).scalar() or Decimal("0")
+            stmt_inv_inicial = select(func.coalesce(func.sum(InventarioItem.costo_total), 0)).where(
+                InventarioItem.toma_id == toma_anterior.id
+            )
+            inv_inicial = (await self.db.execute(stmt_inv_inicial)).scalar() or Decimal(0)
 
         # === Compras del período ===
-        fecha_desde = (
-            toma_anterior.fecha_corte if toma_anterior
-            else date(toma_actual.anio_periodo, 1, 1)
-        )
+        fecha_desde = toma_anterior.fecha_corte if toma_anterior else date(toma_actual.anio_periodo, 1, 1)
 
-        stmt_compras = select(
-            func.coalesce(func.sum(FacturaElectronica.total_gtq), 0)
-        ).where(
+        stmt_compras = select(func.coalesce(func.sum(FacturaElectronica.total_gtq), 0)).where(
             and_(
                 FacturaElectronica.empresa_id == toma_actual.empresa_id,
                 FacturaElectronica.tipo_operacion == "Compra",
@@ -89,17 +89,14 @@ class CostoVentasService:
                 cast(FacturaElectronica.fecha_emision, Date) <= toma_actual.fecha_corte,
             )
         )
-        compras = (await self.db.execute(stmt_compras)).scalar() or Decimal("0")
+        compras = (await self.db.execute(stmt_compras)).scalar() or Decimal(0)
 
         costo_ventas = inv_inicial + compras - inv_final
 
         return {
             "toma_id": toma_id,
             "empresa_id": toma_actual.empresa_id,
-            "periodo_actual": (
-                f"{toma_actual.anio_periodo}-"
-                f"{str(toma_actual.mes_periodo).zfill(2)}"
-            ),
+            "periodo_actual": (f"{toma_actual.anio_periodo}-{str(toma_actual.mes_periodo).zfill(2)}"),
             "periodo_desde": toma_anterior.fecha_corte if toma_anterior else None,
             "periodo_hasta": toma_actual.fecha_corte,
             "inventario_inicial": inv_inicial,

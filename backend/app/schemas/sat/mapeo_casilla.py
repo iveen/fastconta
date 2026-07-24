@@ -76,6 +76,7 @@ class MapeoImportItem(BaseModel):
 
 class MapeoImportResult(BaseModel):
     """Resultado de importación"""
+
     creados: int = 0
     actualizados: int = 0
     omitidos: int = 0

@@ -1,5 +1,6 @@
 # app/api/v1/endpoints/sat/reglas_filtrado.py
 """Endpoint para gestión de Reglas de Filtrado y Exclusiones"""
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -205,9 +206,7 @@ async def actualizar_exclusion(
     service: ReglaFiltradoService = Depends(get_service),
 ):
     """Actualiza una exclusión"""
-    exclusion = await service.actualizar_exclusion(
-        exclusion_id, data.model_dump(exclude_unset=True)
-    )
+    exclusion = await service.actualizar_exclusion(exclusion_id, data.model_dump(exclude_unset=True))
     if exclusion is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

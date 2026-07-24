@@ -3,6 +3,7 @@ Script para poblar el catálogo de Tipos de Domicilio.
 Idempotente: seguro de ejecutar múltiples veces.
 Ejecutar: python -m app.scripts.seeds.seed_tipos_domicilio
 """
+
 import asyncio
 import os
 import sys
@@ -22,22 +23,20 @@ async def seed():
     print("=" * 70)
     print(" INICIANDO CARGA DE TIPOS DE DOMICILIO ")
     print("=" * 70)
-    
+
     async with AsyncSessionLocal() as db:
         try:
             print(f"\n🏠 Sembrando {len(TIPOS_DOMICILIO)} tipos de domicilio...")
-            
+
             creados = 0
             actualizados = 0
-            
+
             for tipo_data in TIPOS_DOMICILIO:
                 # Buscar si ya existe por nombre (campo unique)
-                stmt = select(TipoDomicilio).where(
-                    TipoDomicilio.nombre == tipo_data["nombre"]
-                )
+                stmt = select(TipoDomicilio).where(TipoDomicilio.nombre == tipo_data["nombre"])
                 result = await db.execute(stmt)
                 existente = result.scalar_one_or_none()
-                
+
                 if existente:
                     # Actualizar si ya existe
                     for key, value in tipo_data.items():
@@ -50,17 +49,17 @@ async def seed():
                     db.add(nuevo)
                     creados += 1
                     print(f"  ➕ Creado: {tipo_data['nombre']}")
-            
+
             # Commit final
             await db.commit()
-            
+
             print("\n" + "=" * 70)
             print("✅ CARGA DE TIPOS DE DOMICILIO COMPLETADA EXITOSAMENTE")
             print("=" * 70)
             print(f"  📊 Total procesados: {len(TIPOS_DOMICILIO)}")
             print(f"  ➕ Creados: {creados}")
             print(f"   Actualizados: {actualizados}")
-            
+
         except Exception as e:
             await db.rollback()
             print(f"\n❌ Error durante el seed: {e}")

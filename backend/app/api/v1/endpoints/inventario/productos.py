@@ -31,16 +31,12 @@ async def crear_producto(
     db: AsyncSession = Depends(get_tenant_db),
     scope: DataScope = Depends(get_data_scope),
 ):
-    empresa = await resolve_public_id(
-        db, Empresa, empresa_public_id, scope.tenant_id, "Empresa no encontrada"
-    )
+    empresa = await resolve_public_id(db, Empresa, empresa_public_id, scope.tenant_id, "Empresa no encontrada")
 
     # Validar unicidad de código si se proporciona
     if data.codigo:
         svc = ProductoService(db)
-        existente = await svc.obtener_por_codigo(
-            scope.tenant_id, empresa.id, data.codigo
-        )
+        existente = await svc.obtener_por_codigo(scope.tenant_id, empresa.id, data.codigo)
         if existente:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -67,9 +63,7 @@ async def listar_productos(
     db: AsyncSession = Depends(get_tenant_db),
     scope: DataScope = Depends(get_data_scope),
 ):
-    empresa = await resolve_public_id(
-        db, Empresa, empresa_public_id, scope.tenant_id, "Empresa no encontrada"
-    )
+    empresa = await resolve_public_id(db, Empresa, empresa_public_id, scope.tenant_id, "Empresa no encontrada")
     svc = ProductoService(db)
     productos = await svc.listar(scope.tenant_id, empresa.id, search)
     for p in productos:
@@ -87,9 +81,7 @@ async def obtener_producto(
     db: AsyncSession = Depends(get_tenant_db),
     scope: DataScope = Depends(get_data_scope),
 ):
-    producto = await resolve_public_id(
-        db, InventarioProducto, public_id, scope.tenant_id, "Producto no encontrado"
-    )
+    producto = await resolve_public_id(db, InventarioProducto, public_id, scope.tenant_id, "Producto no encontrado")
     return producto_a_response(producto)
 
 
@@ -104,16 +96,12 @@ async def actualizar_producto(
     db: AsyncSession = Depends(get_tenant_db),
     scope: DataScope = Depends(get_data_scope),
 ):
-    producto = await resolve_public_id(
-        db, InventarioProducto, public_id, scope.tenant_id, "Producto no encontrado"
-    )
+    producto = await resolve_public_id(db, InventarioProducto, public_id, scope.tenant_id, "Producto no encontrado")
 
     # Validar unicidad de código si cambia
     if data.codigo and data.codigo != producto.codigo:
         svc = ProductoService(db)
-        existente = await svc.obtener_por_codigo(
-            scope.tenant_id, producto.empresa_id, data.codigo
-        )
+        existente = await svc.obtener_por_codigo(scope.tenant_id, producto.empresa_id, data.codigo)
         if existente:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -137,8 +125,6 @@ async def eliminar_producto(
     db: AsyncSession = Depends(get_tenant_db),
     scope: DataScope = Depends(get_data_scope),
 ):
-    producto = await resolve_public_id(
-        db, InventarioProducto, public_id, scope.tenant_id, "Producto no encontrado"
-    )
+    producto = await resolve_public_id(db, InventarioProducto, public_id, scope.tenant_id, "Producto no encontrado")
     svc = ProductoService(db)
     await svc.eliminar(producto, scope.user.id)

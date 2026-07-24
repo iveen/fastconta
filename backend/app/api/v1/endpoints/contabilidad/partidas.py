@@ -29,9 +29,9 @@ def get_service(db: AsyncSession = Depends(get_tenant_db)) -> PartidaService:
 # Helper: Configurar search_path según rol
 # ============================================================
 async def _set_schema_for_query(
-    db: AsyncSession, 
-    scope: DataScope, 
-    tenant_id: int | None = None  # ✅ int (era str)
+    db: AsyncSession,
+    scope: DataScope,
+    tenant_id: int | None = None,  # ✅ int (era str)
 ) -> str:
     """Configura el search_path correcto según el rol del usuario y retorna el schema_name."""
     if scope.role_code == "superadmin":
@@ -39,22 +39,22 @@ async def _set_schema_for_query(
             raise HTTPException(400, detail="Superadmin debe especificar un tenant_id")
         res = await db.execute(
             text("SELECT schema_name FROM public.tenants WHERE id = :tid"),
-            {"tid": tenant_id}  # ✅ int (no str)
+            {"tid": tenant_id},  # ✅ int (no str)
         )
     else:
         res = await db.execute(
             text("SELECT schema_name FROM public.tenants WHERE id = :tid"),
-            {"tid": scope.tenant_id}  # ✅ int (no str)
+            {"tid": scope.tenant_id},  # ✅ int (no str)
         )
-    
+
     row = res.first()
     if not row:
         raise HTTPException(404, detail="Tenant no encontrado")
-    
+
     schema_name = row[0]
     if not schema_name.replace("_", "").isalnum():
         raise HTTPException(500, detail="Schema con formato inválido")
-    
+
     await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
     return schema_name
 
@@ -63,20 +63,17 @@ async def _set_schema_for_query(
 # 1. Crear partida
 # ============================================================
 @router.post("/", response_model=PartidaOut, status_code=status.HTTP_201_CREATED)
-async def crear_partida(
-    payload: PartidaCreate,
-    service: PartidaService = Depends(get_service)
-):
+async def crear_partida(payload: PartidaCreate, service: PartidaService = Depends(get_service)):
     try:
         detalles = [d.model_dump() for d in payload.detalles]
         schema_name = service.db.info.get("current_user", {}).get("schema")
-        
+
         return await service.crear_partida(
             fecha=payload.fecha,
             descripcion=payload.descripcion,
             detalles=detalles,
             numero_poliza=payload.numero_poliza,
-            schema_name=schema_name
+            schema_name=schema_name,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -88,11 +85,7 @@ async def crear_partida(
 # 2. Modificar partida
 # ============================================================
 @router.put("/{partida_id}", response_model=PartidaOut)
-async def modificar_partida(
-    partida_id: int,
-    payload: PartidaCreate,
-    service: PartidaService = Depends(get_service)
-):
+async def modificar_partida(partida_id: int, payload: PartidaCreate, service: PartidaService = Depends(get_service)):
     try:
         detalles = [d.model_dump() for d in payload.detalles]
         return await service.modificar_partida(
@@ -100,7 +93,7 @@ async def modificar_partida(
             fecha=payload.fecha,
             descripcion=payload.descripcion,
             detalles=detalles,
-            numero_poliza=payload.numero_poliza
+            numero_poliza=payload.numero_poliza,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -112,10 +105,7 @@ async def modificar_partida(
 # 3. Eliminar partida
 # ============================================================
 @router.delete("/{partida_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def eliminar_partida(
-    partida_id: int,
-    service: PartidaService = Depends(get_service)
-):
+async def eliminar_partida(partida_id: int, service: PartidaService = Depends(get_service)):
     try:
         await service.eliminar_partida(partida_id)
     except ValueError as e:
@@ -133,14 +123,14 @@ async def listar_partidas(
     tenant_id: int | None = Query(None),
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_public_db),
-    empresa_from_header: Empresa | None = Depends(get_active_empresa)
+    empresa_from_header: Empresa | None = Depends(get_active_empresa),
 ):
     # Configurar search_path (lógica existente)
     # ...
-    
+
     service = PartidaService(db)
     partidas = await service.listar_partidas(empresa_id)
-    
+
     return [
         PartidaOut(
             id=p.id,
@@ -159,10 +149,12 @@ async def listar_partidas(
                     cuenta_codigo=d.cuenta.codigo,
                     cuenta_nombre=d.cuenta.nombre,
                     tipo_movimiento=d.tipo_movimiento,
-                    monto=d.monto
-                ) for d in p.detalles
-            ]
-        ) for p in partidas
+                    monto=d.monto,
+                )
+                for d in p.detalles
+            ],
+        )
+        for p in partidas
     ]
 
 
@@ -171,10 +163,7 @@ async def listar_partidas(
 # ============================================================
 @router.get("/libro-diario", response_model=list[LineaLibroDiario])
 async def libro_diario(
-    empresa_id: int,
-    fecha_inicio: date,
-    fecha_fin: date,
-    service: PartidaService = Depends(get_service)
+    empresa_id: int, fecha_inicio: date, fecha_fin: date, service: PartidaService = Depends(get_service)
 ):
     try:
         lineas = await service.obtener_libro_diario(empresa_id, fecha_inicio, fecha_fin)
@@ -192,18 +181,16 @@ async def revertir_partida(
     payload: ReversionPayload,
     tenant_id: int | None = Query(None),  # ✅ BIGINT (era str)
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
 ):
     # 1. ✅ Configurar search_path y obtener schema_name (Esto faltaba)
     schema_name = await _set_schema_for_query(db, scope, tenant_id)
-    
+
     # 2. Ejecutar lógica del servicio
     service = PartidaService(db)
     try:
         return await service.revertir_partida(
-            partida_id=partida_id,
-            fecha_reversion=payload.fecha_reversion,
-            schema_name=schema_name
+            partida_id=partida_id, fecha_reversion=payload.fecha_reversion, schema_name=schema_name
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

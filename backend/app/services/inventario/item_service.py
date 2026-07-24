@@ -6,7 +6,11 @@ Responsabilidades:
 - Resolver producto/bodega por public_id o código
 - Recalcular totales de la toma (total_items, valor_total)
 """
+
 from decimal import Decimal
+
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.tenant_models import (
     InventarioBodega,
@@ -15,8 +19,6 @@ from app.models.tenant_models import (
     InventarioToma,
 )
 from app.schemas.inventario.item import ItemCreate, ItemUpdate
-from sqlalchemy import and_, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class ItemService:
@@ -49,12 +51,8 @@ class ItemService:
             data.bodega_codigo,
         )
 
-        costo_total = (data.cantidad * data.costo_unitario).quantize(
-            Decimal("0.01")
-        )
-        item_data = data.model_dump(
-            exclude={"producto_public_id", "bodega_public_id"}
-        )
+        costo_total = (data.cantidad * data.costo_unitario).quantize(Decimal("0.01"))
+        item_data = data.model_dump(exclude={"producto_public_id", "bodega_public_id"})
 
         item = InventarioItem(
             toma_id=toma.id,
@@ -88,9 +86,7 @@ class ItemService:
         for key, value in data.model_dump(exclude_unset=True).items():
             setattr(item, key, value)
 
-        item.costo_total = (item.cantidad * item.costo_unitario).quantize(
-            Decimal("0.01")
-        )
+        item.costo_total = (item.cantidad * item.costo_unitario).quantize(Decimal("0.01"))
         item.updated_by = usuario_id
         await self.recalcular_totales(item.toma)
         await self.db.commit()
@@ -126,12 +122,10 @@ class ItemService:
         toma.total_items = row[0] or 0
         toma.valor_total = row[1] or Decimal("0.00")
 
-    async def recalcular_totales_por_toma_id(
-        self, db: AsyncSession, toma_id: int
-    ) -> None:
+    async def recalcular_totales_por_toma_id(self, db: AsyncSession, toma_id: int) -> None:
         """
         Recalcula totales de una toma usando solo el ID.
-        
+
         ✅ Útil para background tasks donde no tenemos la instancia de Toma.
         """
         stmt = select(

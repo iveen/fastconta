@@ -1,8 +1,9 @@
 """Service para Estados de Libro SAT"""
 
-from app.models.global_models import EstadoLibro
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.global_models import EstadoLibro
 
 
 class EstadoLibroService:
@@ -37,9 +38,7 @@ class EstadoLibroService:
 
     async def obtener_todos_activos(self) -> list[EstadoLibro]:
         """Lista todos los estados de libro activos"""
-        query = select(EstadoLibro).where(
-            EstadoLibro.is_active.is_(True)
-        ).order_by(EstadoLibro.nombre)
+        query = select(EstadoLibro).where(EstadoLibro.is_active.is_(True)).order_by(EstadoLibro.nombre)
         result = await self.db.execute(query)
         return result.scalars().all()
 

@@ -47,7 +47,6 @@ MUNICIPIOS = [
     {"codigo_iso": "0115", "nombre": "Villa Nueva", "departamento_codigo": "01"},
     {"codigo_iso": "0116", "nombre": "Villa Canales", "departamento_codigo": "01"},
     {"codigo_iso": "0117", "nombre": "Petapa", "departamento_codigo": "01"},
-    
     # El Progreso (02)
     {"codigo_iso": "0201", "nombre": "Guastatoya", "departamento_codigo": "02"},
     {"codigo_iso": "0202", "nombre": "Morazán", "departamento_codigo": "02"},
@@ -57,7 +56,6 @@ MUNICIPIOS = [
     {"codigo_iso": "0206", "nombre": "Sansare", "departamento_codigo": "02"},
     {"codigo_iso": "0207", "nombre": "Sanarate", "departamento_codigo": "02"},
     {"codigo_iso": "0208", "nombre": "San Antonio la Paz", "departamento_codigo": "02"},
-    
     # Sacatepéquez (03)
     {"codigo_iso": "0301", "nombre": "Antigua Guatemala", "departamento_codigo": "03"},
     {"codigo_iso": "0302", "nombre": "Jocotenango", "departamento_codigo": "03"},
@@ -75,7 +73,6 @@ MUNICIPIOS = [
     {"codigo_iso": "0314", "nombre": "Alotenango", "departamento_codigo": "03"},
     {"codigo_iso": "0315", "nombre": "San Antonio Aguas Calientes", "departamento_codigo": "03"},
     {"codigo_iso": "0316", "nombre": "Santa Catarina Barahona", "departamento_codigo": "03"},
-    
     # Chimaltenango (04)
     {"codigo_iso": "0401", "nombre": "Chimaltenango", "departamento_codigo": "04"},
     {"codigo_iso": "0402", "nombre": "San José Poaquil", "departamento_codigo": "04"},
@@ -93,7 +90,6 @@ MUNICIPIOS = [
     {"codigo_iso": "0414", "nombre": "Parramos", "departamento_codigo": "04"},
     {"codigo_iso": "0415", "nombre": "Zaragoza", "departamento_codigo": "04"},
     {"codigo_iso": "0416", "nombre": "El Tejar", "departamento_codigo": "04"},
-    
     # Escuintla (05)
     {"codigo_iso": "0501", "nombre": "Escuintla", "departamento_codigo": "05"},
     {"codigo_iso": "0502", "nombre": "Santa Lucía Cotzumalguapa", "departamento_codigo": "05"},
@@ -108,7 +104,6 @@ MUNICIPIOS = [
     {"codigo_iso": "0511", "nombre": "Palín", "departamento_codigo": "05"},
     {"codigo_iso": "0512", "nombre": "San Vicente Pacaya", "departamento_codigo": "05"},
     {"codigo_iso": "0513", "nombre": "Nueva Concepción", "departamento_codigo": "05"},
-    
     # Santa Rosa (06)
     {"codigo_iso": "0601", "nombre": "Cuilapa", "departamento_codigo": "06"},
     {"codigo_iso": "0602", "nombre": "Barberena", "departamento_codigo": "06"},
@@ -124,7 +119,6 @@ MUNICIPIOS = [
     {"codigo_iso": "0612", "nombre": "Santa Cruz Naranjo", "departamento_codigo": "06"},
     {"codigo_iso": "0613", "nombre": "Pueblo Nuevo Viñas", "departamento_codigo": "06"},
     {"codigo_iso": "0614", "nombre": "Nueva Santa Rosa", "departamento_codigo": "06"},
-    
     # Sololá (07)
     {"codigo_iso": "0701", "nombre": "Sololá", "departamento_codigo": "07"},
     {"codigo_iso": "0702", "nombre": "San José Chacayá", "departamento_codigo": "07"},
@@ -145,7 +139,6 @@ MUNICIPIOS = [
     {"codigo_iso": "0717", "nombre": "San Juan la Laguna", "departamento_codigo": "07"},
     {"codigo_iso": "0718", "nombre": "San Pedro la Laguna", "departamento_codigo": "07"},
     {"codigo_iso": "0719", "nombre": "Santiago Atitlán", "departamento_codigo": "07"},
-    
     # Totonicapán (08)
     {"codigo_iso": "0801", "nombre": "Totonicapán", "departamento_codigo": "08"},
     {"codigo_iso": "0802", "nombre": "San Cristóbal Totonicapán", "departamento_codigo": "08"},
@@ -155,7 +148,6 @@ MUNICIPIOS = [
     {"codigo_iso": "0806", "nombre": "Santa María Chiquimula", "departamento_codigo": "08"},
     {"codigo_iso": "0807", "nombre": "Santa Lucía la Reforma", "departamento_codigo": "08"},
     {"codigo_iso": "0808", "nombre": "San Bartolo", "departamento_codigo": "08"},
-    
     # Quetzaltenango (09)
     {"codigo_iso": "0901", "nombre": "Quetzaltenango", "departamento_codigo": "09"},
     {"codigo_iso": "0902", "nombre": "Salcajá", "departamento_codigo": "09"},
@@ -181,7 +173,6 @@ MUNICIPIOS = [
     {"codigo_iso": "0922", "nombre": "Flores Costa Cuca", "departamento_codigo": "09"},
     {"codigo_iso": "0923", "nombre": "La Esperanza", "departamento_codigo": "09"},
     {"codigo_iso": "0924", "nombre": "Palestina de los Altos", "departamento_codigo": "09"},
-    
     # Suchitepéquez (10)
     {"codigo_iso": "1001", "nombre": "Mazatenango", "departamento_codigo": "10"},
     {"codigo_iso": "1002", "nombre": "Cuyotenango", "departamento_codigo": "10"},
@@ -204,7 +195,6 @@ MUNICIPIOS = [
     {"codigo_iso": "1019", "nombre": "Pueblo Nuevo", "departamento_codigo": "10"},
     {"codigo_iso": "1020", "nombre": "Río Bravo", "departamento_codigo": "10"},
     {"codigo_iso": "1021", "nombre": "San José La Máquina", "departamento_codigo": "10"},
-    
     # Retalhuleu (11)
     {"codigo_iso": "1101", "nombre": "Retalhuleu", "departamento_codigo": "11"},
     {"codigo_iso": "1102", "nombre": "San Sebastián", "departamento_codigo": "11"},
@@ -215,7 +205,6 @@ MUNICIPIOS = [
     {"codigo_iso": "1107", "nombre": "Champerico", "departamento_codigo": "11"},
     {"codigo_iso": "1108", "nombre": "Nuevo San Carlos", "departamento_codigo": "11"},
     {"codigo_iso": "1109", "nombre": "El Asintal", "departamento_codigo": "11"},
-    
     # San Marcos (12)
     {"codigo_iso": "1201", "nombre": "San Marcos", "departamento_codigo": "12"},
     {"codigo_iso": "1202", "nombre": "San Pedro Sacatepéquez", "departamento_codigo": "12"},
@@ -247,7 +236,6 @@ MUNICIPIOS = [
     {"codigo_iso": "1228", "nombre": "Río Blanco", "departamento_codigo": "12"},
     {"codigo_iso": "1229", "nombre": "San Lorenzo", "departamento_codigo": "12"},
     {"codigo_iso": "1230", "nombre": "La Blanca", "departamento_codigo": "12"},
-    
     # Huehuetenango (13)
     {"codigo_iso": "1301", "nombre": "Huehuetenango", "departamento_codigo": "13"},
     {"codigo_iso": "1302", "nombre": "Chiantla", "departamento_codigo": "13"},
@@ -281,7 +269,6 @@ MUNICIPIOS = [
     {"codigo_iso": "1330", "nombre": "Santiago Chimaltenango", "departamento_codigo": "13"},
     {"codigo_iso": "1331", "nombre": "Santa Ana Huista", "departamento_codigo": "13"},
     {"codigo_iso": "1332", "nombre": "Unión Cantinil", "departamento_codigo": "13"},
-    
     # Quiché (14)
     {"codigo_iso": "1401", "nombre": "Santa Cruz del Quiché", "departamento_codigo": "14"},
     {"codigo_iso": "1402", "nombre": "Chiché", "departamento_codigo": "14"},
@@ -304,7 +291,6 @@ MUNICIPIOS = [
     {"codigo_iso": "1419", "nombre": "Chicamán", "departamento_codigo": "14"},
     {"codigo_iso": "1420", "nombre": "Ixcán", "departamento_codigo": "14"},
     {"codigo_iso": "1421", "nombre": "Pachalum", "departamento_codigo": "14"},
-    
     # Baja Verapaz (15)
     {"codigo_iso": "1501", "nombre": "Salamá", "departamento_codigo": "15"},
     {"codigo_iso": "1502", "nombre": "San Miguel Chicaj", "departamento_codigo": "15"},
@@ -314,7 +300,6 @@ MUNICIPIOS = [
     {"codigo_iso": "1506", "nombre": "El Chol", "departamento_codigo": "15"},
     {"codigo_iso": "1507", "nombre": "San Jerónimo", "departamento_codigo": "15"},
     {"codigo_iso": "1508", "nombre": "Purulhá", "departamento_codigo": "15"},
-    
     # Alta Verapaz (16)
     {"codigo_iso": "1601", "nombre": "Cobán", "departamento_codigo": "16"},
     {"codigo_iso": "1602", "nombre": "Santa Cruz Verapaz", "departamento_codigo": "16"},
@@ -333,7 +318,6 @@ MUNICIPIOS = [
     {"codigo_iso": "1615", "nombre": "Fray Bartolomé de las Casas", "departamento_codigo": "16"},
     {"codigo_iso": "1616", "nombre": "Santa Catalina la Tinta", "departamento_codigo": "16"},
     {"codigo_iso": "1617", "nombre": "Raxruhá", "departamento_codigo": "16"},
-    
     # Petén (17)
     {"codigo_iso": "1701", "nombre": "Flores", "departamento_codigo": "17"},
     {"codigo_iso": "1702", "nombre": "San José", "departamento_codigo": "17"},
@@ -349,14 +333,12 @@ MUNICIPIOS = [
     {"codigo_iso": "1712", "nombre": "Poptún", "departamento_codigo": "17"},
     {"codigo_iso": "1713", "nombre": "Las Cruces", "departamento_codigo": "17"},
     {"codigo_iso": "1714", "nombre": "El Chal", "departamento_codigo": "17"},
-    
     # Izabal (18)
     {"codigo_iso": "1801", "nombre": "Puerto Barrios", "departamento_codigo": "18"},
     {"codigo_iso": "1802", "nombre": "Livingston", "departamento_codigo": "18"},
     {"codigo_iso": "1803", "nombre": "El Estor", "departamento_codigo": "18"},
     {"codigo_iso": "1804", "nombre": "Morales", "departamento_codigo": "18"},
     {"codigo_iso": "1805", "nombre": "Los Amates", "departamento_codigo": "18"},
-    
     # Zacapa (19)
     {"codigo_iso": "1901", "nombre": "Zacapa", "departamento_codigo": "19"},
     {"codigo_iso": "1902", "nombre": "Estanzuela", "departamento_codigo": "19"},
@@ -369,7 +351,6 @@ MUNICIPIOS = [
     {"codigo_iso": "1909", "nombre": "La Unión", "departamento_codigo": "19"},
     {"codigo_iso": "1910", "nombre": "Huité", "departamento_codigo": "19"},
     {"codigo_iso": "1911", "nombre": "San Jorge", "departamento_codigo": "19"},
-    
     # Chiquimula (20)
     {"codigo_iso": "2001", "nombre": "Chiquimula", "departamento_codigo": "20"},
     {"codigo_iso": "2002", "nombre": "San José La Arada", "departamento_codigo": "20"},
@@ -382,7 +363,6 @@ MUNICIPIOS = [
     {"codigo_iso": "2009", "nombre": "Quetzaltepeque", "departamento_codigo": "20"},
     {"codigo_iso": "2010", "nombre": "San Jacinto", "departamento_codigo": "20"},
     {"codigo_iso": "2011", "nombre": "Ipala", "departamento_codigo": "20"},
-    
     # Jalapa (21)
     {"codigo_iso": "2101", "nombre": "Jalapa", "departamento_codigo": "21"},
     {"codigo_iso": "2102", "nombre": "San Pedro Pinula", "departamento_codigo": "21"},
@@ -391,7 +371,6 @@ MUNICIPIOS = [
     {"codigo_iso": "2105", "nombre": "San Carlos Alzatate", "departamento_codigo": "21"},
     {"codigo_iso": "2106", "nombre": "Monjas", "departamento_codigo": "21"},
     {"codigo_iso": "2107", "nombre": "Mataquescuintla", "departamento_codigo": "21"},
-    
     # Jutiapa (22)
     {"codigo_iso": "2201", "nombre": "Jutiapa", "departamento_codigo": "22"},
     {"codigo_iso": "2202", "nombre": "El Progreso", "departamento_codigo": "22"},

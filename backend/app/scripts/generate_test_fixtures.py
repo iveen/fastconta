@@ -26,16 +26,18 @@ SAMPLE_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
   </dte:DatosEmision>
 </dte:DTE>"""
 
+
 def create_test_zip():
     fixtures_dir = Path(__file__).parent.parent / "tests" / "fel" / "fixtures"
     fixtures_dir.mkdir(parents=True, exist_ok=True)
-    
+
     zip_path = fixtures_dir / "sample_fel.zip"
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
         zipf.writestr("factura_001.xml", SAMPLE_XML)
         zipf.writestr("factura_002.xml", SAMPLE_XML)
-    
+
     print(f"✅ ZIP creado: {zip_path}")
+
 
 if __name__ == "__main__":
     create_test_zip()

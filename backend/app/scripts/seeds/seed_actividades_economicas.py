@@ -3,6 +3,7 @@ Script para poblar el catálogo de Actividades Económicas de la SAT.
 Idempotente: seguro de ejecutar múltiples veces.
 Ejecutar: python -m app.scripts.seeds.seed_actividades_economicas
 """
+
 import asyncio
 import os
 import sys
@@ -22,15 +23,15 @@ async def seed():
     print("=" * 70)
     print(" INICIANDO CARGA DE ACTIVIDADES ECONÓMICAS (SAT) ")
     print("=" * 70)
-    
+
     async with AsyncSessionLocal() as db:
         try:
             print(f"\n💼 Sembrando {len(ACTIVIDADES_ECONOMICAS_SAT)} actividades económicas...")
-            
+
             creadas = 0
             actualizadas = 0
             errores = 0
-            
+
             for actividad_data in ACTIVIDADES_ECONOMICAS_SAT:
                 try:
                     # Buscar si ya existe por codigo_sat (campo único)
@@ -39,7 +40,7 @@ async def seed():
                     )
                     result = await db.execute(stmt)
                     existente = result.scalar_one_or_none()
-                    
+
                     if existente:
                         # Actualizar si ya existe
                         for key, value in actividad_data.items():
@@ -50,15 +51,15 @@ async def seed():
                         nueva = ActividadEconomicaSAT(**actividad_data)
                         db.add(nueva)
                         creadas += 1
-                
+
                 except Exception as e:
                     errores += 1
                     print(f"  ❌ Error con {actividad_data.get('codigo_sat', 'UNKNOWN')}: {str(e)}")
                     continue
-            
+
             # Commit final
             await db.commit()
-            
+
             print("\n" + "=" * 70)
             print("✅ CARGA DE ACTIVIDADES ECONÓMICAS COMPLETADA EXITOSAMENTE")
             print("=" * 70)
@@ -67,7 +68,7 @@ async def seed():
             print(f"   Actualizadas: {actualizadas}")
             if errores > 0:
                 print(f"  ⚠️  Errores: {errores}")
-            
+
         except Exception as e:
             await db.rollback()
             print(f"\n❌ Error durante el seed: {e}")

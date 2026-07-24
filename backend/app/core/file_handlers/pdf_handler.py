@@ -5,6 +5,7 @@ Estrategia en 3 pasos:
   2. Si no hay XML, extraer texto plano con pdfplumber.
   3. Si pdfplumber falla, usar Tesseract OCR.
 """
+
 import io
 import logging
 
@@ -15,6 +16,7 @@ from fastapi import UploadFile
 try:
     import pytesseract
     from PIL import Image
+
     HAS_TESSERACT = True
 except ImportError:
     HAS_TESSERACT = False
@@ -112,9 +114,7 @@ class PdfFileHandler(FileHandler):
             acroform = pdf.Root.AcroForm
             if acroform and "/XFA" in acroform:
                 xfa = acroform.XFA
-                xml_blob = b"".join(
-                    xfa[i].read_bytes() for i in range(1, len(xfa), 2)
-                )
+                xml_blob = b"".join(xfa[i].read_bytes() for i in range(1, len(xfa), 2))
                 if b"<dte:DTE" in xml_blob or b"GTDocumento" in xml_blob:
                     return xml_blob.decode("utf-8", errors="replace")
         except Exception as e:
@@ -132,7 +132,7 @@ class PdfFileHandler(FileHandler):
                     chunks.append(t)
         except Exception as e:
             logger.warning(f"Error en pdfplumber: {e}")
-        
+
         return "\n".join(chunks)
 
     def _extract_text_ocr(self, pdf_bytes: bytes) -> str:
@@ -142,23 +142,23 @@ class PdfFileHandler(FileHandler):
 
         try:
             import fitz  # PyMuPDF para convertir PDF a imagen
-            
+
             text_chunks = []
             pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-            
+
             for page_num in range(len(pdf_doc)):
                 page = pdf_doc[page_num]
                 # Convertir página a imagen (300 DPI)
-                pix = page.get_pixmap(matrix=fitz.Matrix(300/72, 300/72))
+                pix = page.get_pixmap(matrix=fitz.Matrix(300 / 72, 300 / 72))
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                
+
                 # OCR con Tesseract (español)
-                text = pytesseract.image_to_string(img, lang='spa')
+                text = pytesseract.image_to_string(img, lang="spa")
                 text_chunks.append(text)
-            
+
             pdf_doc.close()
             return "\n".join(text_chunks)
-            
+
         except ImportError:
             logger.error("PyMuPDF no está instalado. Instala: pip install PyMuPDF")
             return ""

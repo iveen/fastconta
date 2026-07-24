@@ -2,6 +2,7 @@
 Dependencias auxiliares para endpoints.
 Complementa app.core.security con helpers específicos de dominio.
 """
+
 from typing import Any
 from uuid import UUID
 
@@ -26,12 +27,9 @@ async def resolve_public_id(
     Nota: Se usa `Any` en lugar de `type[Base]` porque `Base` es una instancia
     de `DeclarativeMeta`, no una clase, lo que causa error en Pylance.
     """
-    stmt = (
-        select(model)
-        .where(
-            model.public_id == public_id,
-            model.tenant_id == tenant_id,
-        )
+    stmt = select(model).where(
+        model.public_id == public_id,
+        model.tenant_id == tenant_id,
     )
     result = await db.execute(stmt)
     registro = result.scalar_one_or_none()

@@ -1,6 +1,6 @@
 from . import (
-    pdf_handler,  # noqa: F401  
-    xml_handler,  # noqa: F401
+    pdf_handler,
+    xml_handler,
 )
 from .base import FileContent, FileHandler, FileHandlerRegistry
 

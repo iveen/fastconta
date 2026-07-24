@@ -1,9 +1,10 @@
 from typing import List
 
-from app.models.tenant_models import InventarioBodega
-from app.schemas.inventario.bodega import BodegaCreate, BodegaUpdate
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
+
+from app.models.tenant_models import InventarioBodega
+from app.schemas.inventario.bodega import BodegaCreate, BodegaUpdate
 
 
 class BodegaService:
@@ -45,9 +46,7 @@ class BodegaService:
             .all()
         )
 
-    def obtener_por_codigo(
-        self, tenant_id: int, empresa_id: int, codigo: str
-    ) -> InventarioBodega | None:
+    def obtener_por_codigo(self, tenant_id: int, empresa_id: int, codigo: str) -> InventarioBodega | None:
         return (
             self.db.query(InventarioBodega)
             .filter(
@@ -81,6 +80,7 @@ class BodegaService:
     ) -> None:
         """Soft delete de la bodega."""
         from sqlalchemy.sql import func
+
         bodega.is_active = False
         bodega.deleted_at = func.now()
         bodega.updated_by = usuario_id
@@ -89,8 +89,5 @@ class BodegaService:
     def tiene_items_asociados(self, bodega_id: int) -> bool:
         """Verifica si la bodega tiene items de inventario asociados."""
         from app.models.tenant_models import InventarioItem
-        return (
-            self.db.query(InventarioItem)
-            .filter_by(bodega_id=bodega_id)
-            .first()
-        ) is not None
+
+        return (self.db.query(InventarioItem).filter_by(bodega_id=bodega_id).first()) is not None

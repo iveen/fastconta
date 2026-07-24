@@ -38,7 +38,7 @@ from app.models.global_models import (
 # ============================================================
 class Empresa(AuditableFull, BigIntPKMixin, SoftDelete, Base):
     __tablename__ = "empresas"
-    
+
     tenant_id = Column(BigInteger, ForeignKey("public.tenants.id"), nullable=False, index=True)
     nombre = Column(String(255), nullable=False)
     razon_social = Column(String(255))
@@ -48,9 +48,9 @@ class Empresa(AuditableFull, BigIntPKMixin, SoftDelete, Base):
     clave_ingreso = Column(Text, nullable=True)
     direccion = Column(Text)
 
-    regimen_fiscal_id = Column(BigInteger, ForeignKey('public.regimenes_fiscales.id'), nullable=True)
-    tipo_persona_id = Column(BigInteger, ForeignKey('public.tipos_persona.id'), nullable=True)
-    actividad_economica_id = Column(BigInteger, ForeignKey('public.actividades_economicas_sat.id'), nullable=True)
+    regimen_fiscal_id = Column(BigInteger, ForeignKey("public.regimenes_fiscales.id"), nullable=True)
+    tipo_persona_id = Column(BigInteger, ForeignKey("public.tipos_persona.id"), nullable=True)
+    actividad_economica_id = Column(BigInteger, ForeignKey("public.actividades_economicas_sat.id"), nullable=True)
     cuenta_utilidad_periodo_id = Column(BigInteger, ForeignKey("plan_cuentas.id"), nullable=True)
     cuenta_utilidades_acumuladas_id = Column(BigInteger, ForeignKey("plan_cuentas.id"), nullable=True)
 
@@ -60,20 +60,22 @@ class Empresa(AuditableFull, BigIntPKMixin, SoftDelete, Base):
     representantes = relationship("RepresentanteLegal", back_populates="empresa", cascade="all, delete-orphan")
     domicilios = relationship("Domicilio", back_populates="empresa", cascade="all, delete-orphan")
     cuenta_utilidad_periodo = relationship("CuentaContable", foreign_keys=[cuenta_utilidad_periodo_id], lazy="select")
-    cuenta_utilidades_acumuladas = relationship("CuentaContable", foreign_keys=[cuenta_utilidades_acumuladas_id], lazy="select")
+    cuenta_utilidades_acumuladas = relationship(
+        "CuentaContable", foreign_keys=[cuenta_utilidades_acumuladas_id], lazy="select"
+    )
     tenant = relationship("Tenant", back_populates="empresas")
 
     @property
     def domicilio_fiscal(self):
-        return next((d for d in self.domicilios if d.tipo_domicilio.nombre == 'FISCAL'), None)
+        return next((d for d in self.domicilios if d.tipo_domicilio.nombre == "FISCAL"), None)
 
 
 class Domicilio(BigIntPKMixin, SoftDelete, AuditableFull, Base):
-    __tablename__ = 'domicilios'
-    empresa_id = Column(BigInteger, ForeignKey('empresas.id'), nullable=False)
-    tipo_domicilio_id = Column(BigInteger, ForeignKey('public.tipos_domicilio.id'), nullable=False)
-    departamento_id = Column(BigInteger, ForeignKey('public.departamentos.id'), nullable=False)
-    municipio_id = Column(BigInteger, ForeignKey('public.municipios.id'), nullable=False)
+    __tablename__ = "domicilios"
+    empresa_id = Column(BigInteger, ForeignKey("empresas.id"), nullable=False)
+    tipo_domicilio_id = Column(BigInteger, ForeignKey("public.tipos_domicilio.id"), nullable=False)
+    departamento_id = Column(BigInteger, ForeignKey("public.departamentos.id"), nullable=False)
+    municipio_id = Column(BigInteger, ForeignKey("public.municipios.id"), nullable=False)
     direccion_exacta = Column(String(255), nullable=False)
     zona = Column(String(10))
     codigo_postal = Column(String(10))
@@ -85,8 +87,8 @@ class Domicilio(BigIntPKMixin, SoftDelete, AuditableFull, Base):
 
 
 class RepresentanteLegal(BigIntPKMixin, SoftDelete, AuditableFull, Base):
-    __tablename__ = 'representantes_legales'
-    empresa_id = Column(BigInteger, ForeignKey('empresas.id'), nullable=False)
+    __tablename__ = "representantes_legales"
+    empresa_id = Column(BigInteger, ForeignKey("empresas.id"), nullable=False)
     nombre = Column(String(255), nullable=False)
     dpi = Column(String(20), nullable=False)
     fecha_nombramiento = Column(Date, nullable=False)
@@ -95,15 +97,12 @@ class RepresentanteLegal(BigIntPKMixin, SoftDelete, AuditableFull, Base):
     empresa = relationship("Empresa", back_populates="representantes")
 
 
-
 # ============================================================
 # CONTABILIDAD - CuentaContable CON SoftDelete
 # ============================================================
 class CuentaContable(AuditableFull, BigIntPKMixin, SoftDelete, Base):
     __tablename__ = "plan_cuentas"
-    __table_args__ = (
-        UniqueConstraint('codigo', 'empresa_id', name='plan_cuentas_codigo_empresa_unique'),
-    )
+    __table_args__ = (UniqueConstraint("codigo", "empresa_id", name="plan_cuentas_codigo_empresa_unique"),)
     codigo = Column(String(20), nullable=False, index=True)
     nombre = Column(String(255), nullable=False)
     tipo = Column(String(20), nullable=False)
@@ -112,29 +111,30 @@ class CuentaContable(AuditableFull, BigIntPKMixin, SoftDelete, Base):
     nivel = Column(Integer, default=1)
     cuenta_padre_id = Column(BigInteger, ForeignKey("plan_cuentas.id"), nullable=True)
     empresa_id = Column(BigInteger, ForeignKey("empresas.id"), nullable=False)
-    
+
     empresa = relationship("Empresa", foreign_keys=[empresa_id])
     # ✅ CORREGIDO: Usar string en lugar de referencia directa
     cuenta_padre = relationship(
         "CuentaContable",
         remote_side="CuentaContable.id",  # ✅ String en lugar de [id]
         foreign_keys=[cuenta_padre_id],
-        backref="cuentas_hijas"
+        backref="cuentas_hijas",
     )
+
 
 # ============================================================
 # PARTIDAS - SIN SoftDelete (requisitos legales contables)
 # ============================================================
 class Partida(BigIntPKMixin, AuditableFull, Base):
     __tablename__ = "partidas"
-    
+
     numero_poliza = Column(String(50), nullable=True)
     fecha = Column(Date, nullable=False, index=True)
     descripcion = Column(Text, nullable=False)
     empresa_id = Column(BigInteger, ForeignKey("empresas.id"), nullable=False, index=True)
     fue_revertida = Column(Boolean, default=False)
     partida_reversion_id = Column(BigInteger, ForeignKey("partidas.id"), nullable=True)
-    tipo_origen = Column(String(50), default='manual', nullable=False)
+    tipo_origen = Column(String(50), default="manual", nullable=False)
 
     empresa = relationship("Empresa")
     detalles = relationship("DetallePartida", back_populates="partida", cascade="all, delete-orphan")
@@ -142,7 +142,7 @@ class Partida(BigIntPKMixin, AuditableFull, Base):
 
 class DetallePartida(BigIntPKMixin, AuditableFull, Base):
     __tablename__ = "detalle_partidas"
-    
+
     partida_id = Column(BigInteger, ForeignKey("partidas.id", ondelete="CASCADE"), nullable=False, index=True)
     cuenta_id = Column(BigInteger, ForeignKey("plan_cuentas.id"), nullable=False, index=True)
     tipo_movimiento = Column(String(10), nullable=False)
@@ -152,14 +152,13 @@ class DetallePartida(BigIntPKMixin, AuditableFull, Base):
     cuenta = relationship("CuentaContable")
 
 
-class Secuencia(BigIntPKMixin,  Base):
+class Secuencia(BigIntPKMixin, Base):
     __tablename__ = "secuencias"
-    __table_args__ = (
-        UniqueConstraint('entidad', 'empresa_id', name='uq_secuencias_entidad_empresa'),
-    )
+    __table_args__ = (UniqueConstraint("entidad", "empresa_id", name="uq_secuencias_entidad_empresa"),)
     entidad = Column(String(50), nullable=False)
     empresa_id = Column(BigInteger, ForeignKey("empresas.id"), nullable=False)
     contador = Column(Integer, default=1)
+
 
 class PeriodoFiscal(BigIntPKMixin, AuditableFull, Base):
     __tablename__ = "periodos_fiscales"
@@ -170,12 +169,13 @@ class PeriodoFiscal(BigIntPKMixin, AuditableFull, Base):
     empresa_id = Column(BigInteger, ForeignKey("empresas.id"), nullable=False)
     empresa = relationship("Empresa")
 
+
 # ============================================================
 # FACTURAS - SIN SoftDelete (requisitos legales SAT)
 # ============================================================
 class FacturaElectronica(BigIntPKMixin, AuditableFull, Base):
     __tablename__ = "facturas_electronicas"
-    
+
     empresa_id = Column(BigInteger, ForeignKey("empresas.id"), nullable=False, index=True)
     xml_original = Column(Text, nullable=False)
     xml_filename = Column(String(255), nullable=True)
@@ -187,30 +187,30 @@ class FacturaElectronica(BigIntPKMixin, AuditableFull, Base):
     moneda = Column(String(5), nullable=True)
     retencion_iva = Column(Numeric(12, 2), default=0, server_default="0")
     retencion_isr = Column(Numeric(12, 2), default=0, server_default="0")
-    clasificacion_gasto_sat = Column(String(50), default='NORMAL', server_default="'NORMAL'")
+    clasificacion_gasto_sat = Column(String(50), default="NORMAL", server_default="'NORMAL'")
     es_importacion = Column(Boolean, default=False, server_default="false")
     requiere_revision_manual = Column(Boolean, default=False, server_default="false", nullable=False)
-    
+
     tipo_documento_id = Column(BigInteger, ForeignKey(TipoDTE.id), nullable=True, index=True)
     moneda_id = Column(BigInteger, ForeignKey(CatalogoMoneda.id), nullable=True, index=True)
-    
+
     fecha_emision = Column(DateTime(timezone=True), nullable=False, index=True)
     emisor_nit = Column(String(15), nullable=False)
     emisor_nombre = Column(String(255), nullable=False)
     receptor_nit = Column(String(15), nullable=False)
     receptor_nombre = Column(String(255), nullable=False)
-    
+
     total_exento = Column(Numeric(12, 2), default=0)
     total_gravado = Column(Numeric(12, 2), default=0)
     total_iva = Column(Numeric(12, 2), default=0)
     total = Column(Numeric(12, 2), nullable=False)
     tipo_cambio = Column(Numeric(10, 5), nullable=True)
-    
+
     total_gravado_gtq = Column(Numeric(15, 2), nullable=False)
     total_iva_gtq = Column(Numeric(15, 2), nullable=False)
     total_exento_gtq = Column(Numeric(15, 2), default=0)
     total_gtq = Column(Numeric(15, 2), nullable=False)
-    
+
     total_gravado_bienes = Column(Numeric(12, 2), default=0)
     total_iva_bienes = Column(Numeric(12, 2), default=0)
     total_gravado_servicios = Column(Numeric(12, 2), default=0)
@@ -219,12 +219,12 @@ class FacturaElectronica(BigIntPKMixin, AuditableFull, Base):
     total_iva_bienes_gtq = Column(Numeric(15, 2), default=0)
     total_gravado_servicios_gtq = Column(Numeric(15, 2), default=0)
     total_iva_servicios_gtq = Column(Numeric(15, 2), default=0)
-    
+
     es_exportacion = Column(Boolean, default=False)
     pais_destino_exportacion = Column(String(100), nullable=True)
     nombre_comercial = Column(String(255), nullable=True)
-    tipo_operacion = Column(String(10), nullable=False, default='Compra')
-    estado = Column(String(20), nullable=False, default='Activa')
+    tipo_operacion = Column(String(10), nullable=False, default="Compra")
+    estado = Column(String(20), nullable=False, default="Activa")
     fecha_anulacion = Column(DateTime(timezone=True), nullable=True)
     validado = Column(Boolean, server_default="false", default=False)
     fecha_validacion = Column(DateTime(timezone=True), nullable=True)
@@ -235,22 +235,14 @@ class FacturaElectronica(BigIntPKMixin, AuditableFull, Base):
     tipo_documento_rel = relationship(TipoDTE, lazy="select")
     moneda_rel = relationship(CatalogoMoneda, lazy="select")
     impuestos_especiales = relationship(
-        "FacturaImpuestoEspecial",
-        back_populates="factura",
-        cascade="all, delete-orphan",
-        lazy="selectin"
+        "FacturaImpuestoEspecial", back_populates="factura", cascade="all, delete-orphan", lazy="selectin"
     )
 
 
 class FacturaImpuestoEspecial(BigIntPKMixin, AuditableFull, Base):
     __tablename__ = "facturas_impuestos_especiales"
     factura_id = Column(BigInteger, ForeignKey("facturas_electronicas.id"), nullable=False, index=True)
-    catalogo_id = Column(
-        BigInteger,
-        ForeignKey("public.catalogo_impuestos_especiales.id"),
-        nullable=False,
-        index=True
-    )
+    catalogo_id = Column(BigInteger, ForeignKey("public.catalogo_impuestos_especiales.id"), nullable=False, index=True)
     monto = Column(Numeric(12, 2), nullable=False, server_default="0")
 
     factura = relationship("FacturaElectronica", back_populates="impuestos_especiales")
@@ -259,7 +251,9 @@ class FacturaImpuestoEspecial(BigIntPKMixin, AuditableFull, Base):
 
 class FacturaDetalle(BigIntPKMixin, AuditableFull, Base):
     __tablename__ = "factura_detalles"
-    factura_id = Column(BigInteger, ForeignKey("facturas_electronicas.id", ondelete="CASCADE"), nullable=False, index=True)
+    factura_id = Column(
+        BigInteger, ForeignKey("facturas_electronicas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     cantidad = Column(Numeric(12, 4), nullable=False)
     descripcion = Column(String(500), nullable=False)
     precio_unitario = Column(Numeric(12, 2), nullable=False)
@@ -268,7 +262,7 @@ class FacturaDetalle(BigIntPKMixin, AuditableFull, Base):
     precio_unitario_gtq = Column(Numeric(12, 2), nullable=False)
     total_linea_gtq = Column(Numeric(12, 2), nullable=False)
     iva_linea_gtq = Column(Numeric(12, 2), default=0)
-    bien_o_servicio = Column(String(1), default='B', server_default='B')
+    bien_o_servicio = Column(String(1), default="B", server_default="B")
 
     factura = relationship("FacturaElectronica", back_populates="detalles")
 
@@ -299,7 +293,14 @@ class SatLibro(BigIntPKMixin, AuditableFull, Base):
 
     __table_args__ = (
         CheckConstraint("mes_periodo BETWEEN 1 AND 12", name="chk_sat_libros_mes_periodo"),
-        UniqueConstraint("empresa_id", "tipo_libro_id", "regimen_fiscal_id", "anio_periodo", "mes_periodo", name="uq_sat_libros_periodo"),
+        UniqueConstraint(
+            "empresa_id",
+            "tipo_libro_id",
+            "regimen_fiscal_id",
+            "anio_periodo",
+            "mes_periodo",
+            name="uq_sat_libros_periodo",
+        ),
         Index("idx_sat_libros_empresa_periodo", "empresa_id", "anio_periodo", "mes_periodo"),
     )
 
@@ -329,6 +330,7 @@ class SatLibroLinea(BigIntPKMixin, AuditableFull, Base):
         Index("idx_sat_libros_lineas_libro", "libro_id"),
     )
 
+
 # ============================================================
 # ACTIVOS FIJOS - ActivoFijo CON SoftDelete
 # ============================================================
@@ -356,7 +358,7 @@ class ActivoFijo(BigIntPKMixin, AuditableFull, SoftDelete, Base):
     __table_args__ = (
         CheckConstraint(
             "tasa_depreciacion_anual_aplicada >= 0 AND tasa_depreciacion_anual_aplicada <= 100",
-            name="chk_activos_fijos_tasa_valida"
+            name="chk_activos_fijos_tasa_valida",
         ),
     )
 
@@ -382,17 +384,18 @@ class DepreciacionActivo(BigIntPKMixin, AuditableFull, Base):
         Index("idx_depreciacion_activos_empresa_periodo", "empresa_id", "anio_periodo", "mes_periodo"),
     )
 
+
 # ============================================================
 # DECLARACIONES - SIN SoftDelete (declaraciones oficiales SAT)
 # ============================================================
 class DeclaracionImpuesto(BigIntPKMixin, AuditableFull, Base):
     __tablename__ = "declaraciones_impuesto"
-    
+
     empresa_id = Column(BigInteger, ForeignKey("empresas.id"), nullable=False, index=True)
     formulario_sat_id = Column(BigInteger, ForeignKey("public.formularios_sat.id"), nullable=False)
     anio = Column(SmallInteger, nullable=False, index=True)
     mes = Column(SmallInteger, nullable=False, index=True)
-    estado = Column(String(20), default='BORRADOR', nullable=False)
+    estado = Column(String(20), default="BORRADOR", nullable=False)
     total_debito_fiscal = Column(Numeric(15, 2), default=0, server_default="0")
     total_credito_fiscal = Column(Numeric(15, 2), default=0, server_default="0")
     impuesto_determinado = Column(Numeric(15, 2), default=0, server_default="0")
@@ -412,7 +415,7 @@ class DeclaracionImpuesto(BigIntPKMixin, AuditableFull, Base):
 
 class DetalleDeclaracionImpuesto(BigIntPKMixin, AuditableFull, Base):
     __tablename__ = "detalles_declaracion_impuesto"
-    
+
     declaracion_id = Column(BigInteger, ForeignKey("declaraciones_impuesto.id", ondelete="CASCADE"), nullable=False)
     casilla_sat_id = Column(BigInteger, ForeignKey("public.casillas_sat.id"), nullable=False)
     base_imponible = Column(Numeric(15, 2), default=0, server_default="0")
@@ -422,19 +425,23 @@ class DetalleDeclaracionImpuesto(BigIntPKMixin, AuditableFull, Base):
     ajustado_por = Column(BigInteger, nullable=True)
 
     declaracion = relationship("DeclaracionImpuesto", back_populates="detalles")
-    facturas_asociadas = relationship("DeclaracionImpuestoFactura", back_populates="detalle", cascade="all, delete-orphan")
+    facturas_asociadas = relationship(
+        "DeclaracionImpuestoFactura", back_populates="detalle", cascade="all, delete-orphan"
+    )
     casilla = relationship(
         "CasillaSat",
         primaryjoin="DetalleDeclaracionImpuesto.casilla_sat_id == foreign(CasillaSat.id)",
         uselist=False,
-        viewonly=True
+        viewonly=True,
     )
 
 
 class DeclaracionImpuestoFactura(BigIntPKMixin, AuditableFull, Base):
     __tablename__ = "declaraciones_impuesto_facturas"
-    
-    detalle_declaracion_id = Column(BigInteger, ForeignKey("detalles_declaracion_impuesto.id", ondelete="CASCADE"), nullable=False)
+
+    detalle_declaracion_id = Column(
+        BigInteger, ForeignKey("detalles_declaracion_impuesto.id", ondelete="CASCADE"), nullable=False
+    )
     factura_id = Column(BigInteger, ForeignKey("facturas_electronicas.id"), nullable=False)
     base_asignada = Column(Numeric(15, 2), default=0, server_default="0")
     impuesto_asignado = Column(Numeric(15, 2), default=0, server_default="0")
@@ -442,14 +449,14 @@ class DeclaracionImpuestoFactura(BigIntPKMixin, AuditableFull, Base):
     detalle = relationship("DetalleDeclaracionImpuesto", back_populates="facturas_asociadas")
     factura = relationship("FacturaElectronica")
 
-    __table_args__ = (
-        UniqueConstraint("detalle_declaracion_id", "factura_id", name="uq_detalle_factura"),
-    )
+    __table_args__ = (UniqueConstraint("detalle_declaracion_id", "factura_id", name="uq_detalle_factura"),)
+
 
 # ============================================================
 # INVENTARIOS - Bodegas y Productos CON SoftDelete
 # Tomas, Items e Importaciones SIN SoftDelete (valor legal SAT)
 # ============================================================
+
 
 class InventarioBodega(BigIntPKMixin, AuditableFull, SoftDelete, Base):
     __tablename__ = "inventarios_bodegas"
@@ -489,7 +496,10 @@ class InventarioToma(BigIntPKMixin, AuditableFull, Base):
         UniqueConstraint("tenant_id", "empresa_id", "anio_periodo", "mes_periodo", name="uq_inventarios_tomas_periodo"),
         CheckConstraint("estado IN ('BORRADOR', 'CONFIRMADO', 'CONTABILIZADO')", name="chk_inventarios_tomas_estado"),
         CheckConstraint("tipo IN ('FISCAL', 'INTERNO', 'AJUSTE')", name="chk_inventarios_tomas_tipo"),
-        CheckConstraint("metodo_valuacion IN ('COSTO_PROMEDIO', 'PEPS', 'IDENTIFICACION_ESPECIFICA')", name="chk_inventarios_tomas_metodo"),
+        CheckConstraint(
+            "metodo_valuacion IN ('COSTO_PROMEDIO', 'PEPS', 'IDENTIFICACION_ESPECIFICA')",
+            name="chk_inventarios_tomas_metodo",
+        ),
         CheckConstraint("mes_periodo BETWEEN 1 AND 12", name="chk_inventarios_tomas_mes_valido"),
         Index("idx_inventarios_tomas_empresa_periodo", "tenant_id", "empresa_id", "anio_periodo", "mes_periodo"),
     )

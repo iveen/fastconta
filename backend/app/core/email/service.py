@@ -5,6 +5,7 @@ Orquesta:
 - Envío vía SMTP (fastapi-mail)
 - Manejo de errores
 """
+
 import logging
 from typing import Any
 
@@ -18,19 +19,17 @@ logger = logging.getLogger(__name__)
 
 class EmailService:
     """Servicio singleton para envío de emails transaccionales."""
-    
+
     _instance = None
     _fast_mail = None
-    
+
     def __new__(cls):
         """Singleton pattern."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            
+
             if not email_config.is_configured():
-                logger.warning(
-                    "⚠️ Email no configurado. Verifica SMTP_HOST, SMTP_USER, SMTP_PASSWORD en .env"
-                )
+                logger.warning("⚠️ Email no configurado. Verifica SMTP_HOST, SMTP_USER, SMTP_PASSWORD en .env")
             else:
                 # Configurar fastapi-mail
                 mail_config = ConnectionConfig(
@@ -48,14 +47,14 @@ class EmailService:
                 )
                 cls._fast_mail = FastMail(mail_config)
                 logger.info(f"✅ EmailService configurado: {email_config.host}:{email_config.port}")
-        
+
         return cls._instance
-    
+
     @classmethod
     def get_instance(cls) -> "EmailService":
         """Obtiene la instancia singleton."""
         return cls()
-    
+
     async def send_email(
         self,
         to: str | list[str],
@@ -65,24 +64,24 @@ class EmailService:
     ) -> bool:
         """
         Envía un email usando un template Jinja2.
-        
+
         Args:
             to: Email(s) destinatario(s)
             subject: Asunto del email
             template_name: Nombre del archivo template
             context: Variables para el template
-        
+
         Returns:
             True si se envió correctamente
         """
         if not email_config.is_configured():
             logger.error("❌ No se puede enviar email: configuración incompleta")
             return False
-        
+
         try:
             # 1. Renderizar template
             html_content = email_renderer.render(template_name, context)
-            
+
             # 2. Construir mensaje
             recipients = [to] if isinstance(to, str) else to
             message = MessageSchema(
@@ -91,17 +90,17 @@ class EmailService:
                 body=html_content,
                 subtype=MessageType.html,
             )
-            
+
             # 3. Enviar
             await self._fast_mail.send_message(message)
-            
+
             logger.info(f"✅ Email enviado a {recipients}: {subject}")
             return True
-            
+
         except Exception as e:
             logger.error(f"❌ Error enviando email a {to}: {e}", exc_info=True)
             return False
-    
+
     async def send_solicitud_recibida(
         self,
         to: str,
@@ -118,7 +117,7 @@ class EmailService:
                 "contact_name": contact_name,
             },
         )
-    
+
     async def send_tenant_aprobado(
         self,
         to: str,
@@ -137,10 +136,10 @@ class EmailService:
                 "admin_email": admin_email,
                 "admin_password": admin_password,
                 "contact_name": contact_name,
-                "login_url": f"{email_config.app_url}/login"
+                "login_url": f"{email_config.app_url}/login",
             },
         )
-    
+
     async def send_tenant_rechazado(
         self,
         to: str,
@@ -159,7 +158,7 @@ class EmailService:
                 "contact_name": contact_name,
             },
         )
-    
+
     async def send_password_reset(
         self,
         to: str,
@@ -174,10 +173,10 @@ class EmailService:
             context={
                 "full_name": full_name,
                 "new_password": new_password,
-                "login_url": f"{email_config.app_url}/login"
+                "login_url": f"{email_config.app_url}/login",
             },
         )
-    
+
     async def send_password_reset_request(
         self,
         to: str,
@@ -194,7 +193,7 @@ class EmailService:
                 "reset_url": reset_url,
             },
         )
-    
+
     async def send_new_user_credentials(
         self,
         to: str,
@@ -213,7 +212,7 @@ class EmailService:
                 "login_url": login_url,
             },
         )
-    
+
     async def send_password_changed_notification(
         self,
         to: str,
@@ -232,7 +231,7 @@ class EmailService:
                 "changed_at": changed_at,
             },
         )
-    
+
     async def send_importacion_completada(
         self,
         to: str,
@@ -246,7 +245,7 @@ class EmailService:
     ) -> bool:
         """
         Envía email notificando que una importación de inventario se completó.
-        
+
         Args:
             to: Email del destinatario
             full_name: Nombre completo del usuario
@@ -281,7 +280,7 @@ class EmailService:
     ) -> bool:
         """
         Envía email notificando que una importación de inventario falló.
-        
+
         Args:
             to: Email del destinatario
             full_name: Nombre completo del usuario
@@ -298,7 +297,7 @@ class EmailService:
                 "error_mensaje": error_mensaje,
             },
         )
-    
+
     async def send_fel_import_completada(
         self,
         to: str,
@@ -339,7 +338,7 @@ class EmailService:
                 "archivo_nombre": archivo_nombre,
                 "error_mensaje": error_mensaje,
             },
-    )
+        )
 
 
 # Instancia global para usar en endpoints

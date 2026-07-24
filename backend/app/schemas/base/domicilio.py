@@ -1,4 +1,5 @@
 """Schemas para Domicilios de Empresas"""
+
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -6,6 +7,7 @@ from pydantic import BaseModel, Field
 # ============================================================
 # SCHEMAS DE RESPUESTA PARA CATÁLOGOS (Geografía)
 # ============================================================
+
 
 class DepartamentoOut(BaseModel):
     id: int  # ✅ BIGINT
@@ -18,7 +20,7 @@ class DepartamentoOut(BaseModel):
 
 class MunicipioOut(BaseModel):
     id: int  # ✅ BIGINT
-    public_id: UUID  # ✅ UUID público  
+    public_id: UUID  # ✅ UUID público
     nombre: str
     departamento_id: UUID
 
@@ -36,6 +38,7 @@ class TipoDomicilioOut(BaseModel):
 # ============================================================
 # SCHEMAS PARA DOMICILIO
 # ============================================================
+
 
 class DomicilioCreate(BaseModel):
     tipo_domicilio_id: int

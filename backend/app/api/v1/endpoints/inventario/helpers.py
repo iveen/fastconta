@@ -2,6 +2,7 @@
 Helpers compartidos para convertir modelos ORM → schemas de respuesta.
 Centraliza la lógica de mapeo public_id ↔ id.
 """
+
 from uuid import UUID
 
 from app.models.tenant_models import (
@@ -43,9 +44,7 @@ def producto_a_response(p: InventarioProducto) -> ProductoResponse:
         codigo=p.codigo,
         descripcion=p.descripcion,
         unidad_medida=p.unidad_medida,
-        cuenta_inventario_public_id=(
-            p.cuenta_inventario.public_id if p.cuenta_inventario else None
-        ),
+        cuenta_inventario_public_id=(p.cuenta_inventario.public_id if p.cuenta_inventario else None),
         is_active=p.is_active,
         created_at=p.created_at,
     )
@@ -91,9 +90,7 @@ def toma_a_response(t: InventarioToma) -> TomaResponse:
         metodo_valuacion=t.metodo_valuacion,
         estado=t.estado,
         observaciones=t.observaciones,
-        partida_ajuste_public_id=(
-            t.partida_ajuste.public_id if t.partida_ajuste else None
-        ),
+        partida_ajuste_public_id=(t.partida_ajuste.public_id if t.partida_ajuste else None),
         total_items=t.total_items,
         valor_total=t.valor_total,
         created_at=t.created_at,

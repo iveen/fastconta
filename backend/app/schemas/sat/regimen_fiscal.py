@@ -1,4 +1,5 @@
 """Schemas para Regímenes Fiscales"""
+
 from datetime import datetime
 from uuid import UUID
 
@@ -37,6 +38,7 @@ class RegimenFiscalResponse(BaseModel):
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
+
 class RegimenFiscalDetailResponse(BaseModel):
     id: int  # ✅ Cambiar a int
     codigo: str
@@ -70,5 +72,3 @@ class FormularioAsociadoBrief(BaseModel):
     es_obligatorio: bool = True
 
     model_config = {"from_attributes": True}
-
-

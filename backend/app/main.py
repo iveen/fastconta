@@ -29,6 +29,7 @@ class LoggingMiddleware:
     Evita el bug de BaseHTTPMiddleware con pytest-asyncio
     y es más eficiente que la versión decoradora.
     """
+
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
@@ -54,10 +55,7 @@ class LoggingMiddleware:
             await self.app(scope, receive, send_wrapper)
         finally:
             process_time = time.time() - start_time
-            logger.info(
-                f"Método: {method} | Ruta: {path} | "
-                f"Estado: {status_code} | Tiempo: {process_time:.4f}s"
-            )
+            logger.info(f"Método: {method} | Ruta: {path} | Estado: {status_code} | Tiempo: {process_time:.4f}s")
 
 
 # Registrar el middleware ASGI puro

@@ -1,8 +1,10 @@
 """Servicio para gestión de Domicilios"""
-from app.models.tenant_models import Domicilio
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+
+from app.models.tenant_models import Domicilio
 
 
 class DomicilioService:
@@ -13,7 +15,8 @@ class DomicilioService:
     # QUERIES
     # ============================================================
     async def obtener_domicilios_por_empresa(
-        self, empresa_id: int  # ✅ BIGINT (era UUID)
+        self,
+        empresa_id: int,  # ✅ BIGINT (era UUID)
     ) -> list[Domicilio]:
         """Obtiene todos los domicilios de una empresa con relaciones"""
         query = (
@@ -30,7 +33,9 @@ class DomicilioService:
         return list(result.scalars().all())
 
     async def obtener_domicilio_por_id(
-        self, domicilio_id: int, empresa_id: int  # ✅ BIGINT (era UUID)
+        self,
+        domicilio_id: int,
+        empresa_id: int,  # ✅ BIGINT (era UUID)
     ) -> Domicilio | None:
         """Obtiene un domicilio específico con relaciones"""
         query = (
@@ -58,12 +63,13 @@ class DomicilioService:
         await self.db.flush()
         await self.db.refresh(domicilio)
         # Recargar con relaciones
-        return await self.obtener_domicilio_por_id(
-            domicilio.id, domicilio.empresa_id
-        )
+        return await self.obtener_domicilio_por_id(domicilio.id, domicilio.empresa_id)
 
     async def actualizar_domicilio(
-        self, domicilio_id: int, empresa_id: int, data: dict  # ✅ BIGINT
+        self,
+        domicilio_id: int,
+        empresa_id: int,
+        data: dict,  # ✅ BIGINT
     ) -> Domicilio | None:
         """Actualiza un domicilio existente"""
         domicilio = await self.obtener_domicilio_por_id(domicilio_id, empresa_id)
@@ -78,7 +84,9 @@ class DomicilioService:
         return await self.obtener_domicilio_por_id(domicilio_id, empresa_id)
 
     async def eliminar_domicilio(
-        self, domicilio_id: int, empresa_id: int  # ✅ BIGINT
+        self,
+        domicilio_id: int,
+        empresa_id: int,  # ✅ BIGINT
     ) -> bool:
         """Elimina un domicilio (hard delete)"""
         domicilio = await self.obtener_domicilio_por_id(domicilio_id, empresa_id)

@@ -1,5 +1,6 @@
 # app/schemas/sat/regla_filtrado.py
 """Schemas para Reglas de Filtrado y Exclusiones de Casillas SAT"""
+
 from pydantic import BaseModel, Field
 
 # ============================================================
@@ -17,9 +18,7 @@ class ReglaFiltradoBase(BaseModel):
     criterios_json: dict = Field(
         ...,
         description="Criterios de filtrado en formato JSON",
-        examples=[
-            {"tipo_operacion": "Venta", "es_exento": False, "es_exportacion": False}
-        ],
+        examples=[{"tipo_operacion": "Venta", "es_exento": False, "es_exportacion": False}],
     )
     campo_factura: str = Field(
         ...,
@@ -125,6 +124,7 @@ class ExclusionListResponse(BaseModel):
 # ============================================================
 class CasillaConfigResponse(BaseModel):
     """Respuesta completa con reglas y exclusiones de una casilla"""
+
     casilla_id: int  # ✅ BIGINT (era UUID)
     casilla_codigo: str
     casilla_nombre: str

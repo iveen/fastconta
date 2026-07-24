@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict
 
 class ImportacionJobResponse(BaseModel):
     """Respuesta con el estado de un job de importación."""
+
     public_id: UUID
     estado: str
     archivo_original: str
@@ -25,6 +26,7 @@ class ImportacionJobResponse(BaseModel):
 
 class ImportacionResponse(BaseModel):
     """Respuesta con el detalle de una importación completada."""
+
     public_id: UUID
     toma_public_id: UUID
     archivo_original: str

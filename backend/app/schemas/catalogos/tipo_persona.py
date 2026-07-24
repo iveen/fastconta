@@ -1,4 +1,5 @@
 """Schemas para Tipos de Persona"""
+
 from datetime import datetime
 from uuid import UUID
 
@@ -34,6 +35,7 @@ class TipoPersonaResponse(TipoPersonaBase):
     updated_by: int | None = None
 
     model_config = {"from_attributes": True}
+
 
 # ============================================================
 # LIST RESPONSE (versión ligera para listas paginadas)

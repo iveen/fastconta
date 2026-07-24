@@ -1,4 +1,5 @@
 """Schemas para Categorías de Activos Fijos"""
+
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID

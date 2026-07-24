@@ -1,4 +1,5 @@
 """Schemas para Representantes Legales de Empresas"""
+
 from datetime import date, datetime
 from uuid import UUID
 
@@ -7,6 +8,7 @@ from pydantic import BaseModel, Field, field_serializer
 # ============================================================
 # SCHEMAS PARA REPRESENTANTE LEGAL
 # ============================================================
+
 
 class RepresentanteLegalCreate(BaseModel):
     nombre: str = Field(..., min_length=1, max_length=255)
@@ -37,7 +39,7 @@ class RepresentanteLegalOut(BaseModel):
     is_active: bool
     created_at: datetime | None = None
 
-    @field_serializer('created_at')
+    @field_serializer("created_at")
     def serialize_created_at(self, dt: datetime | None) -> str | None:
         if dt is None:
             return None

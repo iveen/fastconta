@@ -2,6 +2,7 @@
 Configuración de Impuestos por Régimen Fiscal (Tabla Puente)
 Define las tasas, acreditabilidad y límites específicos para cada combinación.
 """
+
 from decimal import Decimal
 
 # Usamos códigos de referencia que el script de seed resolverá a IDs
@@ -13,7 +14,7 @@ REGIMEN_IMPUESTO_CONFIG = [
         "tasa_porcentaje": Decimal("12.00"),
         "es_acreditable": False,
         "es_retencion_definitiva": True,
-        "requiere_autorizacion_sat": False
+        "requiere_autorizacion_sat": False,
     },
     {
         "regimen_codigo": "PC_MANUAL",
@@ -22,7 +23,7 @@ REGIMEN_IMPUESTO_CONFIG = [
         "limite_superior": Decimal("300000.00"),
         "es_acreditable": False,
         "es_retencion_definitiva": True,
-        "requiere_autorizacion_sat": False
+        "requiere_autorizacion_sat": False,
     },
     # --- PEQUEÑO CONTRIBUYENTE FEL ---
     {
@@ -31,7 +32,7 @@ REGIMEN_IMPUESTO_CONFIG = [
         "tasa_porcentaje": Decimal("12.00"),
         "es_acreditable": False,
         "es_retencion_definitiva": True,
-        "requiere_autorizacion_sat": False
+        "requiere_autorizacion_sat": False,
     },
     {
         "regimen_codigo": "PC_FEL",
@@ -40,7 +41,7 @@ REGIMEN_IMPUESTO_CONFIG = [
         "limite_superior": Decimal("300000.00"),
         "es_acreditable": False,
         "es_retencion_definitiva": True,
-        "requiere_autorizacion_sat": False
+        "requiere_autorizacion_sat": False,
     },
     # --- RÉGIMEN GENERAL SOBRE UTILIDADES ---
     {
@@ -49,7 +50,7 @@ REGIMEN_IMPUESTO_CONFIG = [
         "tasa_porcentaje": Decimal("12.00"),
         "es_acreditable": True,
         "es_retencion_definitiva": False,
-        "requiere_autorizacion_sat": False
+        "requiere_autorizacion_sat": False,
     },
     {
         "regimen_codigo": "RG_UTILIDADES",
@@ -57,7 +58,7 @@ REGIMEN_IMPUESTO_CONFIG = [
         "tasa_porcentaje": Decimal("25.00"),
         "es_acreditable": False,
         "es_retencion_definitiva": False,
-        "requiere_autorizacion_sat": False
+        "requiere_autorizacion_sat": False,
     },
     {
         "regimen_codigo": "RG_UTILIDADES",
@@ -65,10 +66,10 @@ REGIMEN_IMPUESTO_CONFIG = [
         "tasa_porcentaje": Decimal("1.00"),
         "es_acreditable": True,
         "es_retencion_definitiva": False,
-        "requiere_autorizacion_sat": False
+        "requiere_autorizacion_sat": False,
     },
     # --- RÉGIMEN OPCIONAL SIMPLIFICADO (ROS) ---
-    # Nota: Se guarda el Tramo 1 como base. El backend debe aplicar la lógica 
+    # Nota: Se guarda el Tramo 1 como base. El backend debe aplicar la lógica
     # progresiva (7% + 1500) cuando los ingresos superen el limite_superior.
     {
         "regimen_codigo": "ROS",
@@ -79,6 +80,6 @@ REGIMEN_IMPUESTO_CONFIG = [
         "limite_superior": Decimal("30000.00"),
         "es_acreditable": False,
         "es_retencion_definitiva": True,
-        "requiere_autorizacion_sat": False
+        "requiere_autorizacion_sat": False,
     },
 ]

@@ -1,4 +1,5 @@
 """Endpoint para Catálogo de Impuestos"""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,9 +28,7 @@ async def listar_impuestos(
     service: ImpuestoService = Depends(get_service),
 ):
     """Lista impuestos con paginación"""
-    impuestos, total = await service.obtener_todos(
-        activo=activo, search=search, skip=skip, limit=limit
-    )
+    impuestos, total = await service.obtener_todos(activo=activo, search=search, skip=skip, limit=limit)
     return {
         "data": [ImpuestoListResponse.model_validate(i).model_dump() for i in impuestos],
         "total": total,

@@ -1,9 +1,11 @@
 """Service para Catálogo de Monedas"""
+
 from uuid import UUID
 
-from app.models.global_models import CatalogoMoneda
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.global_models import CatalogoMoneda
 
 
 class MonedaService:
@@ -39,11 +41,7 @@ class MonedaService:
         return list(result.scalars().all()), total
 
     async def obtener_todos_activos(self) -> list[CatalogoMoneda]:
-        query = (
-            select(CatalogoMoneda)
-            .where(CatalogoMoneda.activo.is_(True))
-            .order_by(CatalogoMoneda.codigo_iso)
-        )
+        query = select(CatalogoMoneda).where(CatalogoMoneda.activo.is_(True)).order_by(CatalogoMoneda.codigo_iso)
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
@@ -55,8 +53,8 @@ class MonedaService:
     async def crear(self, data: dict) -> CatalogoMoneda:
         existente = await self.db.execute(
             select(CatalogoMoneda).where(
-                (CatalogoMoneda.codigo_banguat == data["codigo_banguat"]) |
-                (CatalogoMoneda.codigo_iso == data["codigo_iso"])
+                (CatalogoMoneda.codigo_banguat == data["codigo_banguat"])
+                | (CatalogoMoneda.codigo_iso == data["codigo_iso"])
             )
         )
         if existente.scalar_one_or_none():

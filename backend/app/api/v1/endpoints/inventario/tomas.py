@@ -22,17 +22,13 @@ from .helpers import toma_a_list_response, toma_a_response
 router = APIRouter()
 
 
-async def _cargar_toma_completa(
-    db: AsyncSession, public_id: UUID, tenant_id: int
-) -> InventarioToma:
+async def _cargar_toma_completa(db: AsyncSession, public_id: UUID, tenant_id: int) -> InventarioToma:
     """Carga una toma con todas sus relaciones para respuesta completa."""
     stmt = (
         select(InventarioToma)
         .options(
-            selectinload(InventarioToma.items)
-                .joinedload(InventarioItem.bodega),
-            selectinload(InventarioToma.items)
-                .joinedload(InventarioItem.producto),
+            selectinload(InventarioToma.items).joinedload(InventarioItem.bodega),
+            selectinload(InventarioToma.items).joinedload(InventarioItem.producto),
             joinedload(InventarioToma.empresa),
             joinedload(InventarioToma.partida_ajuste),
         )
@@ -53,9 +49,7 @@ async def _cargar_toma_completa(
     return toma
 
 
-async def _cargar_toma_simple(
-    db: AsyncSession, public_id: UUID, tenant_id: int
-) -> InventarioToma:
+async def _cargar_toma_simple(db: AsyncSession, public_id: UUID, tenant_id: int) -> InventarioToma:
     """Carga una toma con empresa (para listado)."""
     stmt = (
         select(InventarioToma)
@@ -88,9 +82,7 @@ async def crear_toma(
     db: AsyncSession = Depends(get_tenant_db),
     scope: DataScope = Depends(get_data_scope),
 ):
-    empresa = await resolve_public_id(
-        db, Empresa, data.empresa_public_id, scope.tenant_id, "Empresa no encontrada"
-    )
+    empresa = await resolve_public_id(db, Empresa, data.empresa_public_id, scope.tenant_id, "Empresa no encontrada")
 
     # Construir schema interno con empresa_id
     data_dict = data.model_dump()
@@ -102,9 +94,7 @@ async def crear_toma(
     try:
         toma = await svc.crear(scope.tenant_id, data_interna, scope.user.id)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     return await _cargar_toma_completa(db, toma.public_id, scope.tenant_id)
 
@@ -125,9 +115,7 @@ async def listar_tomas(
 ):
     empresa_id = None
     if empresa_public_id:
-        empresa = await resolve_public_id(
-            db, Empresa, empresa_public_id, scope.tenant_id, "Empresa no encontrada"
-        )
+        empresa = await resolve_public_id(db, Empresa, empresa_public_id, scope.tenant_id, "Empresa no encontrada")
         empresa_id = empresa.id
 
     svc = TomaService(db)
@@ -149,11 +137,7 @@ async def listar_tomas(
     result = await db.execute(stmt)
     tomas_con_empresa = {t.id: t for t in result.unique().scalars().all()}
 
-    return [
-        toma_a_list_response(tomas_con_empresa[t.id])
-        for t in tomas
-        if t.id in tomas_con_empresa
-    ]
+    return [toma_a_list_response(tomas_con_empresa[t.id]) for t in tomas if t.id in tomas_con_empresa]
 
 
 @router.get(
@@ -187,9 +171,7 @@ async def actualizar_toma(
     try:
         await svc.actualizar(toma, data, scope.user.id)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     return await _cargar_toma_completa(db, public_id, scope.tenant_id)
 
@@ -210,9 +192,7 @@ async def confirmar_toma(
     try:
         await svc.confirmar(toma, scope.user.id)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     return await _cargar_toma_completa(db, public_id, scope.tenant_id)
 
@@ -233,6 +213,4 @@ async def eliminar_toma(
     try:
         await svc.eliminar(toma)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

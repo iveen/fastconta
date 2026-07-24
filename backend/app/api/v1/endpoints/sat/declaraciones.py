@@ -34,9 +34,7 @@ router = APIRouter(prefix="/declaraciones", tags=["Declaraciones SAT"])
 # ============================================================
 @router.post("/sombra", status_code=status.HTTP_200_OK)
 async def generar_sombra(
-    request: GenerarSombraRequest,
-    scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    request: GenerarSombraRequest, scope: DataScope = Depends(get_data_scope), db: AsyncSession = Depends(get_public_db)
 ):
     await _set_schema_for_query(db, scope)
     try:
@@ -45,7 +43,7 @@ async def generar_sombra(
             empresa_id=request.empresa_id,  # ✅ Ya es int en el schema
             anio=request.anio,
             mes=request.mes,
-            codigo_formulario=request.codigo_formulario
+            codigo_formulario=request.codigo_formulario,
         )
         return resultado
     except ValueError as e:
@@ -62,7 +60,7 @@ async def generar_sombra(
 async def obtener_declaracion(
     declaracion_id: int,  # ✅ BIGINT (era UUID)
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
 ):
     await _set_schema_for_query(db, scope)
     stmt = (
@@ -85,7 +83,7 @@ async def obtener_declaracion(
             base_imponible=det.base_imponible,
             monto_impuesto=det.monto_impuesto,
             es_ajuste_manual=det.es_ajuste_manual,
-            motivo_ajuste=det.motivo_ajuste
+            motivo_ajuste=det.motivo_ajuste,
         )
         for det in declaracion.detalles
     ]
@@ -101,7 +99,7 @@ async def obtener_declaracion(
         impuesto_a_pagar=declaracion.impuesto_a_pagar,
         remanente_siguiente_periodo=declaracion.remanente_siguiente_periodo,
         detalles=detalles_out,
-        created_at=declaracion.created_at
+        created_at=declaracion.created_at,
     )
 
 
@@ -114,7 +112,7 @@ async def aplicar_ajuste_manual(
     casilla_codigo: str,
     request: AjusteManualRequest,
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
 ):
     await _set_schema_for_query(db, scope)
     stmt_decl = select(DeclaracionImpuesto).where(DeclaracionImpuesto.id == declaracion_id)
@@ -125,9 +123,10 @@ async def aplicar_ajuste_manual(
     if declaracion.estado == "FINALIZADO":
         raise HTTPException(status_code=400, detail="No se puede modificar una declaración finalizada")
 
-    stmt_casilla = select(CasillaSat.id).join(FormularioSat).where(
-        FormularioSat.id == declaracion.formulario_sat_id,
-        CasillaSat.codigo == casilla_codigo
+    stmt_casilla = (
+        select(CasillaSat.id)
+        .join(FormularioSat)
+        .where(FormularioSat.id == declaracion.formulario_sat_id, CasillaSat.codigo == casilla_codigo)
     )
     res_casilla = await db.execute(stmt_casilla)
     casilla_id = res_casilla.scalar_one_or_none()
@@ -138,14 +137,18 @@ async def aplicar_ajuste_manual(
         update(DetalleDeclaracionImpuesto)
         .where(
             DetalleDeclaracionImpuesto.declaracion_id == declaracion_id,
-            DetalleDeclaracionImpuesto.casilla_sat_id == casilla_id
+            DetalleDeclaracionImpuesto.casilla_sat_id == casilla_id,
         )
         .values(
-            base_imponible=request.base_imponible if request.base_imponible is not None else DetalleDeclaracionImpuesto.base_imponible,
-            monto_impuesto=request.monto_impuesto if request.monto_impuesto is not None else DetalleDeclaracionImpuesto.monto_impuesto,
+            base_imponible=request.base_imponible
+            if request.base_imponible is not None
+            else DetalleDeclaracionImpuesto.base_imponible,
+            monto_impuesto=request.monto_impuesto
+            if request.monto_impuesto is not None
+            else DetalleDeclaracionImpuesto.monto_impuesto,
             es_ajuste_manual=True,
             motivo_ajuste=request.motivo_ajuste,
-            ajustado_por=scope.user.id  # ✅ CORREGIDO: scope.user.id (no scope.user_id)
+            ajustado_por=scope.user.id,  # ✅ CORREGIDO: scope.user.id (no scope.user_id)
         )
         .returning(DetalleDeclaracionImpuesto.id)
     )
@@ -156,9 +159,11 @@ async def aplicar_ajuste_manual(
     # RECÁLCULO DE TOTALES
     # ⚠️ CasillaSat no tiene campo 'tipo_valor'. Usamos 'naturaleza' como alternativa.
     # Mapeo: DEBITO → naturaleza='deudora', CREDITO → naturaleza='acreedora'
-    stmt_detalles = select(DetalleDeclaracionImpuesto, CasillaSat.naturaleza).join(
-        CasillaSat, DetalleDeclaracionImpuesto.casilla_sat_id == CasillaSat.id
-    ).where(DetalleDeclaracionImpuesto.declaracion_id == declaracion_id)
+    stmt_detalles = (
+        select(DetalleDeclaracionImpuesto, CasillaSat.naturaleza)
+        .join(CasillaSat, DetalleDeclaracionImpuesto.casilla_sat_id == CasillaSat.id)
+        .where(DetalleDeclaracionImpuesto.declaracion_id == declaracion_id)
+    )
     res_detalles = await db.execute(stmt_detalles)
     total_debito = Decimal("0.00")
     total_credito = Decimal("0.00")
@@ -168,7 +173,7 @@ async def aplicar_ajuste_manual(
             total_debito += det.monto_impuesto
         elif naturaleza == "acreedora":  # Mapeado a CREDITO
             total_credito += det.monto_impuesto
-    
+
     impuesto_determinado = total_debito - total_credito
     await db.execute(
         update(DeclaracionImpuesto)
@@ -177,7 +182,7 @@ async def aplicar_ajuste_manual(
             total_debito_fiscal=total_debito,
             total_credito_fiscal=total_credito,
             impuesto_determinado=impuesto_determinado,
-            impuesto_a_pagar=max(Decimal("0.00"), impuesto_determinado)
+            impuesto_a_pagar=max(Decimal("0.00"), impuesto_determinado),
         )
     )
     await db.commit()
@@ -191,7 +196,7 @@ async def aplicar_ajuste_manual(
 async def finalizar_declaracion(
     declaracion_id: int,  # ✅ BIGINT (era UUID)
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
 ):
     await _set_schema_for_query(db, scope)
     stmt = (
@@ -200,7 +205,7 @@ async def finalizar_declaracion(
         .values(
             estado="FINALIZADO",
             fecha_cierre=func.now(),
-            finalizado_por=scope.user.id  # ✅ CORREGIDO: scope.user.id (no scope.user_id)
+            finalizado_por=scope.user.id,  # ✅ CORREGIDO: scope.user.id (no scope.user_id)
         )
         .returning(DeclaracionImpuesto.id)
     )
@@ -219,17 +224,14 @@ async def obtener_facturas_de_casilla(
     declaracion_id: int,  # ✅ BIGINT (era UUID)
     casilla_codigo: str,
     scope: DataScope = Depends(get_data_scope),
-    db: AsyncSession = Depends(get_public_db)
+    db: AsyncSession = Depends(get_public_db),
 ):
     await _set_schema_for_query(db, scope)
     stmt = (
         select(DetalleDeclaracionImpuesto.id)
         .join(CasillaSat, DetalleDeclaracionImpuesto.casilla_sat_id == CasillaSat.id)
         .join(DeclaracionImpuesto, DetalleDeclaracionImpuesto.declaracion_id == DeclaracionImpuesto.id)
-        .where(
-            DeclaracionImpuesto.id == declaracion_id,
-            CasillaSat.codigo == casilla_codigo
-        )
+        .where(DeclaracionImpuesto.id == declaracion_id, CasillaSat.codigo == casilla_codigo)
     )
     res = await db.execute(stmt)
     detalle_id = res.scalar_one_or_none()
@@ -237,20 +239,24 @@ async def obtener_facturas_de_casilla(
         raise HTTPException(status_code=404, detail="Casilla no encontrada en esta declaración")
 
     stmt_facturas = (
-        select(FacturaElectronica, DeclaracionImpuestoFactura.base_asignada, DeclaracionImpuestoFactura.impuesto_asignado)
+        select(
+            FacturaElectronica, DeclaracionImpuestoFactura.base_asignada, DeclaracionImpuestoFactura.impuesto_asignado
+        )
         .join(DeclaracionImpuestoFactura, FacturaElectronica.id == DeclaracionImpuestoFactura.factura_id)
         .where(DeclaracionImpuestoFactura.detalle_declaracion_id == detalle_id)
     )
     res_facturas = await db.execute(stmt_facturas)
     facturas_out = []
     for factura, base_asig, imp_asig in res_facturas.all():
-        facturas_out.append({
-            "factura_id": factura.id,  # ✅ CORREGIDO: int (no str)
-            "numero": f"{factura.serie}-{factura.numero}",
-            "fecha_emision": factura.fecha_emision.strftime("%Y-%m-%d") if factura.fecha_emision else None,
-            "tercero": factura.receptor_nombre if factura.tipo_operacion == 'Venta' else factura.emisor_nombre,
-            "nit": factura.receptor_nit if factura.tipo_operacion == 'Venta' else factura.emisor_nit,
-            "base_asignada": float(base_asig),
-            "impuesto_asignado": float(imp_asig)
-        })
+        facturas_out.append(
+            {
+                "factura_id": factura.id,  # ✅ CORREGIDO: int (no str)
+                "numero": f"{factura.serie}-{factura.numero}",
+                "fecha_emision": factura.fecha_emision.strftime("%Y-%m-%d") if factura.fecha_emision else None,
+                "tercero": factura.receptor_nombre if factura.tipo_operacion == "Venta" else factura.emisor_nombre,
+                "nit": factura.receptor_nit if factura.tipo_operacion == "Venta" else factura.emisor_nit,
+                "base_asignada": float(base_asig),
+                "impuesto_asignado": float(imp_asig),
+            }
+        )
     return {"casilla_codigo": casilla_codigo, "facturas": facturas_out}

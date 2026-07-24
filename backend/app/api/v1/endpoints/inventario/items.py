@@ -17,9 +17,7 @@ from .helpers import item_a_response
 router = APIRouter()
 
 
-async def _cargar_item(
-    db: AsyncSession, public_id: UUID, tenant_id: int
-) -> InventarioItem:
+async def _cargar_item(db: AsyncSession, public_id: UUID, tenant_id: int) -> InventarioItem:
     """Carga un item con sus relaciones validando tenant."""
     stmt = (
         select(InventarioItem)
@@ -59,7 +57,10 @@ async def crear_item(
     scope: DataScope = Depends(get_data_scope),
 ):
     toma = await resolve_public_id(
-        db, InventarioToma, toma_public_id, scope.tenant_id,
+        db,
+        InventarioToma,
+        toma_public_id,
+        scope.tenant_id,
         "Toma de inventario no encontrada",
     )
 
@@ -67,9 +68,7 @@ async def crear_item(
     try:
         item = await svc.agregar(toma, data, scope.user.id)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     # Recargar relaciones para la respuesta
     return await _cargar_item(db, item.public_id, scope.tenant_id)
@@ -86,7 +85,10 @@ async def listar_items(
     scope: DataScope = Depends(get_data_scope),
 ):
     toma = await resolve_public_id(
-        db, InventarioToma, toma_public_id, scope.tenant_id,
+        db,
+        InventarioToma,
+        toma_public_id,
+        scope.tenant_id,
         "Toma de inventario no encontrada",
     )
 
@@ -136,9 +138,7 @@ async def actualizar_item(
     try:
         await svc.actualizar(item, data, scope.user.id)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     return await _cargar_item(db, public_id, scope.tenant_id)
 
@@ -159,6 +159,4 @@ async def eliminar_item(
     try:
         await svc.eliminar(item)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict
 
 class FELImportJobResponse(BaseModel):
     """Respuesta con el estado de un job de importación FEL."""
+
     public_id: UUID
     estado: str
     archivo_original: str
@@ -27,6 +28,7 @@ class FELImportJobResponse(BaseModel):
 
 class FELJobCreatedResponse(BaseModel):
     """Respuesta al crear un job de importación FEL."""
+
     job_id: int
     public_id: UUID
     filename: str

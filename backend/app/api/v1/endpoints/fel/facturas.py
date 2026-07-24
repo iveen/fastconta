@@ -2,7 +2,7 @@
 import logging
 import tempfile
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import List
@@ -115,9 +115,7 @@ async def upload_facturas(
 
     # Separar ZIPs de archivos regulares
     zip_files = [f for f in files if f.filename and f.filename.lower().endswith(".zip")]
-    regular_files = [
-        f for f in files if not (f.filename and f.filename.lower().endswith(".zip"))
-    ]
+    regular_files = [f for f in files if not (f.filename and f.filename.lower().endswith(".zip"))]
 
     facturas_creadas = []
     rechazos = []
@@ -171,14 +169,16 @@ async def upload_facturas(
                 xml_files=xml_files,
             )
 
-            jobs_creados.append(FELJobCreatedResponse(
-                job_id=job.id,
-                public_id=job.public_id,
-                filename=zip_file.filename,
-                total_files=len(xml_files),
-                estado=job.estado,
-                message=f"ZIP en cola de procesamiento: {len(xml_files)} XMLs detectados",
-            ))
+            jobs_creados.append(
+                FELJobCreatedResponse(
+                    job_id=job.id,
+                    public_id=job.public_id,
+                    filename=zip_file.filename,
+                    total_files=len(xml_files),
+                    estado=job.estado,
+                    message=f"ZIP en cola de procesamiento: {len(xml_files)} XMLs detectados",
+                )
+            )
 
         except Exception as e:
             logger.error(f"Error preparando ZIP {zip_file.filename}: {e}", exc_info=True)
@@ -228,14 +228,18 @@ async def upload_facturas(
             # Tipo de cambio
             tc = Decimal("1.00000")
             if datos.get("moneda") != "GTQ" and datos.get("fecha_emision"):
-                tc = await obtener_tipo_cambio(
-                    datos["fecha_emision"].date(), datos["moneda"], db
-                ) or tc
+                tc = await obtener_tipo_cambio(datos["fecha_emision"].date(), datos["moneda"], db) or tc
 
             # Crear factura
             factura = await _crear_factura_en_bd(
-                db, datos, empresa_id_final, tipo_op,
-                clasificacion_inicial, tc, file.filename, content,
+                db,
+                datos,
+                empresa_id_final,
+                tipo_op,
+                clasificacion_inicial,
+                tc,
+                file.filename,
+                content,
             )
             facturas_creadas.append(factura)
 
@@ -348,7 +352,7 @@ async def cancelar_fel_job(
         )
 
     job.estado = "CANCELADO"
-    job.finalizado_en = datetime.now(timezone.utc)
+    job.finalizado_en = datetime.now(UTC)
     job.locked_at = None
     job.mensaje_error = "Cancelado por el usuario"
     await db.commit()
@@ -367,9 +371,7 @@ async def cancelar_fel_job(
 )
 async def reprocesar_fel_job(
     job_id: int,
-    solo_errores: bool = Query(
-        False, description="Si es True, solo reprocesa los XMLs que fallaron"
-    ),
+    solo_errores: bool = Query(False, description="Si es True, solo reprocesa los XMLs que fallaron"),
     background_tasks: BackgroundTasks = ...,
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_public_db),
@@ -407,10 +409,7 @@ async def reprocesar_fel_job(
     if not zip_path.exists():
         raise HTTPException(
             400,
-            detail=(
-                "El archivo ZIP original ya no está disponible en disco. "
-                "Por favor, suba el archivo nuevamente."
-            ),
+            detail=("El archivo ZIP original ya no está disponible en disco. Por favor, suba el archivo nuevamente."),
         )
 
     # Configurar search_path
@@ -453,32 +452,27 @@ async def reprocesar_fel_job(
                 except UnicodeDecodeError:
                     xml_text = xml_bytes.decode("utf-8", errors="replace")
 
-                xml_files.append({
-                    "filename": file_info.filename,
-                    "xml_text": xml_text,
-                    "raw_bytes": xml_bytes,
-                })
+                xml_files.append(
+                    {
+                        "filename": file_info.filename,
+                        "xml_text": xml_text,
+                        "raw_bytes": xml_bytes,
+                    }
+                )
     except Exception as e:
         raise HTTPException(500, detail=f"Error leyendo ZIP original: {str(e)}")
 
     # Filtrar solo errores si se solicita
     if solo_errores and job.errores:
         archivos_con_error = {
-            err.get("file", "")
-            for err in job.errores
-            if err.get("error") != "Duplicada (ya existe en el sistema)"
+            err.get("file", "") for err in job.errores if err.get("error") != "Duplicada (ya existe en el sistema)"
         }
-        xml_files = [
-            xf for xf in xml_files if xf["filename"] in archivos_con_error
-        ]
+        xml_files = [xf for xf in xml_files if xf["filename"] in archivos_con_error]
 
         if not xml_files:
             raise HTTPException(
                 400,
-                detail=(
-                    "No hay XMLs con error para reprocesar "
-                    "(todos los errores fueron duplicadas)."
-                ),
+                detail=("No hay XMLs con error para reprocesar (todos los errores fueron duplicadas)."),
             )
 
     if not xml_files:
@@ -519,10 +513,7 @@ async def reprocesar_fel_job(
         filename=nuevo_job.archivo_original,
         total_files=len(xml_files),
         estado=nuevo_job.estado,
-        message=(
-            f"Re-procesamiento programado: {len(xml_files)} XMLs "
-            f"({'solo errores' if solo_errores else 'todos'})"
-        ),
+        message=(f"Re-procesamiento programado: {len(xml_files)} XMLs ({'solo errores' if solo_errores else 'todos'})"),
     )
 
 
@@ -659,17 +650,19 @@ async def _crear_factura_en_bd(db, datos, empresa_id, tipo_op, clasificacion, tc
     await db.flush()
 
     for it in items:
-        db.add(FacturaDetalle(
-            factura_id=factura.id,
-            cantidad=it["cantidad"],
-            descripcion=it["descripcion"],
-            precio_unitario=it["precio_unitario"],
-            total_linea=it["total_linea"],
-            iva_linea=it.get("iva_linea", 0),
-            precio_unitario_gtq=float(it["precio_unitario"]) * tc_float,
-            total_linea_gtq=float(it["total_linea"]) * tc_float,
-            iva_linea_gtq=float(it.get("iva_linea", 0)) * tc_float,
-            bien_o_servicio=it.get("bien_o_servicio", "B"),
-        ))
+        db.add(
+            FacturaDetalle(
+                factura_id=factura.id,
+                cantidad=it["cantidad"],
+                descripcion=it["descripcion"],
+                precio_unitario=it["precio_unitario"],
+                total_linea=it["total_linea"],
+                iva_linea=it.get("iva_linea", 0),
+                precio_unitario_gtq=float(it["precio_unitario"]) * tc_float,
+                total_linea_gtq=float(it["total_linea"]) * tc_float,
+                iva_linea_gtq=float(it.get("iva_linea", 0)) * tc_float,
+                bien_o_servicio=it.get("bien_o_servicio", "B"),
+            )
+        )
 
     return factura

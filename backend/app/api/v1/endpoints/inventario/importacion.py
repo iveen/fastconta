@@ -8,6 +8,7 @@ Flujo:
 4. POST /jobs/{id}/cancelar → cancela job pendiente
 5. GET /tomas/{id}/historial → historial de importaciones completadas
 """
+
 from uuid import UUID
 
 from fastapi import (

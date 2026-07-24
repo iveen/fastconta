@@ -27,9 +27,7 @@ async def crear_bodega(
     db: AsyncSession = Depends(get_tenant_db),
     scope: DataScope = Depends(get_data_scope),
 ):
-    empresa = await resolve_public_id(
-        db, Empresa, empresa_public_id, scope.tenant_id, "Empresa no encontrada"
-    )
+    empresa = await resolve_public_id(db, Empresa, empresa_public_id, scope.tenant_id, "Empresa no encontrada")
 
     svc = BodegaService(db)
     existente = await svc.obtener_por_codigo(scope.tenant_id, empresa.id, data.codigo)
@@ -55,9 +53,7 @@ async def listar_bodegas(
     db: AsyncSession = Depends(get_tenant_db),
     scope: DataScope = Depends(get_data_scope),
 ):
-    empresa = await resolve_public_id(
-        db, Empresa, empresa_public_id, scope.tenant_id, "Empresa no encontrada"
-    )
+    empresa = await resolve_public_id(db, Empresa, empresa_public_id, scope.tenant_id, "Empresa no encontrada")
     svc = BodegaService(db)
     bodegas = await svc.listar(scope.tenant_id, empresa.id)
     # Asignar empresa para el helper
@@ -76,9 +72,7 @@ async def obtener_bodega(
     db: AsyncSession = Depends(get_tenant_db),
     scope: DataScope = Depends(get_data_scope),
 ):
-    bodega = await resolve_public_id(
-        db, InventarioBodega, public_id, scope.tenant_id, "Bodega no encontrada"
-    )
+    bodega = await resolve_public_id(db, InventarioBodega, public_id, scope.tenant_id, "Bodega no encontrada")
     return bodega_a_response(bodega)
 
 
@@ -93,16 +87,12 @@ async def actualizar_bodega(
     db: AsyncSession = Depends(get_tenant_db),
     scope: DataScope = Depends(get_data_scope),
 ):
-    bodega = await resolve_public_id(
-        db, InventarioBodega, public_id, scope.tenant_id, "Bodega no encontrada"
-    )
+    bodega = await resolve_public_id(db, InventarioBodega, public_id, scope.tenant_id, "Bodega no encontrada")
 
     # Validar unicidad si cambia el código
     if data.codigo and data.codigo != bodega.codigo:
         svc = BodegaService(db)
-        existente = await svc.obtener_por_codigo(
-            scope.tenant_id, bodega.empresa_id, data.codigo
-        )
+        existente = await svc.obtener_por_codigo(scope.tenant_id, bodega.empresa_id, data.codigo)
         if existente:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -124,9 +114,7 @@ async def eliminar_bodega(
     db: AsyncSession = Depends(get_tenant_db),
     scope: DataScope = Depends(get_data_scope),
 ):
-    bodega = await resolve_public_id(
-        db, InventarioBodega, public_id, scope.tenant_id, "Bodega no encontrada"
-    )
+    bodega = await resolve_public_id(db, InventarioBodega, public_id, scope.tenant_id, "Bodega no encontrada")
 
     svc = BodegaService(db)
     if await svc.tiene_items_asociados(bodega.id):

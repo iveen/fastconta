@@ -1,4 +1,5 @@
 """Endpoint para Categorías de Activos Fijos"""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,9 +31,7 @@ async def listar_categorias(
     service: CategoriaActivoService = Depends(get_service),
 ):
     """Lista categorías de activos fijos con paginación"""
-    categorias, total = await service.obtener_todos(
-        is_active=is_active, search=search, skip=skip, limit=limit
-    )
+    categorias, total = await service.obtener_todos(is_active=is_active, search=search, skip=skip, limit=limit)
     return {
         "data": [CategoriaActivoFijoListResponse.model_validate(c).model_dump() for c in categorias],
         "total": total,

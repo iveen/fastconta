@@ -3,6 +3,7 @@ Estrategia FEL para PDFs.
 - Si tiene XML embebido → reutiliza parse_fel_xml (100% preciso)
 - Si solo tiene texto → usa parse_fel_texto (regex)
 """
+
 import logging
 
 from app.core.file_handlers import FileContent
@@ -15,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class PdfFelStrategy(FelIngestionStrategy):
-
     @classmethod
     def handles(cls, content: FileContent) -> bool:
         return content.extension == "pdf"

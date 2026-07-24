@@ -14,7 +14,7 @@ class FacturaDetalleOut(BaseModel):
     precio_unitario: Decimal
     total_linea: Decimal
     iva_linea: Decimal
-    bien_o_servicio: str = 'B'
+    bien_o_servicio: str = "B"
     # Montos en GTQ
     precio_unitario_gtq: Decimal | None = None
     total_linea_gtq: Decimal | None = None
@@ -55,7 +55,7 @@ class FacturaOut(BaseModel):
     tipo_cambio: Decimal | None = None
     es_exportacion: bool = False
     tipo_operacion: str | None = "Venta"
-    estado: str | None = 'Activa'
+    estado: str | None = "Activa"
     # Auditoría y Validación
     xml_filename: str | None = None
     validado: bool = False

@@ -10,29 +10,22 @@ class TomaBase(BaseModel):
     mes_periodo: int = Field(..., ge=1, le=12)
     fecha_corte: date
     tipo: str = Field("FISCAL", pattern="^(FISCAL|INTERNO|AJUSTE)$")
-    metodo_valuacion: str = Field(
-        "COSTO_PROMEDIO",
-        pattern="^(COSTO_PROMEDIO|PEPS|IDENTIFICACION_ESPECIFICA)$"
-    )
+    metodo_valuacion: str = Field("COSTO_PROMEDIO", pattern="^(COSTO_PROMEDIO|PEPS|IDENTIFICACION_ESPECIFICA)$")
     observaciones: str | None = None
 
     @model_validator(mode="after")
     def validar_coherencia_periodo(self):
-        if (self.fecha_corte.year != self.anio_periodo or
-                self.fecha_corte.month != self.mes_periodo):
+        if self.fecha_corte.year != self.anio_periodo or self.fecha_corte.month != self.mes_periodo:
             raise ValueError(
                 f"La fecha de corte ({self.fecha_corte}) debe estar "
                 f"dentro del período {self.anio_periodo}/{str(self.mes_periodo).zfill(2)}"
             )
         if self.tipo == "FISCAL":
-            es_fiscal = (
-                (self.fecha_corte.month == 6 and self.fecha_corte.day == 30) or
-                (self.fecha_corte.month == 12 and self.fecha_corte.day == 31)
+            es_fiscal = (self.fecha_corte.month == 6 and self.fecha_corte.day == 30) or (
+                self.fecha_corte.month == 12 and self.fecha_corte.day == 31
             )
             if not es_fiscal:
-                raise ValueError(
-                    "Inventario FISCAL debe ser al 30/jun o 31/dic"
-                )
+                raise ValueError("Inventario FISCAL debe ser al 30/jun o 31/dic")
         return self
 
 
@@ -43,13 +36,8 @@ class TomaCreate(TomaBase):
 class TomaUpdate(BaseModel):
     fecha_corte: date | None = None
     tipo: str | None = Field(None, pattern="^(FISCAL|INTERNO|AJUSTE)$")
-    metodo_valuacion: str | None = Field(
-        None,
-        pattern="^(COSTO_PROMEDIO|PEPS|IDENTIFICACION_ESPECIFICA)$"
-    )
-    estado: str | None = Field(
-        None, pattern="^(BORRADOR|CONFIRMADO|CONTABILIZADO)$"
-    )
+    metodo_valuacion: str | None = Field(None, pattern="^(COSTO_PROMEDIO|PEPS|IDENTIFICACION_ESPECIFICA)$")
+    estado: str | None = Field(None, pattern="^(BORRADOR|CONFIRMADO|CONTABILIZADO)$")
     observaciones: str | None = None
 
 

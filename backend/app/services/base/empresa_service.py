@@ -1,9 +1,11 @@
 """Servicio para gestión de Empresas"""
+
 import logging
 
-from app.models.tenant_models import Empresa
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.tenant_models import Empresa
 
 logger = logging.getLogger(__name__)
 
@@ -13,9 +15,7 @@ async def get_empresa_by_id(db: AsyncSession, empresa_id: int) -> Empresa | None
     Obtiene una empresa por su ID.
     Requiere que el search_path ya esté configurado al schema correcto.
     """
-    result = await db.execute(
-        select(Empresa).where(Empresa.id == empresa_id)
-    )
+    result = await db.execute(select(Empresa).where(Empresa.id == empresa_id))
     return result.scalar_one_or_none()
 
 
@@ -24,11 +24,7 @@ async def list_empresas_activas(db: AsyncSession) -> list[Empresa]:
     Lista todas las empresas activas del tenant actual.
     Requiere que el search_path ya esté configurado al schema correcto.
     """
-    result = await db.execute(
-        select(Empresa)
-        .where(Empresa.is_active.is_(True))
-        .order_by(Empresa.nombre)
-    )
+    result = await db.execute(select(Empresa).where(Empresa.is_active.is_(True)).order_by(Empresa.nombre))
     return list(result.scalars().all())
 
 
@@ -37,15 +33,13 @@ async def list_all_empresas(db: AsyncSession) -> list[Empresa]:
     Lista todas las empresas del tenant actual (incluyendo inactivas).
     Requiere que el search_path ya esté configurado al schema correcto.
     """
-    result = await db.execute(
-        select(Empresa).order_by(Empresa.nombre)
-    )
+    result = await db.execute(select(Empresa).order_by(Empresa.nombre))
     return list(result.scalars().all())
 
 
 async def configure_search_path_for_tenant(
     db: AsyncSession,
-    tenant_id: int  # ✅ BIGINT (era UUID)
+    tenant_id: int,  # ✅ BIGINT (era UUID)
 ) -> str:
     """
     Configura el search_path para un tenant específico.
@@ -54,7 +48,7 @@ async def configure_search_path_for_tenant(
     """
     result = await db.execute(
         text("SELECT schema_name FROM public.tenants WHERE id = :tid"),
-        {"tid": tenant_id}  # ✅ BIGINT (no str)
+        {"tid": tenant_id},  # ✅ BIGINT (no str)
     )
     row = result.first()
     if not row:

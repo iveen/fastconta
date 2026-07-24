@@ -1,13 +1,15 @@
 """Service para Tipos DTE"""
+
 import io
 from uuid import UUID
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.global_models import TipoDTE
 from app.schemas.sat.tipo_dte import (
     TipoDTEImportResult,
 )
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class TipoDTEService:
@@ -44,11 +46,7 @@ class TipoDTEService:
     # LISTAR ACTIVOS (para dropdowns)
     # ---------------------------------------------------------------
     async def obtener_todos_activos(self) -> list[TipoDTE]:
-        query = (
-            select(TipoDTE)
-            .where(TipoDTE.activo.is_(True))
-            .order_by(TipoDTE.codigo)
-        )
+        query = select(TipoDTE).where(TipoDTE.activo.is_(True)).order_by(TipoDTE.codigo)
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
@@ -64,9 +62,7 @@ class TipoDTEService:
     # CREAR
     # ---------------------------------------------------------------
     async def crear(self, data: dict) -> TipoDTE:
-        existente = await self.db.execute(
-            select(TipoDTE).where(TipoDTE.codigo == data["codigo"])
-        )
+        existente = await self.db.execute(select(TipoDTE).where(TipoDTE.codigo == data["codigo"]))
         if existente.scalar_one_or_none():
             raise ValueError(f"Ya existe un Tipo DTE con código '{data['codigo']}'")
 
@@ -131,9 +127,7 @@ class TipoDTEService:
     # ---------------------------------------------------------------
     # IMPORTAR DESDE EXCEL
     # ---------------------------------------------------------------
-    async def importar_excel(
-        self, archivo_bytes: bytes, sobrescribir: bool = False
-    ) -> TipoDTEImportResult:
+    async def importar_excel(self, archivo_bytes: bytes, sobrescribir: bool = False) -> TipoDTEImportResult:
         try:
             import openpyxl
         except ImportError:
@@ -152,9 +146,7 @@ class TipoDTEService:
                     resultado.omitidos += 1
                     continue
 
-                existente = await self.db.execute(
-                    select(TipoDTE).where(TipoDTE.codigo == codigo)
-                )
+                existente = await self.db.execute(select(TipoDTE).where(TipoDTE.codigo == codigo))
                 dte = existente.scalar_one_or_none()
 
                 if dte:

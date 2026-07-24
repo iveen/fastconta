@@ -6,17 +6,19 @@ Responsabilidades:
 - Cancelar jobs pendientes
 - Monitoreo global para superadmin
 """
+
 from typing import List
 
-from app.models.global_models import InventarioImportacionJob
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.global_models import InventarioImportacionJob
 
 
 class JobService:
     """
     Servicio para gestión de jobs de importación.
-    
+
     Los jobs están en schema public (global), por lo que este servicio
     no requiere cambio de search_path.
     """
@@ -24,19 +26,13 @@ class JobService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def obtener_por_id(
-        self, job_id: int
-    ) -> InventarioImportacionJob | None:
+    async def obtener_por_id(self, job_id: int) -> InventarioImportacionJob | None:
         """Obtiene un job por su ID interno."""
         return await self.db.get(InventarioImportacionJob, job_id)
 
-    async def obtener_por_public_id(
-        self, public_id: str
-    ) -> InventarioImportacionJob | None:
+    async def obtener_por_public_id(self, public_id: str) -> InventarioImportacionJob | None:
         """Obtiene un job por su public_id (UUID)."""
-        stmt = select(InventarioImportacionJob).where(
-            InventarioImportacionJob.public_id == public_id
-        )
+        stmt = select(InventarioImportacionJob).where(InventarioImportacionJob.public_id == public_id)
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -88,7 +84,7 @@ class JobService:
     ) -> List[InventarioImportacionJob]:
         """
         Lista jobs globales (para superadmin).
-        
+
         Args:
             tenant_id: Filtrar por tenant (opcional)
             estado: Filtrar por estado (opcional)
@@ -99,9 +95,7 @@ class JobService:
             stmt = stmt.where(InventarioImportacionJob.tenant_id == tenant_id)
         if estado:
             stmt = stmt.where(InventarioImportacionJob.estado == estado)
-        stmt = stmt.order_by(
-            InventarioImportacionJob.created_at.desc()
-        ).limit(limit)
+        stmt = stmt.order_by(InventarioImportacionJob.created_at.desc()).limit(limit)
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
@@ -112,15 +106,12 @@ class JobService:
     ) -> InventarioImportacionJob:
         """
         Cancela un job PENDIENTE.
-        
+
         Solo se pueden cancelar jobs que aún no han empezado a procesarse.
         Si ya está PROCESANDO, no se puede cancelar (ya hay datos insertados).
         """
         if job.estado != "PENDIENTE":
-            raise ValueError(
-                f"Solo se pueden cancelar jobs PENDIENTES. "
-                f"Estado actual: {job.estado}"
-            )
+            raise ValueError(f"Solo se pueden cancelar jobs PENDIENTES. Estado actual: {job.estado}")
 
         job.estado = "CANCELADO"
         job.mensaje_error = "Cancelado por el usuario"
@@ -129,12 +120,10 @@ class JobService:
         await self.db.refresh(job)
         return job
 
-    async def obtener_estadisticas(
-        self, tenant_id: int | None = None
-    ) -> dict:
+    async def obtener_estadisticas(self, tenant_id: int | None = None) -> dict:
         """
         Obtiene estadísticas globales de jobs.
-        
+
         Returns:
             dict con conteos por estado
         """
@@ -145,9 +134,7 @@ class JobService:
             func.count(InventarioImportacionJob.id),
         )
         if tenant_id:
-            stmt = stmt.where(
-                InventarioImportacionJob.tenant_id == tenant_id
-            )
+            stmt = stmt.where(InventarioImportacionJob.tenant_id == tenant_id)
         stmt = stmt.group_by(InventarioImportacionJob.estado)
         result = await self.db.execute(stmt)
 

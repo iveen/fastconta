@@ -1,12 +1,14 @@
 # app/services/sat/regla_filtrado_service.py
 """Servicio para gestión de Reglas de Filtrado y Exclusiones"""
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.global_models import (
     CasillaSat,
     ExclusionCasilla,
     ReglaFiltradoFactura,
 )
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class ReglaFiltradoService:
@@ -17,7 +19,8 @@ class ReglaFiltradoService:
     # QUERIES - REGLAS
     # ============================================================
     async def obtener_reglas_por_casilla(
-        self, casilla_id: int  # ✅ BIGINT (era UUID)
+        self,
+        casilla_id: int,  # ✅ BIGINT (era UUID)
     ) -> list[ReglaFiltradoFactura]:
         """Lista reglas de filtrado de una casilla"""
         query = (
@@ -29,12 +32,11 @@ class ReglaFiltradoService:
         return list(result.scalars().all())
 
     async def obtener_regla_por_id(
-        self, regla_id: int  # ✅ BIGINT (era UUID)
+        self,
+        regla_id: int,  # ✅ BIGINT (era UUID)
     ) -> ReglaFiltradoFactura | None:
         """Obtiene una regla específica"""
-        query = select(ReglaFiltradoFactura).where(
-            ReglaFiltradoFactura.id == regla_id
-        )
+        query = select(ReglaFiltradoFactura).where(ReglaFiltradoFactura.id == regla_id)
         result = await self.db.execute(query)
         return result.scalars().first()
 
@@ -77,7 +79,9 @@ class ReglaFiltradoService:
         return regla
 
     async def actualizar_regla(
-        self, regla_id: int, data: dict  # ✅ BIGINT (era UUID)
+        self,
+        regla_id: int,
+        data: dict,  # ✅ BIGINT (era UUID)
     ) -> ReglaFiltradoFactura | None:
         """Actualiza una regla"""
         regla = await self.obtener_regla_por_id(regla_id)
@@ -106,24 +110,22 @@ class ReglaFiltradoService:
     # QUERIES - EXCLUSIONES
     # ============================================================
     async def obtener_exclusiones_por_casilla(
-        self, casilla_id: int  # ✅ BIGINT (era UUID)
+        self,
+        casilla_id: int,  # ✅ BIGINT (era UUID)
     ) -> list[ExclusionCasilla]:
         """Lista exclusiones de una casilla"""
         query = (
-            select(ExclusionCasilla)
-            .where(ExclusionCasilla.casilla_id == casilla_id)
-            .order_by(ExclusionCasilla.nombre)
+            select(ExclusionCasilla).where(ExclusionCasilla.casilla_id == casilla_id).order_by(ExclusionCasilla.nombre)
         )
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
     async def obtener_exclusion_por_id(
-        self, exclusion_id: int  # ✅ BIGINT (era UUID)
+        self,
+        exclusion_id: int,  # ✅ BIGINT (era UUID)
     ) -> ExclusionCasilla | None:
         """Obtiene una exclusión específica"""
-        query = select(ExclusionCasilla).where(
-            ExclusionCasilla.id == exclusion_id
-        )
+        query = select(ExclusionCasilla).where(ExclusionCasilla.id == exclusion_id)
         result = await self.db.execute(query)
         return result.scalars().first()
 
@@ -166,7 +168,9 @@ class ReglaFiltradoService:
         return exclusion
 
     async def actualizar_exclusion(
-        self, exclusion_id: int, data: dict  # ✅ BIGINT (era UUID)
+        self,
+        exclusion_id: int,
+        data: dict,  # ✅ BIGINT (era UUID)
     ) -> ExclusionCasilla | None:
         """Actualiza una exclusión"""
         exclusion = await self.obtener_exclusion_por_id(exclusion_id)

@@ -53,13 +53,9 @@ async def calcular_costo_ventas(
     try:
         resultado = await svc.calcular(toma.id, scope.tenant_id)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     # Enriquecer con public_ids para la respuesta
     resultado["toma_public_id"] = str(toma.public_id)
-    resultado["empresa_public_id"] = (
-        str(toma.empresa.public_id) if toma.empresa else str(toma.empresa_id)
-    )
+    resultado["empresa_public_id"] = str(toma.empresa.public_id) if toma.empresa else str(toma.empresa_id)
     return costo_ventas_a_response(resultado)

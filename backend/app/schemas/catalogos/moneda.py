@@ -1,4 +1,5 @@
 """Schemas para Catálogo de Monedas"""
+
 from datetime import datetime
 from uuid import UUID
 

@@ -2,20 +2,18 @@
 from datetime import datetime
 from decimal import Decimal
 
-from app.models.global_models import TipoLibro
-from app.models.tenant_models import FacturaElectronica, SatLibro, SatLibroLinea
-from app.schemas.sat.sat_libros import SatLibroCreate
 from fastapi import HTTPException, status
 from sqlalchemy import delete, extract, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
+from app.models.global_models import TipoLibro
+from app.models.tenant_models import FacturaElectronica, SatLibro, SatLibroLinea
+from app.schemas.sat.sat_libros import SatLibroCreate
 
-async def procesar_y_generar_libro_sat(
-    db: AsyncSession,
-    payload: SatLibroCreate
-) -> SatLibro:
+
+async def procesar_y_generar_libro_sat(db: AsyncSession, payload: SatLibroCreate) -> SatLibro:
     """
     Motor que extrae datos de FacturaElectronica y genera el libro SAT.
     """
@@ -27,7 +25,7 @@ async def procesar_y_generar_libro_sat(
     tipo_libro_obj = await db.get(TipoLibro, payload.tipo_libro_id)
     if not tipo_libro_obj:
         raise HTTPException(status_code=404, detail="Tipo de libro no encontrado")
-    
+
     # Asumimos que el código en la BD es 'compras' o 'ventas'
     tipo_operacion_db = "Compra" if tipo_libro_obj.codigo.lower() == "compras" else "Venta"
 
@@ -37,7 +35,7 @@ async def procesar_y_generar_libro_sat(
         SatLibro.tipo_libro_id == payload.tipo_libro_id,
         SatLibro.regimen_fiscal_id == payload.regimen_fiscal_id,
         SatLibro.anio_periodo == anio,
-        SatLibro.mes_periodo == mes
+        SatLibro.mes_periodo == mes,
     )
     result_existente = await db.execute(query_existente)
     libro_existente = result_existente.scalar_one_or_none()
@@ -47,7 +45,7 @@ async def procesar_y_generar_libro_sat(
     if libro_existente and libro_existente.finalizado_el is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El libro seleccionado ya se encuentra finalizado y no puede modificarse."
+            detail="El libro seleccionado ya se encuentra finalizado y no puede modificarse.",
         )
 
     if libro_existente:
@@ -65,16 +63,20 @@ async def procesar_y_generar_libro_sat(
             mes_periodo=mes,
         )
         db.add(libro)
-        await db.flush() # Necesario para obtener libro.id antes de crear líneas
+        await db.flush()  # Necesario para obtener libro.id antes de crear líneas
 
     # 3. Query optimizado a las facturas electrónicas activas del periodo
-    query_facturas = select(FacturaElectronica).where(
-        FacturaElectronica.empresa_id == empresa_id,
-        func.lower(FacturaElectronica.tipo_operacion) == tipo_operacion_db.lower(),
-        func.lower(FacturaElectronica.estado) == "activa",
-        extract('year', FacturaElectronica.fecha_emision) == anio,
-        extract('month', FacturaElectronica.fecha_emision) == mes
-    ).order_by(FacturaElectronica.fecha_emision.asc())
+    query_facturas = (
+        select(FacturaElectronica)
+        .where(
+            FacturaElectronica.empresa_id == empresa_id,
+            func.lower(FacturaElectronica.tipo_operacion) == tipo_operacion_db.lower(),
+            func.lower(FacturaElectronica.estado) == "activa",
+            extract("year", FacturaElectronica.fecha_emision) == anio,
+            extract("month", FacturaElectronica.fecha_emision) == mes,
+        )
+        .order_by(FacturaElectronica.fecha_emision.asc())
+    )
 
     result_facturas = await db.execute(query_facturas)
     facturas = result_facturas.scalars().all()
@@ -90,38 +92,38 @@ async def procesar_y_generar_libro_sat(
     # 4. Transformación y desglose de rubros SAT
     for idx, fac in enumerate(facturas, start=1):
         total_lineas += 1
-        
+
         nit_linea = fac.emisor_nit if tipo_operacion_db == "Compra" else fac.receptor_nit
         razon_social_linea = fac.emisor_nombre if tipo_operacion_db == "Compra" else fac.receptor_nombre
-        
+
         doc_identificador = f"{fac.serie} - {fac.numero}" if fac.serie else fac.numero
-        
+
         # Determinación de Créditos y Débitos (Simplificado para ejemplo)
         credito_calc = fac.total_iva if tipo_operacion_db == "Compra" else Decimal("0.00")
         debito_calc = fac.total_iva if tipo_operacion_db == "Venta" else Decimal("0.00")
-        
+
         acum_base += fac.total_gravado
         acum_iva += fac.total_iva
         acum_monto += fac.total
         acum_exento += fac.total_exento
-        
+
         # Normalización a GTQ
         tc = float(fac.tipo_cambio or 1.0)
         monto_total_gtq = Decimal(str(float(fac.total) * tc))
-        
+
         if fac.total_iva == 0.00:
             linea_data = {
                 "monto_exento": Decimal(str(monto_total_gtq)),
                 "base_imponible": Decimal("0.00"),
-                "monto_iva": Decimal("0.00")
+                "monto_iva": Decimal("0.00"),
             }
         else:
             linea_data = {
                 "monto_exento": Decimal("0.00"),
                 "base_imponible": Decimal(str(float(fac.total_gravado) * tc)),
-                "monto_iva": Decimal(str(float(fac.total_iva) * tc))
+                "monto_iva": Decimal(str(float(fac.total_iva) * tc)),
             }
-            
+
         # ✅ CORREGIDO: Sin id=uuid4().
         nueva_linea = SatLibroLinea(
             libro_id=libro.id,
@@ -135,7 +137,7 @@ async def procesar_y_generar_libro_sat(
             monto_total=monto_total_gtq,
             credito_fiscal=credito_calc,
             debito_fiscal=debito_calc,
-            **linea_data
+            **linea_data,
         )
         lineas_a_insertar.append(nueva_linea)
 
@@ -148,7 +150,7 @@ async def procesar_y_generar_libro_sat(
     libro.total_base_imponible = acum_base
     libro.total_iva = acum_iva
     libro.total_monto = acum_monto
-    
+
     await db.commit()
     await db.refresh(libro)
     return libro
@@ -159,7 +161,7 @@ async def obtener_libro_detallado(
     empresa_id: int,  # ✅ BIGINT
     tipo_libro_id: int,  # ✅ BIGINT
     anio: int,
-    mes: int
+    mes: int,
 ) -> SatLibro | None:
     """Busca un libro por sus parámetros de periodo."""
     query = (
@@ -168,13 +170,13 @@ async def obtener_libro_detallado(
             SatLibro.empresa_id == empresa_id,
             SatLibro.tipo_libro_id == tipo_libro_id,
             SatLibro.anio_periodo == anio,
-            SatLibro.mes_periodo == mes
+            SatLibro.mes_periodo == mes,
         )
         .options(selectinload(SatLibro.lineas))
     )
     result = await db.execute(query)
     libro = result.scalar_one_or_none()
-    
+
     if libro:
         libro.lineas.sort(key=lambda x: x.numero_secuencia)
     return libro
@@ -183,22 +185,22 @@ async def obtener_libro_detallado(
 async def finalizar_libro_sat(
     db: AsyncSession,
     libro_id: int,  # ✅ BIGINT
-    usuario_id: int  # ✅ BIGINT
+    usuario_id: int,  # ✅ BIGINT
 ) -> SatLibro:
     """Cambia el estado de un libro a 'finalizado'."""
     query = select(SatLibro).where(SatLibro.id == libro_id).options(selectinload(SatLibro.lineas))
     result = await db.execute(query)
     libro = result.scalar_one_or_none()
-    
+
     if not libro:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El libro contable solicitado no existe.")
-        
+
     if libro.finalizado_el is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El libro ya está finalizado.")
 
     libro.finalizado_por = usuario_id
     libro.finalizado_el = datetime.utcnow()
-    
+
     await db.commit()
     await db.refresh(libro)
     return libro

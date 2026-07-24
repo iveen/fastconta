@@ -9,6 +9,7 @@ Uso:
         --password "PasswordSeguro123!" \
         --full-name "Super Administrador"
 """
+
 import argparse
 import asyncio
 import logging
@@ -41,19 +42,16 @@ sys.path.insert(0, str(BACKEND_DIR))
 # ============================================================
 # IMPORTS (después de cargar .env)
 # ============================================================
-from app.core.security import get_password_hash  # noqa: E402
+from app.core.security import get_password_hash
 
 # ✅ CORREGIDO: Usar AsyncSessionLocal (como en seed_categorias_activos.py)
-from app.db.session import AsyncSessionLocal  # noqa: E402
-from app.models.global_models import Role, Tenant, User  # noqa: E402
+from app.db.session import AsyncSessionLocal
+from app.models.global_models import Role, Tenant, User
 
 # ============================================================
 # CONFIGURACIÓN
 # ============================================================
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 SYSTEM_TENANT_NAME = "Sistema"
@@ -67,19 +65,17 @@ SYSTEM_TENANT_PLAN = "enterprise"
 # ============================================================
 async def ensure_system_tenant(db: AsyncSession) -> Tenant:
     """Crea el tenant 'system' si no existe."""
-    result = await db.execute(
-        select(Tenant).where(Tenant.schema_name == SYSTEM_TENANT_SCHEMA)
-    )
+    result = await db.execute(select(Tenant).where(Tenant.schema_name == SYSTEM_TENANT_SCHEMA))
     tenant = result.scalar_one_or_none()
-    
+
     if tenant:
         logger.info(f"✅ Tenant 'system' ya existe (id={tenant.id})")
         return tenant
-    
+
     # Crear schema del tenant system
     await db.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{SYSTEM_TENANT_SCHEMA}"'))
     logger.info(f"📁 Schema '{SYSTEM_TENANT_SCHEMA}' creado")
-    
+
     # Crear el tenant en la tabla public.tenants
     tenant = Tenant(
         name=SYSTEM_TENANT_NAME,
@@ -88,7 +84,7 @@ async def ensure_system_tenant(db: AsyncSession) -> Tenant:
         admin_email="system@fastconta.internal",
         plan=SYSTEM_TENANT_PLAN,
         max_usuarios=999999,
-        is_active=True
+        is_active=True,
     )
     db.add(tenant)
     await db.flush()
@@ -98,46 +94,34 @@ async def ensure_system_tenant(db: AsyncSession) -> Tenant:
 
 async def ensure_superadmin_role(db: AsyncSession) -> Role:
     """Verifica que el rol superadmin existe."""
-    result = await db.execute(
-        select(Role).where(Role.codigo == "superadmin")
-    )
+    result = await db.execute(select(Role).where(Role.codigo == "superadmin"))
     role = result.scalar_one_or_none()
-    
+
     if not role:
-        raise RuntimeError(
-            "❌ El rol 'superadmin' no existe. "
-            "Ejecuta primero: alembic -c alembic.ini upgrade head"
-        )
-    
+        raise RuntimeError("❌ El rol 'superadmin' no existe. Ejecuta primero: alembic -c alembic.ini upgrade head")
+
     logger.info(f"✅ Rol 'superadmin' encontrado (id={role.id})")
     return role
 
 
 async def create_superadmin(
-    db: AsyncSession,
-    email: str,
-    password: str,
-    full_name: str,
-    tenant: Tenant,
-    role: Role
+    db: AsyncSession, email: str, password: str, full_name: str, tenant: Tenant, role: Role
 ) -> User:
     """Crea el usuario superadmin."""
-    result = await db.execute(
-        select(User).where(User.email == email)
-    )
+    result = await db.execute(select(User).where(User.email == email))
     existing = result.scalar_one_or_none()
-    
+
     if existing:
         logger.warning(f"⚠️  Ya existe un usuario con email {email}")
         return existing
-    
+
     user = User(
         tenant_id=tenant.id,
         email=email,
         hashed_password=get_password_hash(password),
         full_name=full_name,
         role_id=role.id,
-        is_active=True
+        is_active=True,
     )
     db.add(user)
     await db.flush()
@@ -150,16 +134,16 @@ async def main(email: str, password: str, full_name: str):
     logger.info("=" * 60)
     logger.info("🚀 Iniciando bootstrap de superadmin...")
     logger.info("=" * 60)
-    
+
     # ✅ CORREGIDO: Usar AsyncSessionLocal() como contexto
     async with AsyncSessionLocal() as db:
         try:
             tenant = await ensure_system_tenant(db)
             role = await ensure_superadmin_role(db)
             user = await create_superadmin(db, email, password, full_name, tenant, role)
-            
+
             await db.commit()
-            
+
             logger.info("=" * 60)
             logger.info("🎉 Bootstrap completado exitosamente!")
             logger.info("=" * 60)
@@ -171,7 +155,7 @@ async def main(email: str, password: str, full_name: str):
             logger.info(f"🔑 Rol: {role.codigo}")
             logger.info("=" * 60)
             logger.info("⚠️  Guarda estas credenciales en un lugar seguro.")
-            
+
         except Exception as e:
             await db.rollback()
             logger.error(f"❌ Error durante el bootstrap: {e}")
@@ -182,19 +166,17 @@ async def main(email: str, password: str, full_name: str):
 # CLI
 # ============================================================
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Crear el superadmin inicial de FastConta"
-    )
+    parser = argparse.ArgumentParser(description="Crear el superadmin inicial de FastConta")
     parser.add_argument("--email", required=True, help="Email del superadmin")
     parser.add_argument("--password", required=True, help="Password (mínimo 8 caracteres)")
     parser.add_argument("--full-name", required=True, help="Nombre completo")
-    
+
     args = parser.parse_args()
-    
+
     if len(args.password) < 8:
         logger.error("❌ El password debe tener al menos 8 caracteres")
         sys.exit(1)
-    
+
     try:
         asyncio.run(main(args.email, args.password, args.full_name))
     except KeyboardInterrupt:

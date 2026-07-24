@@ -60,7 +60,6 @@ class SeccionFormularioResponse(SeccionFormularioBase):
 
 class SeccionFormularioDetail(SeccionFormularioResponse):
     """Respuesta detallada con casillas"""
-    pass
 
 
 class SeccionFormularioListResponse(BaseModel):
@@ -78,6 +77,7 @@ class SeccionFormularioListResponse(BaseModel):
 
 class SeccionReordenarRequest(BaseModel):
     """Request para reordenar secciones"""
+
     orden_secciones: list[int] = Field(  # ✅ BIGINT (era list[UUID])
         ...,
         description="Lista de IDs de secciones en el nuevo orden",

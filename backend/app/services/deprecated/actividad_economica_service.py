@@ -1,9 +1,11 @@
 """Service para Actividades Económicas SAT"""
+
 from uuid import UUID
 
-from app.models.global_models import ActividadEconomicaSAT
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.global_models import ActividadEconomicaSAT
 
 
 class ActividadEconomicaService:
@@ -19,12 +21,12 @@ class ActividadEconomicaService:
     ) -> tuple[list[ActividadEconomicaSAT], int]:
         query = select(ActividadEconomicaSAT)
         count_query = select(func.count()).select_from(ActividadEconomicaSAT)
-        
+
         # ✅ CORREGIDO: Usar is_active en lugar de activa
         if activa is not None:
             query = query.where(ActividadEconomicaSAT.is_active.is_(activa))
             count_query = count_query.where(ActividadEconomicaSAT.is_active.is_(activa))
-            
+
         if search:
             filtro = or_(
                 ActividadEconomicaSAT.codigo_sat.ilike(f"%{search}%"),
@@ -33,7 +35,7 @@ class ActividadEconomicaService:
             )
             query = query.where(filtro)
             count_query = count_query.where(filtro)
-            
+
         total = (await self.db.execute(count_query)).scalar_one()
         query = query.order_by(ActividadEconomicaSAT.codigo_sat).offset(skip).limit(limit)
         result = await self.db.execute(query)
@@ -56,9 +58,7 @@ class ActividadEconomicaService:
 
     async def crear(self, data: dict) -> ActividadEconomicaSAT:
         existente = await self.db.execute(
-            select(ActividadEconomicaSAT).where(
-                ActividadEconomicaSAT.codigo_sat == data["codigo_sat"]
-            )
+            select(ActividadEconomicaSAT).where(ActividadEconomicaSAT.codigo_sat == data["codigo_sat"])
         )
         if existente.scalar_one_or_none():
             raise ValueError(f"Ya existe una actividad con código SAT '{data['codigo_sat']}'")

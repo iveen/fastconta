@@ -11,9 +11,9 @@ class DetallePartidaCreate(BaseModel):
     tipo_movimiento: str = Field(..., description="Debe ser 'debe' o 'haber'")
     monto: Decimal = Field(..., gt=0, description="El monto debe ser mayor a 0")
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validar_tipo_movimiento(self):
-        if self.tipo_movimiento.lower() not in ['debe', 'haber']:
+        if self.tipo_movimiento.lower() not in ["debe", "haber"]:
             raise ValueError("El tipo de movimiento debe ser 'debe' o 'haber' (en minúsculas).")
         return self
 
@@ -24,14 +24,14 @@ class PartidaCreate(BaseModel):
     numero_poliza: str | None = None
     detalles: List[DetallePartidaCreate]
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validar_partida_cuadrada(self):
         if not self.detalles or len(self.detalles) < 2:
             raise ValueError("Una partida contable debe tener al menos 2 líneas de detalle.")
-        
-        total_debe = sum(d.monto for d in self.detalles if d.tipo_movimiento.lower() == 'debe')
-        total_haber = sum(d.monto for d in self.detalles if d.tipo_movimiento.lower() == 'haber')
-        
+
+        total_debe = sum(d.monto for d in self.detalles if d.tipo_movimiento.lower() == "debe")
+        total_haber = sum(d.monto for d in self.detalles if d.tipo_movimiento.lower() == "haber")
+
         if total_debe != total_haber:
             diferencia = abs(total_debe - total_haber)
             raise ValueError(
@@ -61,7 +61,7 @@ class PartidaOut(BaseModel):
     created_at: datetime
     is_active: bool = True
     fue_revertida: bool = False
-    tipo_origen: str = 'manual'
+    tipo_origen: str = "manual"
     detalles: List[DetallePartidaOut]
 
 

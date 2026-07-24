@@ -42,6 +42,7 @@ class FormularioSatResponse(FormularioSatBase):
 
 class FormularioSatDetail(FormularioSatResponse):
     """Respuesta detallada con secciones y casillas"""
+
     secciones: list["SeccionFormularioResponse"] = []
     total_secciones: int = 0
     total_casillas: int = 0
@@ -49,6 +50,7 @@ class FormularioSatDetail(FormularioSatResponse):
 
 class FormularioSatHistorial(BaseModel):
     """Respuesta para endpoint de historial de versiones"""
+
     codigo: str
     versiones: list[FormularioSatResponse]
     version_actual: FormularioSatResponse | None = None
@@ -57,6 +59,7 @@ class FormularioSatHistorial(BaseModel):
 
 class FormularioSatDuplicarRequest(BaseModel):
     """Request para crear nueva versión desde una existente"""
+
     nueva_version: str = Field(..., min_length=1, max_length=10, examples=["2.0"])
     fecha_vigencia_desde: date
     copiar_casillas: bool = True

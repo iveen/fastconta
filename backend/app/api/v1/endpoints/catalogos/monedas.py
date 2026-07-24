@@ -1,4 +1,5 @@
 """Endpoint para Catálogo de Monedas"""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,9 +28,7 @@ async def listar_monedas(
     service: MonedaService = Depends(get_service),
 ):
     """Lista monedas con paginación"""
-    monedas, total = await service.obtener_todos(
-        activo=activo, search=search, skip=skip, limit=limit
-    )
+    monedas, total = await service.obtener_todos(activo=activo, search=search, skip=skip, limit=limit)
     return {
         "data": [MonedaListResponse.model_validate(m).model_dump() for m in monedas],
         "total": total,

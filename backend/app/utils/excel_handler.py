@@ -20,13 +20,13 @@ class ExcelHandler:
     ) -> BytesIO:
         """
         Exporta datos a Excel.
-        
+
         Args:
             datos: Lista de diccionarios con los datos
             columnas: Lista de dicts con {'key': 'campo', 'header': 'Encabezado', 'width': 15}
             nombre_hoja: Nombre de la hoja
             titulo: Título opcional en la primera fila
-        
+
         Returns:
             BytesIO con el archivo Excel
         """
@@ -88,13 +88,13 @@ class ExcelHandler:
     ) -> list[dict[str, Any]]:
         """
         Importa datos desde Excel.
-        
+
         Args:
             archivo_bytes: Contenido del archivo Excel
             columnas_requeridas: Lista de nombres de columnas requeridas
             nombre_hoja: Nombre de la hoja (None = primera hoja)
             fila_inicio: Fila donde empiezan los datos (1-based)
-        
+
         Returns:
             Lista de diccionarios con los datos
         """
@@ -118,12 +118,12 @@ class ExcelHandler:
         for row in ws.iter_rows(min_row=fila_inicio + 1, values_only=True):
             if all(v is None for v in row):
                 continue  # Saltar filas vacías
-            
+
             fila_dict = {}
             for idx, valor in enumerate(row):
                 if idx < len(encabezados):
                     fila_dict[encabezados[idx]] = valor
-            
+
             if fila_dict:
                 datos.append(fila_dict)
 

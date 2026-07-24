@@ -2,10 +2,11 @@
 
 from uuid import UUID
 
-from app.models.global_models import FormularioSat, SeccionFormulario
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+
+from app.models.global_models import FormularioSat, SeccionFormulario
 
 
 class SeccionFormularioService:
@@ -47,7 +48,7 @@ class SeccionFormularioService:
         )
         result = await self.db.execute(query)
         return result.scalars().first()
-    
+
     async def verificar_editable(self, formulario_id: UUID) -> None:
         """Verifica que el formulario permite modificaciones"""
         query = select(FormularioSat).where(FormularioSat.id == formulario_id)
@@ -61,14 +62,10 @@ class SeccionFormularioService:
     # ============================================================
     # CRUD
     # ============================================================
-    async def crear(
-        self, data: dict, usuario_id: UUID | None = None
-    ) -> SeccionFormulario:
+    async def crear(self, data: dict, usuario_id: UUID | None = None) -> SeccionFormulario:
         """Crea una nueva sección"""
         # Validar que el formulario existe
-        form_query = select(FormularioSat).where(
-            FormularioSat.id == data["formulario_id"]
-        )
+        form_query = select(FormularioSat).where(FormularioSat.id == data["formulario_id"])
         form_result = await self.db.execute(form_query)
         if form_result.scalars().first() is None:
             raise ValueError("Formulario no encontrado")

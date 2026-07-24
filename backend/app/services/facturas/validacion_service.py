@@ -15,7 +15,7 @@ def validar_nit_guatemala(texto_nit: str) -> bool:
         return False
 
     # ---- Caso 1: NIT tradicional (7 u 8 dígitos base + verificador) ----
-    if (len(nit_limpio) == 8 or len(nit_limpio) == 9) and nit_limpio[-1].isdigit() or nit_limpio[-1] == 'K':
+    if (len(nit_limpio) == 8 or len(nit_limpio) == 9) and nit_limpio[-1].isdigit() or nit_limpio[-1] == "K":
         base = nit_limpio[:-1]
         verificador = nit_limpio[-1]
         if base.isdigit():
@@ -49,6 +49,6 @@ def validar_nit_guatemala(texto_nit: str) -> bool:
     if len(nit_limpio) == 13 and nit_limpio.isdigit():
         return True
     if len(nit_limpio) in (9, 10) and nit_limpio.isdigit():
-        return True   # Los de 9 ya pasaron por la validación personal, pero si fallaron, aquí no se aceptan automático
+        return True  # Los de 9 ya pasaron por la validación personal, pero si fallaron, aquí no se aceptan automático
 
     return False

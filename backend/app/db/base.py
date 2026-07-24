@@ -5,13 +5,15 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.config import settings
 
-metadata = MetaData(naming_convention={
-    "ix": "ix_%(column_0_label)s",
-    "uq": "uq_%(table_name)s_%(column_0_name)s",
-    "ck": "ck_%(table_name)s_%(constraint_name)s",
-    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
-    "pk": "pk_%(table_name)s"
-})
+metadata = MetaData(
+    naming_convention={
+        "ix": "ix_%(column_0_label)s",
+        "uq": "uq_%(table_name)s_%(column_0_name)s",
+        "ck": "ck_%(table_name)s_%(constraint_name)s",
+        "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+        "pk": "pk_%(table_name)s",
+    }
+)
 
 engine = create_async_engine(
     settings.DATABASE_URL,
@@ -20,14 +22,9 @@ engine = create_async_engine(
     pool_size=20,
     pool_timeout=30,
     pool_recycle=1800,
-    max_overflow=20
+    max_overflow=20,
 )
 
-AsyncSessionLocal = sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=False
-)
+AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False, autoflush=False)
 
 Base = declarative_base(metadata=metadata)

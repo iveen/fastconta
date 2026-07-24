@@ -3,10 +3,11 @@
 from io import BytesIO
 from uuid import UUID
 
-from app.models.global_models import CatalogoMoneda
-from app.utils.excel_handler import ExcelHandler
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.global_models import CatalogoMoneda
+from app.utils.excel_handler import ExcelHandler
 
 # Columnas para exportación
 COLUMNAS_EXPORT = [
@@ -67,29 +68,19 @@ class CatalogoMonedaService:
 
     async def obtener_por_codigo_iso(self, codigo_iso: str) -> CatalogoMoneda | None:
         """Obtiene una moneda por código ISO"""
-        query = select(CatalogoMoneda).where(
-            CatalogoMoneda.codigo_iso == codigo_iso
-        )
+        query = select(CatalogoMoneda).where(CatalogoMoneda.codigo_iso == codigo_iso)
         result = await self.db.execute(query)
         return result.scalars().first()
 
-    async def obtener_por_codigo_banguat(
-        self, codigo_banguat: str
-    ) -> CatalogoMoneda | None:
+    async def obtener_por_codigo_banguat(self, codigo_banguat: str) -> CatalogoMoneda | None:
         """Obtiene una moneda por código Banguat"""
-        query = select(CatalogoMoneda).where(
-            CatalogoMoneda.codigo_banguat == codigo_banguat
-        )
+        query = select(CatalogoMoneda).where(CatalogoMoneda.codigo_banguat == codigo_banguat)
         result = await self.db.execute(query)
         return result.scalars().first()
 
     async def obtener_todas_activas(self) -> list[CatalogoMoneda]:
         """Obtiene todas las monedas activas (para dropdowns)"""
-        query = (
-            select(CatalogoMoneda)
-            .where(CatalogoMoneda.activo.is_(True))
-            .order_by(CatalogoMoneda.nombre)
-        )
+        query = select(CatalogoMoneda).where(CatalogoMoneda.activo.is_(True)).order_by(CatalogoMoneda.nombre)
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
@@ -101,18 +92,12 @@ class CatalogoMonedaService:
         # Validar código ISO único
         existente_iso = await self.obtener_por_codigo_iso(data["codigo_iso"])
         if existente_iso is not None:
-            raise ValueError(
-                f"Ya existe una moneda con código ISO '{data['codigo_iso']}'"
-            )
+            raise ValueError(f"Ya existe una moneda con código ISO '{data['codigo_iso']}'")
 
         # Validar código Banguat único
-        existente_banguat = await self.obtener_por_codigo_banguat(
-            data["codigo_banguat"]
-        )
+        existente_banguat = await self.obtener_por_codigo_banguat(data["codigo_banguat"])
         if existente_banguat is not None:
-            raise ValueError(
-                f"Ya existe una moneda con código Banguat '{data['codigo_banguat']}'"
-            )
+            raise ValueError(f"Ya existe una moneda con código Banguat '{data['codigo_banguat']}'")
 
         moneda = CatalogoMoneda(**data)
         self.db.add(moneda)
@@ -120,9 +105,7 @@ class CatalogoMonedaService:
         await self.db.refresh(moneda)
         return moneda
 
-    async def actualizar(
-        self, moneda_id: UUID, data: dict
-    ) -> CatalogoMoneda | None:
+    async def actualizar(self, moneda_id: UUID, data: dict) -> CatalogoMoneda | None:
         """Actualiza una moneda"""
         moneda = await self.obtener_por_id(moneda_id)
         if moneda is None:
@@ -132,17 +115,13 @@ class CatalogoMonedaService:
         if "codigo_iso" in data and data["codigo_iso"] != moneda.codigo_iso:
             existente = await self.obtener_por_codigo_iso(data["codigo_iso"])
             if existente is not None:
-                raise ValueError(
-                    f"Ya existe una moneda con código ISO '{data['codigo_iso']}'"
-                )
+                raise ValueError(f"Ya existe una moneda con código ISO '{data['codigo_iso']}'")
 
         # Validar código Banguat único si cambia
         if "codigo_banguat" in data and data["codigo_banguat"] != moneda.codigo_banguat:
             existente = await self.obtener_por_codigo_banguat(data["codigo_banguat"])
             if existente is not None:
-                raise ValueError(
-                    f"Ya existe una moneda con código Banguat '{data['codigo_banguat']}'"
-                )
+                raise ValueError(f"Ya existe una moneda con código Banguat '{data['codigo_banguat']}'")
 
         for key, value in data.items():
             if hasattr(moneda, key):
@@ -231,9 +210,7 @@ class CatalogoMonedaService:
                     continue
 
                 if len(codigo_banguat) > 5:
-                    errores.append(
-                        f"Fila {idx}: Código Banguat excede 5 caracteres"
-                    )
+                    errores.append(f"Fila {idx}: Código Banguat excede 5 caracteres")
                     continue
 
                 if not codigo_iso:
@@ -241,9 +218,7 @@ class CatalogoMonedaService:
                     continue
 
                 if len(codigo_iso) != 3:
-                    errores.append(
-                        f"Fila {idx}: Código ISO debe tener exactamente 3 caracteres"
-                    )
+                    errores.append(f"Fila {idx}: Código ISO debe tener exactamente 3 caracteres")
                     continue
 
                 if not nombre:
@@ -259,9 +234,7 @@ class CatalogoMonedaService:
                     continue
 
                 if decimales < 0 or decimales > 6:
-                    errores.append(
-                        f"Fila {idx}: Decimales debe estar entre 0 y 6"
-                    )
+                    errores.append(f"Fila {idx}: Decimales debe estar entre 0 y 6")
                     continue
 
                 # Buscar existente por código ISO (clave principal de negocio)

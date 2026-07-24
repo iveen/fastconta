@@ -1,7 +1,10 @@
 # app/services/declaraciones_service.py
 import logging
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, Dict, Union
+from typing import Any, Dict
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.global_models import CasillaSat, FormularioSat
 from app.models.tenant_models import (
@@ -10,27 +13,30 @@ from app.models.tenant_models import (
     DetalleDeclaracionImpuesto,
     FacturaElectronica,
 )
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
 PAISES_CENTROAMERICA = [
-    'GUATEMALA', 'BELICE', 'EL SALVADOR', 'HONDURAS',
-    'NICARAGUA', 'COSTA RICA', 'PANAMA',
+    "GUATEMALA",
+    "BELICE",
+    "EL SALVADOR",
+    "HONDURAS",
+    "NICARAGUA",
+    "COSTA RICA",
+    "PANAMA",
 ]
 
 
 def clasificar_destino_exportacion(pais: str) -> str:
     if not pais:
-        return 'DESCONOCIDO'
+        return "DESCONOCIDO"
     pais_upper = pais.upper().strip()
     if pais_upper in PAISES_CENTROAMERICA:
-        return 'CENTROAMERICA'
-    return 'RESTO_MUNDO'
+        return "CENTROAMERICA"
+    return "RESTO_MUNDO"
 
 
-def redondear_entero(valor: Union[Decimal, float, int, None]) -> int:
+def redondear_entero(valor: Decimal | float | None) -> int:
     """Redondea a entero (0 decimales) de forma segura."""
     if valor is None:
         return 0
@@ -38,7 +44,7 @@ def redondear_entero(valor: Union[Decimal, float, int, None]) -> int:
         return valor
     if not isinstance(valor, Decimal):
         valor = Decimal(str(valor))
-    return int(valor.quantize(Decimal('1'), rounding=ROUND_HALF_UP))
+    return int(valor.quantize(Decimal(1), rounding=ROUND_HALF_UP))
 
 
 # ============================================================
@@ -64,14 +70,18 @@ MAPA_CALCULO_SAT_2237 = {
     "EXPORTACIONES_CENTROAMERICA": {
         "tipo": "EXPORTACION",
         "seccion": "4",
-        "filtro": lambda f: f.es_exportacion and clasificar_destino_exportacion(f.pais_destino_exportacion or '') == 'CENTROAMERICA',
+        "filtro": lambda f: (
+            f.es_exportacion and clasificar_destino_exportacion(f.pais_destino_exportacion or "") == "CENTROAMERICA"
+        ),
         "campo_base": "total_gtq",
         "campo_impuesto": None,
     },
     "EXPORTACIONES_RESTO_MUNDO": {
         "tipo": "EXPORTACION",
         "seccion": "4",
-        "filtro": lambda f: f.es_exportacion and clasificar_destino_exportacion(f.pais_destino_exportacion or '') == 'RESTO_MUNDO',
+        "filtro": lambda f: (
+            f.es_exportacion and clasificar_destino_exportacion(f.pais_destino_exportacion or "") == "RESTO_MUNDO"
+        ),
         "campo_base": "total_gtq",
         "campo_impuesto": None,
     },
@@ -79,28 +89,37 @@ MAPA_CALCULO_SAT_2237 = {
     "COMPRAS_COMBUSTIBLES_LOCALES": {
         "tipo": "CREDITO",
         "seccion": "5",
-        "filtro": lambda f: f.tipo_operacion == "Compra" and getattr(f, 'clasificacion_gasto_sat', 'NORMAL') == 'COMBUSTIBLE',
+        "filtro": lambda f: (
+            f.tipo_operacion == "Compra" and getattr(f, "clasificacion_gasto_sat", "NORMAL") == "COMBUSTIBLE"
+        ),
         "campo_base": "total_gravado_gtq",
         "campo_impuesto": "total_iva_gtq",
     },
     "COMPRAS_ACTIVO_FIJO_LOCALES": {
         "tipo": "CREDITO",
         "seccion": "5",
-        "filtro": lambda f: f.tipo_operacion == "Compra" and getattr(f, 'clasificacion_gasto_sat', 'NORMAL') == 'ACTIVO_FIJO',
+        "filtro": lambda f: (
+            f.tipo_operacion == "Compra" and getattr(f, "clasificacion_gasto_sat", "NORMAL") == "ACTIVO_FIJO"
+        ),
         "campo_base": "total_gravado_gtq",
         "campo_impuesto": "total_iva_gtq",
     },
     "COMPRAS_PEQUENO_CONTRIBUYENTE": {
         "tipo": "CREDITO",
         "seccion": "5",
-        "filtro": lambda f: f.tipo_operacion == "Compra" and getattr(f, 'clasificacion_gasto_sat', 'NORMAL') == 'PEQUENO_CONTRIBUYENTE',
+        "filtro": lambda f: (
+            f.tipo_operacion == "Compra" and getattr(f, "clasificacion_gasto_sat", "NORMAL") == "PEQUENO_CONTRIBUYENTE"
+        ),
         "campo_base": "total_gravado_gtq",
         "campo_impuesto": "total_iva_gtq",
     },
     "OTRAS_COMPRAS_LOCALES": {
         "tipo": "CREDITO",
         "seccion": "5",
-        "filtro": lambda f: f.tipo_operacion == "Compra" and getattr(f, 'clasificacion_gasto_sat', 'NORMAL') in ['NORMAL', 'MEDICAMENTO'],
+        "filtro": lambda f: (
+            f.tipo_operacion == "Compra"
+            and getattr(f, "clasificacion_gasto_sat", "NORMAL") in ["NORMAL", "MEDICAMENTO"]
+        ),
         "campo_base": "total_gravado_gtq",
         "campo_impuesto": "total_iva_gtq",
     },
@@ -116,7 +135,7 @@ MAPA_CALCULO_SAT_2237 = {
     "RETENCIONES_IVA_RECIBIDAS": {
         "tipo": "RETENCION",
         "seccion": "7",
-        "filtro": lambda f: f.tipo_operacion == "Compra" and getattr(f, 'retencion_iva', 0) > 0,
+        "filtro": lambda f: f.tipo_operacion == "Compra" and getattr(f, "retencion_iva", 0) > 0,
         "campo_base": None,
         "campo_impuesto": "retencion_iva",
     },
@@ -197,7 +216,7 @@ async def generar_formulario_sombra(
     empresa_id: int,  # ✅ BIGINT (era UUID)
     anio: int,
     mes: int,
-    codigo_formulario: str = "SAT-2237"
+    codigo_formulario: str = "SAT-2237",
 ) -> Dict[str, Any]:
     # 1. Obtener formulario y casillas
     stmt_form = select(FormularioSat).where(FormularioSat.codigo == codigo_formulario)
@@ -206,9 +225,11 @@ async def generar_formulario_sombra(
     if not formulario:
         raise ValueError(f"Formulario {codigo_formulario} no encontrado")
 
-    stmt_casillas = select(CasillaSat).where(
-        CasillaSat.formulario_id == formulario.id
-    ).order_by(CasillaSat.seccion, CasillaSat.orden_seccion)
+    stmt_casillas = (
+        select(CasillaSat)
+        .where(CasillaSat.formulario_id == formulario.id)
+        .order_by(CasillaSat.seccion, CasillaSat.orden_seccion)
+    )
     res_casillas = await db.execute(stmt_casillas)
     casillas = res_casillas.scalars().all()
 
@@ -217,7 +238,7 @@ async def generar_formulario_sombra(
         DeclaracionImpuesto.empresa_id == empresa_id,
         DeclaracionImpuesto.formulario_sat_id == formulario.id,
         DeclaracionImpuesto.anio == anio,
-        DeclaracionImpuesto.mes == mes
+        DeclaracionImpuesto.mes == mes,
     )
     res_decl = await db.execute(stmt_decl)
     declaracion = res_decl.scalar_one_or_none()
@@ -230,7 +251,7 @@ async def generar_formulario_sombra(
             DeclaracionImpuesto.formulario_sat_id == formulario.id,
             DeclaracionImpuesto.anio == anio_ant,
             DeclaracionImpuesto.mes == mes_ant,
-            DeclaracionImpuesto.estado == "FINALIZADO"
+            DeclaracionImpuesto.estado == "FINALIZADO",
         )
         res_remanente = await db.execute(stmt_remanente)
         remanente_val = res_remanente.scalar_one_or_none()
@@ -242,29 +263,34 @@ async def generar_formulario_sombra(
             anio=anio,
             mes=mes,
             estado="BORRADOR",
-            remanente_periodo_anterior=remanente_anterior
+            remanente_periodo_anterior=remanente_anterior,
         )
         db.add(declaracion)
         await db.flush()
 
     # 3. Obtener facturas (EXCLUYENDO anuladas para cálculo)
     from sqlalchemy.orm import selectinload
-    stmt_facturas = select(FacturaElectronica).where(
-        FacturaElectronica.empresa_id == empresa_id,
-        func.extract('year', FacturaElectronica.fecha_emision) == anio,
-        func.extract('month', FacturaElectronica.fecha_emision) == mes,
-        FacturaElectronica.estado != "Anulada",
-        FacturaElectronica.tipo_operacion.in_(["Venta", "Compra"])
-    ).options(selectinload(FacturaElectronica.detalles))
+
+    stmt_facturas = (
+        select(FacturaElectronica)
+        .where(
+            FacturaElectronica.empresa_id == empresa_id,
+            func.extract("year", FacturaElectronica.fecha_emision) == anio,
+            func.extract("month", FacturaElectronica.fecha_emision) == mes,
+            FacturaElectronica.estado != "Anulada",
+            FacturaElectronica.tipo_operacion.in_(["Venta", "Compra"]),
+        )
+        .options(selectinload(FacturaElectronica.detalles))
+    )
     res_facturas = await db.execute(stmt_facturas)
     facturas = res_facturas.scalars().all()
 
     # 3b. TODAS las facturas (INCLUYENDO anuladas) para indicadores
     stmt_todas = select(FacturaElectronica).where(
         FacturaElectronica.empresa_id == empresa_id,
-        func.extract('year', FacturaElectronica.fecha_emision) == anio,
-        func.extract('month', FacturaElectronica.fecha_emision) == mes,
-        FacturaElectronica.tipo_operacion.in_(["Venta", "Compra"])
+        func.extract("year", FacturaElectronica.fecha_emision) == anio,
+        func.extract("month", FacturaElectronica.fecha_emision) == mes,
+        FacturaElectronica.tipo_operacion.in_(["Venta", "Compra"]),
     )
     res_todas = await db.execute(stmt_todas)
     todas_las_facturas = res_todas.scalars().all()
@@ -320,7 +346,7 @@ async def generar_formulario_sombra(
         # 5. Guardar detalle (REDONDEADO A ENTEROS)
         stmt_detalle = select(DetalleDeclaracionImpuesto).where(
             DetalleDeclaracionImpuesto.declaracion_id == declaracion.id,
-            DetalleDeclaracionImpuesto.casilla_sat_id == casilla.id
+            DetalleDeclaracionImpuesto.casilla_sat_id == casilla.id,
         )
         res_detalle = await db.execute(stmt_detalle)
         detalle = res_detalle.scalar_one_or_none()
@@ -334,7 +360,7 @@ async def generar_formulario_sombra(
                 casilla_sat_id=casilla.id,
                 base_imponible=base_redondeada,
                 monto_impuesto=imp_redondeado,
-                es_ajuste_manual=False
+                es_ajuste_manual=False,
             )
             db.add(detalle)
             await db.flush()
@@ -356,12 +382,14 @@ async def generar_formulario_sombra(
             if regla and regla["tipo"] == "INDICADOR":
                 base_asig = 0
                 imp_asig = 1
-            db.add(DeclaracionImpuestoFactura(
-                detalle_declaracion_id=detalle.id,
-                factura_id=fid,
-                base_asignada=base_asig,
-                impuesto_asignado=imp_asig
-            ))
+            db.add(
+                DeclaracionImpuestoFactura(
+                    detalle_declaracion_id=detalle.id,
+                    factura_id=fid,
+                    base_asignada=base_asig,
+                    impuesto_asignado=imp_asig,
+                )
+            )
 
     # 7. CÁLCULO SECCIÓN 7
     impuesto_determinado = total_debito - total_credito
@@ -389,15 +417,14 @@ async def generar_formulario_sombra(
     }
     for codigo_casilla, valor in casillas_seccion8.items():
         stmt_casilla = select(CasillaSat).where(
-            CasillaSat.codigo == codigo_casilla,
-            CasillaSat.formulario_id == formulario.id
+            CasillaSat.codigo == codigo_casilla, CasillaSat.formulario_id == formulario.id
         )
         res_casilla = await db.execute(stmt_casilla)
         casilla_8 = res_casilla.scalar_one_or_none()
         if casilla_8:
             stmt_detalle_8 = select(DetalleDeclaracionImpuesto).where(
                 DetalleDeclaracionImpuesto.declaracion_id == declaracion.id,
-                DetalleDeclaracionImpuesto.casilla_sat_id == casilla_8.id
+                DetalleDeclaracionImpuesto.casilla_sat_id == casilla_8.id,
             )
             res_detalle_8 = await db.execute(stmt_detalle_8)
             detalle_8 = res_detalle_8.scalar_one_or_none()
@@ -407,7 +434,7 @@ async def generar_formulario_sombra(
                     casilla_sat_id=casilla_8.id,
                     base_imponible=0,
                     monto_impuesto=valor,
-                    es_ajuste_manual=False
+                    es_ajuste_manual=False,
                 )
                 db.add(detalle_8)
 
@@ -426,15 +453,14 @@ async def generar_formulario_sombra(
     }
     for codigo_casilla, valor in casillas_calculado.items():
         stmt_casilla = select(CasillaSat).where(
-            CasillaSat.codigo == codigo_casilla,
-            CasillaSat.formulario_id == formulario.id
+            CasillaSat.codigo == codigo_casilla, CasillaSat.formulario_id == formulario.id
         )
         res_casilla = await db.execute(stmt_casilla)
         casilla_calc = res_casilla.scalar_one_or_none()
         if casilla_calc:
             stmt_detalle_calc = select(DetalleDeclaracionImpuesto).where(
                 DetalleDeclaracionImpuesto.declaracion_id == declaracion.id,
-                DetalleDeclaracionImpuesto.casilla_sat_id == casilla_calc.id
+                DetalleDeclaracionImpuesto.casilla_sat_id == casilla_calc.id,
             )
             res_detalle_calc = await db.execute(stmt_detalle_calc)
             detalle_calc = res_detalle_calc.scalar_one_or_none()
@@ -444,7 +470,7 @@ async def generar_formulario_sombra(
                     casilla_sat_id=casilla_calc.id,
                     base_imponible=0,
                     monto_impuesto=valor,
-                    es_ajuste_manual=False
+                    es_ajuste_manual=False,
                 )
                 db.add(detalle_calc)
             else:
@@ -478,5 +504,5 @@ async def generar_formulario_sombra(
             "impuesto_a_pagar": redondear_entero(declaracion.impuesto_a_pagar),
             "remanente_siguiente": redondear_entero(declaracion.remanente_siguiente_periodo),
             "exportaciones": redondear_entero(total_exportaciones),
-        }
+        },
     }

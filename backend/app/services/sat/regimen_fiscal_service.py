@@ -1,9 +1,11 @@
 """Service para Regímenes Fiscales"""
+
 from uuid import UUID
 
-from app.models.global_models import FormularioSat, RegimenFiscal, RegimenFormularioSat
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.global_models import FormularioSat, RegimenFiscal, RegimenFormularioSat
 
 
 class RegimenFiscalService:
@@ -45,11 +47,7 @@ class RegimenFiscalService:
     # LISTAR ACTIVOS (sin paginación, para dropdowns)
     # ---------------------------------------------------------------
     async def obtener_todos_lista(self) -> list[RegimenFiscal]:
-        query = (
-            select(RegimenFiscal)
-            .where(RegimenFiscal.is_active.is_(True))
-            .order_by(RegimenFiscal.codigo)
-        )
+        query = select(RegimenFiscal).where(RegimenFiscal.is_active.is_(True)).order_by(RegimenFiscal.codigo)
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
@@ -76,9 +74,7 @@ class RegimenFiscalService:
         formularios = result.scalars().all()
 
         # Enriquecer con bandera es_obligatorio desde la tabla puente
-        puente_query = select(RegimenFormularioSat).where(
-            RegimenFormularioSat.regimen_id == regimen_id
-        )
+        puente_query = select(RegimenFormularioSat).where(RegimenFormularioSat.regimen_id == regimen_id)
         puente_result = await self.db.execute(puente_query)
         puente_map = {p.formulario_id: p.es_obligatorio for p in puente_result.scalars()}
 
@@ -98,9 +94,7 @@ class RegimenFiscalService:
     # ---------------------------------------------------------------
     async def crear(self, data: dict) -> RegimenFiscal:
         # Validar unicidad de código
-        existente = await self.db.execute(
-            select(RegimenFiscal).where(RegimenFiscal.codigo == data["codigo"])
-        )
+        existente = await self.db.execute(select(RegimenFiscal).where(RegimenFiscal.codigo == data["codigo"]))
         if existente.scalar_one_or_none():
             raise ValueError(f"Ya existe un régimen con código '{data['codigo']}'")
 
@@ -120,9 +114,7 @@ class RegimenFiscalService:
 
         # Si cambia el código, validar unicidad
         if "codigo" in data and data["codigo"] != regimen.codigo:
-            existente = await self.db.execute(
-                select(RegimenFiscal).where(RegimenFiscal.codigo == data["codigo"])
-            )
+            existente = await self.db.execute(select(RegimenFiscal).where(RegimenFiscal.codigo == data["codigo"]))
             if existente.scalar_one_or_none():
                 raise ValueError(f"Ya existe un régimen con código '{data['codigo']}'")
 

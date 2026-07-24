@@ -39,9 +39,12 @@ async def listar_formularios(
     service: FormularioSatService = Depends(get_service),
 ):
     # 1️ Subconsulta eficiente para contar secciones
-    subquery_sec = select(func.count(SeccionFormulario.id)).where(
-        SeccionFormulario.formulario_id == FormularioSat.id
-    ).correlate(FormularioSat).scalar_subquery()
+    subquery_sec = (
+        select(func.count(SeccionFormulario.id))
+        .where(SeccionFormulario.formulario_id == FormularioSat.id)
+        .correlate(FormularioSat)
+        .scalar_subquery()
+    )
 
     # 2️⃣ Query principal con el conteo como columna virtual
     query = select(FormularioSat, subquery_sec.label("total_secciones"))
@@ -127,10 +130,7 @@ async def obtener_por_id(
     """Obtiene un formulario con todas sus secciones y casillas"""
     formulario = await service.obtener_por_id(formulario_id)
     if formulario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Formulario no encontrado"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Formulario no encontrado")
     return formulario
 
 

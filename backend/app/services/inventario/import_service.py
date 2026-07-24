@@ -6,16 +6,20 @@ Flujo:
 2. procesar_job() → ejecutado en BackgroundTask, procesa por chunks
 3. consultar_estado() → endpoint para polling del frontend
 """
+
 import asyncio
 import logging
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from sqlalchemy import and_, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.global_models import InventarioImportacionJob, User
 from app.models.tenant_models import (
     InventarioBodega,
@@ -25,8 +29,6 @@ from app.models.tenant_models import (
     InventarioToma,
 )
 from app.services.inventario.item_service import ItemService
-from sqlalchemy import and_, select, text
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +52,7 @@ COLUMNAS_ESPERADAS = {
 class ImportService:
     """
     Servicio para importar inventarios con procesamiento asíncrono por chunks.
-    
+
     El job se crea en schema public (global) para monitoreo centralizado,
     pero los datos se procesan en el schema del tenant.
     """
@@ -128,7 +130,7 @@ class ImportService:
     async def procesar_job(self, job_id: int) -> None:
         """
         Procesa un job por chunks. Diseñado para ejecutarse en BackgroundTask.
-        
+
         Crea su propia sesión de BD (BackgroundTask corre fuera del request scope).
         """
         from app.db.base import AsyncSessionLocal
@@ -153,32 +155,28 @@ class ImportService:
             logger.warning(f"Job {job_id} ya está siendo procesado")
             return
 
-        job.locked_at = datetime.now(timezone.utc)
+        job.locked_at = datetime.now(UTC)
         job.estado = "PROCESANDO"
         job.iniciado_en = job.locked_at
         await db.commit()
 
         try:
             # 1. Cambiar search_path al schema del tenant
-            await db.execute(
-                text(f"SET LOCAL search_path TO {job.tenant_schema}, public")
-            )
+            await db.execute(text(f"SET LOCAL search_path TO {job.tenant_schema}, public"))
 
             # 2. Verificar que la toma aún existe
             toma = await db.get(InventarioToma, job.toma_id)
             if not toma:
                 job.estado = "TOMA_ELIMINADA"
                 job.mensaje_error = "La toma de inventario fue eliminada"
-                job.finalizado_en = datetime.now(timezone.utc)
+                job.finalizado_en = datetime.now(UTC)
                 await db.commit()
                 return
 
             if toma.estado != "BORRADOR":
                 job.estado = "FALLIDO"
-                job.mensaje_error = (
-                    f"La toma ya no está en estado BORRADOR (estado actual: {toma.estado})"
-                )
-                job.finalizado_en = datetime.now(timezone.utc)
+                job.mensaje_error = f"La toma ya no está en estado BORRADOR (estado actual: {toma.estado})"
+                job.finalizado_en = datetime.now(UTC)
                 await db.commit()
                 return
 
@@ -187,22 +185,16 @@ class ImportService:
             if not archivo_ruta.exists():
                 raise FileNotFoundError(f"Archivo no encontrado: {archivo_ruta}")
 
-            total_filas, mapa_columnas = await self._contar_filas(
-                archivo_ruta, job.formato
-            )
+            total_filas, mapa_columnas = await self._contar_filas(archivo_ruta, job.formato)
             job.filas_totales = total_filas
             await db.commit()
 
             # 4. Pre-cargar catálogos (bodegas y productos)
-            bodegas_map, productos_map = await self._cargar_catalogos(
-                db, job.tenant_id, job.empresa_id
-            )
+            bodegas_map, productos_map = await self._cargar_catalogos(db, job.tenant_id, job.empresa_id)
 
             # 5. Si modo REEMPLAZAR, borrar items existentes
             if job.modo == "REEMPLAZAR":
-                stmt_delete = InventarioItem.__table__.delete().where(
-                    InventarioItem.toma_id == job.toma_id
-                )
+                stmt_delete = InventarioItem.__table__.delete().where(InventarioItem.toma_id == job.toma_id)
                 await db.execute(stmt_delete)
                 await db.commit()
 
@@ -213,25 +205,13 @@ class ImportService:
             total_errores = 0
             batch_items: list[InventarioItem] = []
 
-            async for chunk_df in self._leer_chunks(
-                archivo_ruta, job.formato, BATCH_SIZE
-            ):
-                items_validos, errores_chunk = self._validar_chunk(
-                    chunk_df, mapa_columnas
-                )
+            async for chunk_df in self._leer_chunks(archivo_ruta, job.formato, BATCH_SIZE):
+                items_validos, errores_chunk = self._validar_chunk(chunk_df, mapa_columnas)
 
                 # Crear items en batch
                 for item_data in items_validos:
-                    prod = (
-                        productos_map.get(item_data["codigo"])
-                        if item_data["codigo"]
-                        else None
-                    )
-                    bod = (
-                        bodegas_map.get(item_data["bodega_codigo"])
-                        if item_data["bodega_codigo"]
-                        else None
-                    )
+                    prod = productos_map.get(item_data["codigo"]) if item_data["codigo"] else None
+                    bod = bodegas_map.get(item_data["bodega_codigo"]) if item_data["bodega_codigo"] else None
 
                     batch_items.append(
                         InventarioItem(
@@ -258,9 +238,7 @@ class ImportService:
                 job.filas_procesadas += len(chunk_df)
                 job.filas_validas = total_validas
                 job.filas_con_error = total_errores
-                job.porcentaje = int(
-                    (job.filas_procesadas / max(job.filas_totales, 1)) * 100
-                )
+                job.porcentaje = int((job.filas_procesadas / max(job.filas_totales, 1)) * 100)
                 await db.commit()
 
             # 7. Insertar items restantes
@@ -290,22 +268,17 @@ class ImportService:
             # 10. Marcar job como completado
             job.estado = "COMPLETADO"
             job.importacion_id = importacion.id
-            job.finalizado_en = datetime.now(timezone.utc)
+            job.finalizado_en = datetime.now(UTC)
             job.porcentaje = 100
             await db.commit()
 
-            logger.info(
-                f"Job {job.public_id} completado: "
-                f"{total_validas} válidas, {total_errores} errores"
-            )
+            logger.info(f"Job {job.public_id} completado: {total_validas} válidas, {total_errores} errores")
 
             # 11. Enviar notificación por email (no bloqueante)
             try:
                 await self._enviar_notificacion(db, job, importacion)
             except Exception as e:
-                logger.warning(
-                    f"No se pudo enviar notificación del job {job_id}: {e}"
-                )
+                logger.warning(f"No se pudo enviar notificación del job {job_id}: {e}")
 
             # 12. Limpiar archivo temporal
             try:
@@ -317,15 +290,13 @@ class ImportService:
             await self._marcar_fallido(db, job_id, str(e))
             raise
 
-    async def _marcar_fallido(
-        self, db: AsyncSession, job_id: int, mensaje: str
-    ) -> None:
+    async def _marcar_fallido(self, db: AsyncSession, job_id: int, mensaje: str) -> None:
         """Marca un job como fallido."""
         job = await db.get(InventarioImportacionJob, job_id)
         if job:
             job.estado = "FALLIDO"
             job.mensaje_error = mensaje[:2000]  # limitar tamaño
-            job.finalizado_en = datetime.now(timezone.utc)
+            job.finalizado_en = datetime.now(UTC)
             await db.commit()
 
             # Intentar notificar el fallo
@@ -338,10 +309,9 @@ class ImportService:
     # PASO 3: Lectura por chunks
     # ============================================================
 
-    async def _contar_filas(
-        self, ruta: Path, formato: str
-    ) -> tuple[int, dict[str, str]]:
+    async def _contar_filas(self, ruta: Path, formato: str) -> tuple[int, dict[str, str]]:
         """Cuenta filas totales y mapea columnas (primera pasada rápida)."""
+
         def _leer() -> pd.DataFrame:
             if formato in ("xlsx", "xls"):
                 # read_only=True es mucho más rápido y consume menos memoria
@@ -354,14 +324,11 @@ class ImportService:
         df = await asyncio.to_thread(_leer)
         return len(df), self._normalizar_columnas(df)
 
-    async def _leer_chunks(
-        self, ruta: Path, formato: str, chunk_size: int
-    ):
+    async def _leer_chunks(self, ruta: Path, formato: str, chunk_size: int):
         """Generador asíncrono que produce DataFrames de chunk_size filas."""
+
         def _leer_chunk_csv():
-            return pd.read_csv(
-                ruta, dtype=str, encoding="utf-8-sig", chunksize=chunk_size
-            )
+            return pd.read_csv(ruta, dtype=str, encoding="utf-8-sig", chunksize=chunk_size)
 
         def _leer_chunk_excel() -> pd.DataFrame:
             df = pd.read_excel(ruta, dtype=str, read_only=True)
@@ -393,31 +360,24 @@ class ImportService:
         faltantes = requeridas - set(mapa.keys())
         if faltantes:
             raise ValueError(
-                f"Columnas obligatorias faltantes: {sorted(faltantes)}. "
-                f"Columnas detectadas: {list(df.columns)}"
+                f"Columnas obligatorias faltantes: {sorted(faltantes)}. Columnas detectadas: {list(df.columns)}"
             )
         return mapa
 
     @staticmethod
-    def _validar_chunk(
-        df: pd.DataFrame, mapa: dict[str, str]
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    def _validar_chunk(df: pd.DataFrame, mapa: dict[str, str]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """Valida un chunk y retorna (items_validos, errores)."""
         items_validos: list[dict[str, Any]] = []
         errores: list[dict[str, Any]] = []
 
         for idx, row in df.iterrows():
             try:
-                descripcion = str(
-                    row.get(mapa.get("descripcion", ""), "")
-                ).strip()
+                descripcion = str(row.get(mapa.get("descripcion", ""), "")).strip()
                 if not descripcion:
                     raise ValueError("Descripción vacía")
 
                 costo_raw = str(row[mapa["costo_unitario"]]).strip()
-                costo_raw = (
-                    costo_raw.replace(",", "").replace("Q", "").replace(" ", "")
-                )
+                costo_raw = costo_raw.replace(",", "").replace("Q", "").replace(" ", "")
                 try:
                     costo = Decimal(costo_raw)
                     if costo < 0:
@@ -434,26 +394,24 @@ class ImportService:
                 except (InvalidOperation, ValueError):
                     raise ValueError(f"Cantidad inválida: '{cant_raw}'")
 
-                codigo = ImportService._limpiar_valor(
-                    row.get(mapa.get("codigo", ""), None)
-                )
+                codigo = ImportService._limpiar_valor(row.get(mapa.get("codigo", ""), None))
                 unidad = ImportService._limpiar_valor(
                     row.get(mapa.get("unidad_medida", ""), "UND"),
                     default="UND",
                 )
-                bodega = ImportService._limpiar_valor(
-                    row.get(mapa.get("bodega", ""), None)
-                )
+                bodega = ImportService._limpiar_valor(row.get(mapa.get("bodega", ""), None))
 
-                items_validos.append({
-                    "codigo": codigo,
-                    "descripcion": descripcion,
-                    "costo_unitario": costo,
-                    "unidad_medida": unidad,
-                    "bodega_codigo": bodega,
-                    "cantidad": cantidad,
-                    "costo_total": (cantidad * costo).quantize(Decimal("0.01")),
-                })
+                items_validos.append(
+                    {
+                        "codigo": codigo,
+                        "descripcion": descripcion,
+                        "costo_unitario": costo,
+                        "unidad_medida": unidad,
+                        "bodega_codigo": bodega,
+                        "cantidad": cantidad,
+                        "costo_total": (cantidad * costo).quantize(Decimal("0.01")),
+                    }
+                )
             except Exception as e:
                 errores.append({"fila": int(idx) + 2, "mensaje": str(e)})
 
@@ -485,9 +443,7 @@ class ImportService:
             )
         )
         result_b = await db.execute(stmt_b)
-        bodegas_map = {
-            b.codigo: b for b in result_b.scalars().all() if b.codigo
-        }
+        bodegas_map = {b.codigo: b for b in result_b.scalars().all() if b.codigo}
 
         stmt_p = select(InventarioProducto).where(
             and_(
@@ -497,9 +453,7 @@ class ImportService:
             )
         )
         result_p = await db.execute(stmt_p)
-        productos_map = {
-            p.codigo: p for p in result_p.scalars().all() if p.codigo
-        }
+        productos_map = {p.codigo: p for p in result_p.scalars().all() if p.codigo}
 
         return bodegas_map, productos_map
 
@@ -516,9 +470,7 @@ class ImportService:
             return
 
         # Cargar toma para contexto (necesita cambiar search_path)
-        await db.execute(
-            text(f"SET LOCAL search_path TO {job.tenant_schema}, public")
-        )
+        await db.execute(text(f"SET LOCAL search_path TO {job.tenant_schema}, public"))
         toma = await db.get(InventarioToma, job.toma_id)
 
         periodo = "N/A"
@@ -548,20 +500,16 @@ class ImportService:
             )
 
         job.notificado = True
-        job.notificado_en = datetime.now(timezone.utc)
+        job.notificado_en = datetime.now(UTC)
         await db.commit()
 
     # ============================================================
     # Consulta de estado (para polling del frontend)
     # ============================================================
 
-    async def consultar_estado(
-        self, job_public_id: str
-    ) -> InventarioImportacionJob | None:
+    async def consultar_estado(self, job_public_id: str) -> InventarioImportacionJob | None:
         """Consulta el estado actual de un job (global, sin filtro tenant)."""
-        stmt = select(InventarioImportacionJob).where(
-            InventarioImportacionJob.public_id == job_public_id
-        )
+        stmt = select(InventarioImportacionJob).where(InventarioImportacionJob.public_id == job_public_id)
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -583,9 +531,7 @@ class ImportService:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    async def listar_jobs_toma(
-        self, toma_id: int, tenant_id: int
-    ) -> list[InventarioImportacionJob]:
+    async def listar_jobs_toma(self, toma_id: int, tenant_id: int) -> list[InventarioImportacionJob]:
         """Lista todos los jobs de una toma específica."""
         stmt = (
             select(InventarioImportacionJob)

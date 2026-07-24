@@ -144,7 +144,7 @@ async def importar_excel(
 ):
     """
     Importa mapeos desde Excel.
-    
+
     Columnas requeridas: codigo_casilla, codigo_cuenta_sugerido, nombre_cuenta_sugerido, tipo_movimiento
     Columna opcional: ambito (GLOBAL, TENANT, EMPRESA)
     """

@@ -1,5 +1,10 @@
 """Servicio para gestión de Casillas SAT"""
+
 from uuid import UUID
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.global_models import (
     CasillaSat,
@@ -7,9 +12,6 @@ from app.models.global_models import (
     ReglaFiltradoFactura,
     SeccionFormulario,
 )
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 
 class CasillaSatService:
@@ -59,7 +61,7 @@ class CasillaSatService:
         )
         result = await self.db.execute(query)
         return result.scalars().first()
-    
+
     async def verificar_editable(self, seccion_id: UUID) -> None:
         """Verifica que el formulario de la sección permite modificaciones"""
         query = (
@@ -77,24 +79,20 @@ class CasillaSatService:
     # ============================================================
     # CRUD
     # ============================================================
-    async def crear(
-        self, data: dict, usuario_id: UUID | None = None
-    ) -> CasillaSat:
+    async def crear(self, data: dict, usuario_id: UUID | None = None) -> CasillaSat:
         """Crea una nueva casilla"""
         # Validar que la sección existe
-        sec_query = select(SeccionFormulario).where(
-            SeccionFormulario.id == data["seccion_id"]
-        )
+        sec_query = select(SeccionFormulario).where(SeccionFormulario.id == data["seccion_id"])
         sec_result = await self.db.execute(sec_query)
         if sec_result.scalars().first() is None:
             raise ValueError("Sección no encontrada")
-        
+
         data["seccion"] = sec_result.numero_seccion
 
         casilla = CasillaSat(**data, created_by=usuario_id)
         self.db.add(casilla)
         await self.db.commit()  # ✅ Commit en lugar de flush
-        
+
         # ✅ Recargar con eager loading
         query = (
             select(CasillaSat)
@@ -125,7 +123,7 @@ class CasillaSatService:
 
         casilla.updated_by = usuario_id
         await self.db.commit()  # ✅ Commit en lugar de flush
-        
+
         # ✅ Recargar con eager loading
         query = (
             select(CasillaSat)
@@ -219,7 +217,7 @@ class CasillaSatService:
                 self.db.add(nueva_exclusion)
 
         await self.db.commit()  # ✅ Commit final
-        
+
         # ✅ Recargar con eager loading
         query = (
             select(CasillaSat)

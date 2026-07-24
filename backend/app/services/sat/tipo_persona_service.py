@@ -2,9 +2,10 @@
 
 from uuid import UUID
 
-from app.models.global_models import TipoPersona
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.global_models import TipoPersona
 
 
 class TipoPersonaService:
@@ -29,7 +30,6 @@ class TipoPersonaService:
         result = await self.db.execute(query)
         return list(result.scalars().all()), total
 
-    
     async def obtener_todos_activos(self) -> list[TipoPersona]:
         """Obtiene todos los tipos de persona activos (para dropdowns)"""
         query = (
@@ -74,9 +74,7 @@ class TipoPersonaService:
         await self.db.refresh(tipo)
         return tipo
 
-    async def actualizar(
-        self, tipo_id: UUID, data: dict
-    ) -> TipoPersona | None:
+    async def actualizar(self, tipo_id: UUID, data: dict) -> TipoPersona | None:
         """Actualiza un tipo de persona"""
         tipo = await self.obtener_por_id(tipo_id)
         if tipo is None:
@@ -86,9 +84,7 @@ class TipoPersonaService:
         if "nombre" in data and data["nombre"] != tipo.nombre:
             existente = await self.obtener_por_nombre(data["nombre"])
             if existente is not None:
-                raise ValueError(
-                    f"Ya existe un tipo de persona con nombre '{data['nombre']}'"
-                )
+                raise ValueError(f"Ya existe un tipo de persona con nombre '{data['nombre']}'")
 
         for key, value in data.items():
             if hasattr(tipo, key):

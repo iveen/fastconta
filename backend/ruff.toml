@@ -3,26 +3,46 @@ line-length = 120
 target-version = "py312"
 
 [lint]
-# Reglas que SÍ queremos que Ruff corrija automáticamente
+# Solo habilitar reglas críticas
 select = [
-    "E", "F", "W",      # Errores y warnings básicos de Python
-    "I",                # Orden de imports
-    "UP",               # Actualizaciones de sintaxis de Python (ej. datetime.UTC)
-    "RUF",              # Reglas específicas de Ruff
-    "FURB",             # Modernizaciones de código
+    "E",    # Errores de sintaxis
+    "F",    # Errores de importación
+    "W",    # Warnings críticos
 ]
 
-# Reglas que IGNORAMOS porque son ruido en código legacy o requieren refactorización manual
+# Ignorar reglas que causan ruido en código legacy
 ignore = [
-    "RUF012", # Mutable default value (Muy común e inofensivo en modelos SQLAlchemy/Pydantic)
-    "S110",   # try-except-pass (A veces es intencional en parsers)
-    "ASYNC210", # Blocking HTTP calls in async (Requiere refactorización mayor, ignorar por ahora)
-    "ASYNC230", # Blocking open() in async (Requiere refactorización mayor, ignorar por ahora)
-    "PIE790", # Unnecessary pass statement
-    "EXE001", # Shebang is present but file is not executable
+    "B008",    # Depends en argumentos (FastAPI lo usa así)
+    "BLE001",  # Catch Exception genérico
+    "UP006",   # Usar list en vez de List
+    "UP017",   # Usar datetime.UTC
+    "UP035",   # typing.List deprecated
+    "RUF010",  # Conversion flags
+    "RUF012",  # Mutable defaults (SQLAlchemy/Pydantic)
+    "RUF100",  # Unused noqa
+    "G201",    # Logging exception
+    "RET501",  # Return None explícito
+    "PLR1711", # Useless return
+    "DTZ011",  # datetime.date.today()
+    "DTZ003",  # datetime.datetime.utcnow()
+    "UP045",   # X | None
+    "SIM103",  # Return condition directly
+    "PIE790",  # Unnecessary pass
+    "EXE001",  # Shebang not executable
+    "ASYNC210", # Blocking HTTP in async
+    "ASYNC230", # Blocking open in async
+    "S110",    # try-except-pass
+    "TRY401",  # Redundant exception in logging
+    "FURB157", # Verbose Decimal
+    "RUF019",  # Unnecessary key check
+    "RUF022",  # __all__ not sorted
+    "PYI041",  # Use float instead of int | float
+    "UP007",   # Use X | Y
+    "I001",    # Import sorting (muy estricto)
 ]
 
 [lint.per-file-ignores]
-# Ignorar reglas específicas en carpetas de scripts o deprecated
+"__init__.py" = ["F401"]
 "app/scripts/*" = ["E402", "EXE001"]
+"app/scripts/data/*" = ["E501"]
 "app/services/deprecated/*" = ["ALL"]

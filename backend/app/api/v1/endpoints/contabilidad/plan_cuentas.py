@@ -106,7 +106,7 @@ async def create_cuenta(
 
     # Validar que no exista el código
     check_sql = text(f"""
-        SELECT id FROM {schema_name}.plan_cuentas 
+        SELECT id FROM {schema_name}.plan_cuentas
         WHERE codigo = :codigo AND empresa_id = :empresa_id AND is_active = true
     """)
     result = await db.execute(
@@ -122,9 +122,9 @@ async def create_cuenta(
 
     # ✅ CORREGIDO: INSERT sin ID, usar RETURNING para obtener el ID generado
     insert_sql = text(f"""
-        INSERT INTO {schema_name}.plan_cuentas 
+        INSERT INTO {schema_name}.plan_cuentas
         (codigo, nombre, tipo, naturaleza, acepta_tercero, nivel, cuenta_padre_id, empresa_id, is_active, created_at)
-        VALUES 
+        VALUES
         (:codigo, :nombre, :tipo, :naturaleza, :acepta_tercero, :nivel, :cuenta_padre_id, :empresa_id, true, NOW())
         RETURNING id, codigo, nombre, tipo, naturaleza, acepta_tercero, nivel, cuenta_padre_id, is_active, created_at
     """)
@@ -177,8 +177,8 @@ async def importar_plan_cuentas(
 
     # ✅ CORREGIDO: is_active en lugar de activa
     check_sql = text(f"""
-        SELECT 1 FROM {schema_name}.plan_cuentas 
-        WHERE empresa_id = :empresa_id AND is_active = true 
+        SELECT 1 FROM {schema_name}.plan_cuentas
+        WHERE empresa_id = :empresa_id AND is_active = true
         LIMIT 1
     """)
     exists = await db.execute(check_sql, {"empresa_id": empresa_id})  # ✅ int (no str)
@@ -261,9 +261,9 @@ async def update_cuenta(
         raise HTTPException(status_code=400, detail="No hay campos para actualizar.")
 
     sql = text(f"""
-        UPDATE {schema_name}.plan_cuentas 
-        SET {", ".join(update_fields)} 
-        WHERE id = :id 
+        UPDATE {schema_name}.plan_cuentas
+        SET {", ".join(update_fields)}
+        WHERE id = :id
         RETURNING id, codigo, nombre, tipo, naturaleza, acepta_tercero, nivel, cuenta_padre_id, is_active, created_at
     """)
 
@@ -304,9 +304,9 @@ async def delete_cuenta(
 
     # ✅ CORREGIDO: is_active en lugar de activa
     sql = text(f"""
-        UPDATE {schema_name}.plan_cuentas 
-        SET is_active = false 
-        WHERE id = :id 
+        UPDATE {schema_name}.plan_cuentas
+        SET is_active = false
+        WHERE id = :id
         RETURNING id
     """)
 

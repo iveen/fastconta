@@ -101,7 +101,7 @@ jobs:
         run: python -m compileall -q app/
 
       - name: Ejecutar Ruff (Linting)
-        run: 
+        run: |
           ruff check app/ --fix
           ruff check app/ --output-format=github
 

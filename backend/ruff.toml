@@ -39,6 +39,9 @@ ignore = [
     "PYI041",  # Use float instead of int | float
     "UP007",   # Use X | Y
     "I001",    # Import sorting (muy estricto)
+    "E501",    # line too long
+    "W291",    # trailing white-space
+    "W293",    # Blank line contains whitespace
 ]
 
 [lint.per-file-ignores]

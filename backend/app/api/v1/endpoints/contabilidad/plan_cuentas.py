@@ -97,7 +97,7 @@ async def list_cuentas(
 @router.post("/", response_model=CuentaOut, status_code=201)
 async def create_cuenta(
     cuenta: CuentaCreate,
-    tenant_id: int | None = Query(None),  # ✅ BIGINT
+    tenant_id: int | None = Query(None),
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_public_db),
 ):

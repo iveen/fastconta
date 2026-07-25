@@ -267,7 +267,7 @@ async def reset_password(
     if user.id == scope.user.id:
         raise HTTPException(
             status_code=400,
-            detail="No puedes resetear tu propia contraseña desde aquí. Usa la opción 'Cambiar Contraseña' en tu menú de usuario.",
+            detail="No puedes resetear tu propia contraseña desde aquí. Usa a opción 'Cambiar Contraseña' en tu menú de usuario.",
         )
 
     # Generar nueva contraseña

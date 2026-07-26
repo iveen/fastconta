@@ -1,4 +1,5 @@
-# app/api/endpoints/tenants.py
+# app/api/v1/endpoints/tenants.py
+
 import logging
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -10,7 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import DataScope, get_data_scope, get_password_hash
 from app.db.session import get_db, get_public_db
 from app.dependencies import require_role
-from app.models.global_models import RegistrationAttempt, Role, Tenant, User
+from app.models.global_models import (
+    RegistrationAttempt,
+    Role,
+    SessionAudit,
+    SubscriptionStatus,
+    Tenant,
+    TenantSubscription,
+    User,
+)
 from app.schemas.base.tenant import (
     TenantCreate,
     TenantResponse,
@@ -21,7 +30,6 @@ from app.schemas.base.tenant import (
 router = APIRouter(prefix="/tenants", tags=["inquilinos"])
 logger = logging.getLogger(__name__)
 
-# Nombres reservados que no pueden usarse como tenant
 RESERVED_NAMES = {"sistema", "system", "public", "admin", "root"}
 
 
@@ -29,36 +37,76 @@ RESERVED_NAMES = {"sistema", "system", "public", "admin", "root"}
 # 1. Listar tenants
 # ============================================================
 @router.get("/", dependencies=[Depends(require_role("superadmin"))])
-async def list_tenants(scope: DataScope = Depends(get_data_scope), db: AsyncSession = Depends(get_public_db)):
-    """Lista todos los tenants (excluyendo el tenant 'system')."""
+async def list_tenants(
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db),
+):
+    """Lista todos los tenants con información de suscripción activa."""
     if scope.role_code != "superadmin":
         raise HTTPException(status_code=403, detail="Acceso denegado")
 
-    # Filtrar tenants reservados
     stmt = (
         select(Tenant)
         .where(Tenant.schema_name.notin_(["sistema", "system", "public"]))
         .order_by(Tenant.created_at.desc())
     )
-
     result = await db.execute(stmt)
     tenants = result.scalars().all()
 
-    return [
-        {
-            "id": str(t.public_id),  # ✅ Exponer public_id (UUID)
+    response = []
+    for t in tenants:
+        # Obtener suscripción activa
+        sub_result = await db.execute(
+            select(TenantSubscription).where(
+                TenantSubscription.tenant_id == t.id,
+                TenantSubscription.status.in_([
+                    SubscriptionStatus.active.value,
+                    SubscriptionStatus.trial.value
+                ])
+            )
+        )
+        subscription = sub_result.scalar_one_or_none()
+
+        # Contar sesiones activas (últimos 15 min)
+        cutoff = datetime.now(UTC) - timedelta(minutes=15)
+        active_sessions = await db.scalar(
+            select(func.count(SessionAudit.id)).where(
+                SessionAudit.tenant_id == t.id,
+                SessionAudit.is_active.is_(True),
+                SessionAudit.last_activity >= cutoff,
+            )
+        )
+
+        tenant_data = {
+            "id": str(t.public_id),
             "name": t.name,
             "nit": t.nit,
             "schema_name": t.schema_name,
             "plan": t.plan,
             "is_active": t.is_active,
-            "max_usuarios": t.max_usuarios,  # ✅ Ya no max_empresas
-            "trial_until": t.trial_until.isoformat() if t.trial_until else None,
-            "trial_max_usuarios": t.trial_max_usuarios,
+            "max_concurrent_sessions": t.max_concurrent_sessions,
+            "max_users_registered": t.max_users_registered,
             "created_at": t.created_at.isoformat() if t.created_at else None,
+            "active_subscription": None,
+            "current_usage": {
+                "active_sessions": active_sessions or 0,
+            }
         }
-        for t in tenants
-    ]
+
+        if subscription:
+            tenant_data["active_subscription"] = {
+                "plan_type": subscription.plan_type,
+                "max_concurrent_sessions": subscription.max_concurrent_sessions,
+                "max_users_registered": subscription.max_users_registered,
+                "status": subscription.status,
+                "current_period_end": subscription.current_period_end.isoformat(),
+                "days_remaining": subscription.days_remaining,
+                "monthly_price": float(subscription.total_monthly_price),
+            }
+
+        response.append(tenant_data)
+
+    return response
 
 
 # ============================================================
@@ -72,7 +120,6 @@ async def create_tenant(
     _: dict = Depends(require_role("superadmin")),
 ):
     """Crea un nuevo tenant con su schema y migraciones."""
-
     # 0. Validar nombre del tenant (no reservado)
     if payload.tenant_name.strip().lower() in RESERVED_NAMES:
         raise HTTPException(status_code=400, detail=f"El nombre '{payload.tenant_name}' está reservado")
@@ -81,7 +128,6 @@ async def create_tenant(
     role_stmt = select(Role).where(Role.codigo == "tenant_manager")
     role_res = await db.execute(role_stmt)
     role_obj = role_res.scalar_one_or_none()
-
     if not role_obj:
         raise HTTPException(status_code=500, detail="Rol 'tenant_manager' no encontrado. Ejecuta el seed.")
 
@@ -100,7 +146,8 @@ async def create_tenant(
     since = datetime.now(UTC) - timedelta(hours=24)
     attempts_count = await db.scalar(
         select(func.count(RegistrationAttempt.id)).where(
-            RegistrationAttempt.ip_address == client_ip, RegistrationAttempt.created_at >= since
+            RegistrationAttempt.ip_address == client_ip,
+            RegistrationAttempt.created_at >= since
         )
     )
     if attempts_count >= 3:
@@ -110,9 +157,10 @@ async def create_tenant(
     new_tenant = Tenant(
         name=payload.tenant_name,
         nit=payload.nit,
-        schema_name="pending",  # ⚠️ Placeholder temporal
+        schema_name="pending",
         plan=payload.plan or "freemium",
-        max_usuarios=1,  # ✅ Límite inicial por defecto
+        max_concurrent_sessions=1,
+        max_users_registered=3,
         admin_email=payload.admin_email,
         is_active=True,
     )
@@ -120,8 +168,7 @@ async def create_tenant(
     await db.commit()
     await db.refresh(new_tenant)
 
-    # 6. ✅ CORREGIDO: Generar schema_name con formato t_{public_id_sin_guiones}
-    # Ejemplo: t_550e8400e29b41d4a716446655440000 (34 chars)
+    # 6. Generar schema_name
     safe_uuid = str(new_tenant.public_id).replace("-", "")
     schema_name = f"t_{safe_uuid}"
     new_tenant.schema_name = schema_name
@@ -129,8 +176,30 @@ async def create_tenant(
 
     logger.info(f"Tenant creado en BD: id={new_tenant.id}, schema={schema_name}")
 
-    # 7. Crear schema y ejecutar TODAS las migraciones
-    # ⚠️ SÍNCRONO: debe ejecutarse en thread separado
+    # 7. Crear suscripción inicial (trial de 14 días)
+    now = datetime.now(UTC)
+    subscription = TenantSubscription(
+        tenant_id=new_tenant.id,
+        plan_type=payload.plan or "freemium",
+        max_concurrent_sessions=1,
+        max_users_registered=3,
+        price_per_user=0,
+        base_price=0,
+        billing_cycle="mensual",
+        current_period_start=now,
+        current_period_end=now + timedelta(days=14),
+        status=SubscriptionStatus.trial.value,
+        billing_email=payload.admin_email,
+        nit_facturacion=payload.nit,
+    )
+    subscription.total_monthly_price = subscription.calculate_total_price()
+    db.add(subscription)
+
+    # 8. Sincronizar campos efectivos del tenant
+    new_tenant.sync_from_subscription()
+    await db.commit()
+
+    # 9. Crear schema y ejecutar migraciones
     import asyncio
 
     from app.services.base.tenant_setup import (
@@ -140,7 +209,10 @@ async def create_tenant(
 
     try:
         logger.info(f"🚀 Iniciando creación del schema '{schema_name}'...")
-        await asyncio.wait_for(asyncio.to_thread(initialize_tenant_schema, schema_name), 300)
+        await asyncio.wait_for(
+            asyncio.to_thread(initialize_tenant_schema, schema_name),
+            300
+        )
         logger.info(f"✅ Schema '{schema_name}' creado y migrado exitosamente")
     except TimeoutError:
         await db.delete(new_tenant)
@@ -152,11 +224,7 @@ async def create_tenant(
         await db.commit()
         raise HTTPException(status_code=500, detail=f"Error al inicializar el tenant {str(e)}")
 
-    # 8. Actualizar schema_name del tenant
-    new_tenant.schema_name = schema_name
-    await db.commit()
-
-    # 9. Crear admin del tenant
+    # 10. Crear admin del tenant
     try:
         admin_user = User(
             tenant_id=new_tenant.id,
@@ -167,10 +235,7 @@ async def create_tenant(
             is_active=True,
         )
         db.add(admin_user)
-
-        # 10. Registrar intento exitoso
         db.add(RegistrationAttempt(ip_address=client_ip))
-
         await db.commit()
         await db.refresh(new_tenant)
 
@@ -182,7 +247,7 @@ async def create_tenant(
             schema_name=new_tenant.schema_name,
             nit=new_tenant.nit,
             plan=new_tenant.plan,
-            max_usuarios=new_tenant.max_usuarios,
+            max_usuarios=new_tenant.max_users_registered,
             is_active=new_tenant.is_active,
             created_at=new_tenant.created_at,
             admin_email=new_tenant.admin_email,
@@ -193,7 +258,6 @@ async def create_tenant(
             await asyncio.to_thread(cleanup_tenant_schema, schema_name)
         except Exception as cleanup_err:
             logger.error(f"⚠️ Error en rollback: {cleanup_err}")
-
         await db.delete(new_tenant)
         await db.commit()
         raise HTTPException(status_code=500, detail=f"Error al crear el usuario admin: {str(e)}")
@@ -204,36 +268,60 @@ async def create_tenant(
 # ============================================================
 @router.post("/{tenant_public_id}/trial", dependencies=[Depends(require_role("superadmin"))])
 async def activate_tenant_trial(
-    tenant_public_id: UUID, payload: TenantTrialRequest, db: AsyncSession = Depends(get_public_db)
+    tenant_public_id: UUID,
+    payload: TenantTrialRequest,
+    db: AsyncSession = Depends(get_public_db),
 ):
     """
     Activa o extiende el trial de un tenant.
     Solo accesible para superadmin.
     """
-    # Buscar tenant por public_id
-    result = await db.execute(select(Tenant).where(Tenant.public_id == tenant_public_id))
+    result = await db.execute(
+        select(Tenant).where(Tenant.public_id == tenant_public_id)
+    )
     tenant = result.scalar_one_or_none()
-
     if not tenant:
         raise HTTPException(404, "Tenant no encontrado")
 
-    # Calcular fecha de expiración
+    # Buscar suscripción activa
+    sub_result = await db.execute(
+        select(TenantSubscription).where(
+            TenantSubscription.tenant_id == tenant.id,
+            TenantSubscription.status.in_([
+                SubscriptionStatus.active.value,
+                SubscriptionStatus.trial.value
+            ])
+        )
+    )
+    subscription = sub_result.scalar_one_or_none()
+
+    if not subscription:
+        raise HTTPException(404, "Suscripción activa no encontrada")
+
+    # Calcular fecha de expiración del trial
     trial_until = datetime.now(UTC) + timedelta(days=payload.trial_days)
 
-    # Actualizar trial
-    tenant.trial_until = trial_until
-    tenant.trial_max_usuarios = payload.trial_max_usuarios
+    # Actualizar suscripción con límites de trial
+    subscription.status = SubscriptionStatus.trial.value
+    subscription.current_period_end = trial_until
+    subscription.max_concurrent_sessions = payload.trial_max_concurrent_sessions
+    subscription.max_users_registered = payload.trial_max_users_registered
+    subscription.total_monthly_price = subscription.calculate_total_price()
+
+    # Sincronizar campos efectivos del tenant
+    tenant.sync_from_subscription()
 
     await db.commit()
-    await db.refresh(tenant)
+    await db.refresh(subscription)
 
     return {
         "status": "trial_activated",
         "tenant_id": str(tenant.public_id),
         "tenant_name": tenant.name,
         "trial_until": trial_until.isoformat(),
-        "trial_max_usuarios": tenant.trial_max_usuarios,
-        "message": f"Trial activado por {payload.trial_days} días con límite de {payload.trial_max_usuarios} usuarios",
+        "trial_max_concurrent_sessions": subscription.max_concurrent_sessions,
+        "trial_max_users_registered": subscription.max_users_registered,
+        "message": f"Trial activado por {payload.trial_days} días con {payload.trial_max_concurrent_sessions} sesiones concurrentes y {payload.trial_max_users_registered} usuarios",
     }
 
 
@@ -242,104 +330,198 @@ async def activate_tenant_trial(
 # ============================================================
 @router.post("/{tenant_public_id}/upgrade", dependencies=[Depends(require_role("superadmin"))])
 async def upgrade_tenant(
-    tenant_public_id: UUID, payload: TenantUpgradeRequest, db: AsyncSession = Depends(get_public_db)
+    tenant_public_id: UUID,
+    payload: TenantUpgradeRequest,
+    db: AsyncSession = Depends(get_public_db),
 ):
     """
     Hace upgrade permanente del plan de un tenant.
     Solo accesible para superadmin.
     """
-    result = await db.execute(select(Tenant).where(Tenant.public_id == tenant_public_id))
+    result = await db.execute(
+        select(Tenant).where(Tenant.public_id == tenant_public_id)
+    )
     tenant = result.scalar_one_or_none()
-
     if not tenant:
         raise HTTPException(404, "Tenant no encontrado")
 
-    # Validar que el nuevo límite sea mayor al actual
-    if payload.max_usuarios <= tenant.max_usuarios:
+    # Obtener suscripción activa
+    sub_result = await db.execute(
+        select(TenantSubscription).where(
+            TenantSubscription.tenant_id == tenant.id,
+            TenantSubscription.status.in_([
+                SubscriptionStatus.active.value,
+                SubscriptionStatus.trial.value
+            ])
+        )
+    )
+    subscription = sub_result.scalar_one_or_none()
+
+    if not subscription:
+        raise HTTPException(404, "Suscripción activa no encontrada")
+
+    # Validar upgrades
+    if payload.max_concurrent_sessions and payload.max_concurrent_sessions <= subscription.max_concurrent_sessions:
         raise HTTPException(
-            400, f"El nuevo límite ({payload.max_usuarios}) debe ser mayor al actual ({tenant.max_usuarios})"
+            400,
+            f"El nuevo límite de sesiones ({payload.max_concurrent_sessions}) debe ser mayor al actual ({subscription.max_concurrent_sessions})"
         )
 
-    # Actualizar plan
-    tenant.max_usuarios = payload.max_usuarios
-    tenant.plan = payload.plan
+    if payload.max_users_registered and payload.max_users_registered <= subscription.max_users_registered:
+        raise HTTPException(
+            400,
+            f"El nuevo límite de usuarios ({payload.max_users_registered}) debe ser mayor al actual ({subscription.max_users_registered})"
+        )
+
+    # Actualizar suscripción
+    if payload.max_concurrent_sessions:
+        subscription.max_concurrent_sessions = payload.max_concurrent_sessions
+    if payload.max_users_registered:
+        subscription.max_users_registered = payload.max_users_registered
+    if payload.plan_type:
+        subscription.plan_type = payload.plan_type
+
+    subscription.total_monthly_price = subscription.calculate_total_price()
+
+    # Sincronizar campos efectivos del tenant
+    tenant.sync_from_subscription()
 
     await db.commit()
-    await db.refresh(tenant)
+    await db.refresh(subscription)
 
     return {
         "status": "upgraded",
         "tenant_id": str(tenant.public_id),
-        "new_max_usuarios": tenant.max_usuarios,
-        "new_plan": tenant.plan,
-        "message": f"Límite de usuarios aumentado a {tenant.max_usuarios}",
+        "subscription_id": subscription.id,
+        "new_max_concurrent_sessions": subscription.max_concurrent_sessions,
+        "new_max_users_registered": subscription.max_users_registered,
+        "new_plan_type": subscription.plan_type,
+        "new_monthly_price": float(subscription.total_monthly_price),
     }
 
 
 # ============================================================
 # 5. Uso del Tenant
 # ============================================================
-@router.get("/{tenant_public_id}/usage", dependencies=[Depends(require_role("superadmin", "tenant_manager"))])
+@router.get(
+    "/{tenant_public_id}/usage",
+    dependencies=[Depends(require_role("superadmin", "tenant_manager"))]
+)
 async def get_tenant_usage(
-    tenant_public_id: UUID, scope: DataScope = Depends(get_data_scope), db: AsyncSession = Depends(get_public_db)
+    tenant_public_id: UUID,
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db),
 ):
     """
-    Retorna el uso actual del tenant (usuarios, empresas, etc.)
-    Útil para el dashboard del tenant_manager.
+    Retorna el uso actual del tenant (sesiones, usuarios, suscripción).
     """
     # Validar permisos
     if scope.role_code == "tenant_manager":
         tenant_id = scope.tenant_id
     else:
-        result = await db.execute(select(Tenant.id).where(Tenant.public_id == tenant_public_id))
+        result = await db.execute(
+            select(Tenant.id).where(Tenant.public_id == tenant_public_id)
+        )
         tenant_id = result.scalar_one_or_none()
         if not tenant_id:
             raise HTTPException(404, "Tenant no encontrado")
 
-    # Obtener tenant
     tenant = await db.get(Tenant, tenant_id)
 
-    # Contar usuarios activos
+    # Obtener suscripción activa
+    sub_result = await db.execute(
+        select(TenantSubscription).where(
+            TenantSubscription.tenant_id == tenant_id,
+            TenantSubscription.status.in_([
+                SubscriptionStatus.active.value,
+                SubscriptionStatus.trial.value
+            ])
+        )
+    )
+    subscription = sub_result.scalar_one_or_none()
+
+    # Contar usuarios registrados
     user_count = await db.scalar(
-        select(func.count(User.id)).where(User.tenant_id == tenant_id, User.is_active.is_(True))
+        select(func.count(User.id)).where(
+            User.tenant_id == tenant_id,
+            User.is_active.is_(True)
+        )
     )
 
-    # Determinar límite efectivo (considerando trial)
-    max_allowed = tenant.max_usuarios
+    # Contar sesiones activas (últimos 15 min)
+    cutoff = datetime.now(UTC) - timedelta(minutes=15)
+    active_sessions = await db.scalar(
+        select(func.count(SessionAudit.id)).where(
+            SessionAudit.tenant_id == tenant_id,
+            SessionAudit.is_active.is_(True),
+            SessionAudit.last_activity >= cutoff,
+        )
+    )
+
+    # Información de suscripción
+    subscription_info = {}
     is_trial = False
     trial_expires = None
 
-    if tenant.trial_until and tenant.trial_max_usuarios:
-        now = datetime.now(UTC)
-        if tenant.trial_until > now:
+    if subscription:
+        subscription_info = {
+            "plan_type": subscription.plan_type,
+            "max_concurrent_sessions": subscription.max_concurrent_sessions,
+            "max_users_registered": subscription.max_users_registered,
+            "status": subscription.status,
+            "current_period_end": subscription.current_period_end.isoformat(),
+            "days_remaining": subscription.days_remaining,
+            "monthly_price": float(subscription.total_monthly_price),
+        }
+
+        if subscription.is_trial:
             is_trial = True
-            trial_expires = tenant.trial_until
-            max_allowed = tenant.trial_max_usuarios
+            trial_expires = subscription.current_period_end
 
     # Generar warnings
     warnings = []
-    usage_percentage = (user_count / max_allowed) * 100 if max_allowed > 0 else 0
 
-    if usage_percentage >= 90:
-        warnings.append("¡Crítico! Estás al 90%+ de tu límite de usuarios")
-    elif usage_percentage >= 80:
-        warnings.append("Estás cerca del límite de usuarios")
+    if subscription:
+        session_usage_pct = (
+            (active_sessions / subscription.max_concurrent_sessions * 100)
+            if subscription.max_concurrent_sessions > 0 else 0
+        )
+        user_usage_pct = (
+            (user_count / subscription.max_users_registered * 100)
+            if subscription.max_users_registered > 0 else 0
+        )
 
-    if is_trial and tenant.trial_until:
-        days_left = (tenant.trial_until - datetime.now(UTC)).days
-        if days_left <= 7:
-            warnings.append(f"Tu trial expira en {days_left} días")
+        if session_usage_pct >= 90:
+            warnings.append("¡Crítico! Estás al 90%+ de tu límite de sesiones concurrentes")
+        elif session_usage_pct >= 80:
+            warnings.append("Estás cerca del límite de sesiones concurrentes")
+
+        if user_usage_pct >= 90:
+            warnings.append("¡Crítico! Estás al 90%+ de tu límite de usuarios registrados")
+        elif user_usage_pct >= 80:
+            warnings.append("Estás cerca del límite de usuarios registrados")
+
+        if is_trial and trial_expires:
+            days_left = (trial_expires - datetime.now(UTC)).days
+            if days_left <= 7:
+                warnings.append(f"Tu trial expira en {days_left} días")
 
     return {
         "tenant_id": str(tenant.public_id),
         "tenant_name": tenant.name,
-        "plan": tenant.plan,
+        "subscription": subscription_info,
         "usage": {
-            "usuarios": {
-                "actual": user_count,
-                "limite": max_allowed,
-                "disponibles": max(0, max_allowed - user_count),
-                "porcentaje": round(usage_percentage, 1),
+            "active_sessions": {
+                "actual": active_sessions or 0,
+                "limite": subscription.max_concurrent_sessions if subscription else 0,
+                "disponibles": max(0, (subscription.max_concurrent_sessions if subscription else 0) - (active_sessions or 0)),
+                "porcentaje": round(session_usage_pct, 1) if subscription else 0,
+            },
+            "usuarios_registrados": {
+                "actual": user_count or 0,
+                "limite": subscription.max_users_registered if subscription else 0,
+                "disponibles": max(0, (subscription.max_users_registered if subscription else 0) - (user_count or 0)),
+                "porcentaje": round(user_usage_pct, 1) if subscription else 0,
             }
         },
         "trial": {"activo": is_trial, "expira": trial_expires.isoformat() if trial_expires else None},
@@ -361,9 +543,10 @@ async def deactivate_tenant(
     if scope.role_code != "superadmin":
         raise HTTPException(status_code=403, detail="Acceso denegado")
 
-    result = await db.execute(select(Tenant).where(Tenant.public_id == tenant_public_id))
+    result = await db.execute(
+        select(Tenant).where(Tenant.public_id == tenant_public_id)
+    )
     tenant = result.scalar_one_or_none()
-
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant no encontrado")
 
@@ -373,11 +556,8 @@ async def deactivate_tenant(
     tenant.is_active = False
     tenant.deleted_at = datetime.now(UTC)
 
-    # TODO: Invalidar tokens JWT de usuarios de este tenant (requiere Redis)
-
     await db.commit()
-
-    logger.warning(f"⚠️ Tenant desactivado: {tenant.name} (razón: {reason})")
+    logger.warning(f"️ Tenant desactivado: {tenant.name} (razón: {reason})")
 
     return {
         "message": "Tenant desactivado exitosamente",
@@ -392,15 +572,18 @@ async def deactivate_tenant(
 # ============================================================
 @router.patch("/{tenant_public_id}/activate", response_model=dict)
 async def activate_tenant(
-    tenant_public_id: UUID, scope: DataScope = Depends(get_data_scope), db: AsyncSession = Depends(get_public_db)
+    tenant_public_id: UUID,
+    scope: DataScope = Depends(get_data_scope),
+    db: AsyncSession = Depends(get_public_db),
 ):
     """Reactiva un tenant previamente desactivado"""
     if scope.role_code != "superadmin":
         raise HTTPException(status_code=403, detail="Acceso denegado")
 
-    result = await db.execute(select(Tenant).where(Tenant.public_id == tenant_public_id))
+    result = await db.execute(
+        select(Tenant).where(Tenant.public_id == tenant_public_id)
+    )
     tenant = result.scalar_one_or_none()
-
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant no encontrado")
 
@@ -411,7 +594,10 @@ async def activate_tenant(
     tenant.deleted_at = None
 
     await db.commit()
-
     logger.info(f"✅ Tenant reactivado: {tenant.name}")
 
-    return {"message": "Tenant reactivado exitosamente", "tenant_id": str(tenant.public_id), "tenant_name": tenant.name}
+    return {
+        "message": "Tenant reactivado exitosamente",
+        "tenant_id": str(tenant.public_id),
+        "tenant_name": tenant.name,
+    }

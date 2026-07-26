@@ -39,6 +39,31 @@ class TokenResponse(BaseModel):
     }
 
 
+class LoginResponse(BaseModel):
+    tenant_name: str | None = None
+    role: str | None = None
+    full_name: str
+    email: str
+    user_id: str
+    public_id: str
+    must_change_password: bool = False
+    password_expires_at: str | None = None
+    
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "tenant_name": "Mi Empresa",
+                "role": "tenant_manager",
+                "full_name": "Juan Pérez",
+                "email": "juan@empresa.com",
+                "user_id": "123",
+                "public_id": "550e8400-e29b-41d4-a716-446655440000",
+                "must_change_password": False,
+                "password_expires_at": "2026-10-11T12:00:00Z",
+            }
+        }
+    }
+
 class SignupRequest(BaseModel):
     # Datos del Tenant / Despacho
     tenant_name: str

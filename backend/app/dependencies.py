@@ -1,10 +1,10 @@
 from fastapi import Depends, HTTPException
 
 from app.core.security import decode_access_token
-from app.db.session import oauth2_scheme
+from app.db.session import get_db
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
+async def get_current_user(token: str = Depends(get_db)) -> dict:
     payload = decode_access_token(token)
     if payload is None:
         raise HTTPException(status_code=401, detail="Token inválido o expirado")

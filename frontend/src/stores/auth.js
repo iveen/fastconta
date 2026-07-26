@@ -5,7 +5,7 @@ import api from '@/services/api'
 import { useCompanyStore } from './company'
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref(localStorage.getItem('token') || null)
+  
   const user = ref(null)
   const loading = ref(false)
   
@@ -16,7 +16,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   const requiresPasswordChange = computed(() => mustChangePassword.value)
   
-  const isAuthenticated = computed(() => !!token.value)
+  const isAuthenticated = computed(() => !!user.value)
+
   
   const isSuperAdmin = computed(() => {
     return user.value?.role === 'superadmin'
@@ -63,8 +64,6 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await api.post('/auth/login', credentials)
       const data = response.data
       
-      token.value = data.access_token
-      localStorage.setItem('token', data.access_token)
       
       // ✅ Guardar estado de política de contraseñas
       mustChangePassword.value = data.must_change_password || false
@@ -154,26 +153,33 @@ export const useAuthStore = defineStore('auth', () => {
   // ============================================================
   // LOGOUT
   // ============================================================
-  const logout = () => {
-    token.value = null
-    user.value = null
-    mustChangePassword.value = false
-    passwordExpiresAt.value = null
-    loginError.value = null
-    localStorage.removeItem('token')
-    const companyStore = useCompanyStore()
-    companyStore.clearCompany()
-    window.location.href = '/login'
-  }
+   const logout = async () => {
+    try {
+      // ✅ LLAMAR al endpoint /logout del backend para limpiar la cookie
+      await api.post('/auth/logout')
+    } catch (err) {
+      console.error('Error cerrando sesión:', err)
+      // Continuar con el logout local incluso si falla el backend
+    } finally {
+        // ✅ Limpiar estado local
+        user.value = null
+        mustChangePassword.value = false
+        passwordExpiresAt.value = null
+        loginError.value = null
+      
+        const companyStore = useCompanyStore()
+        companyStore.clearCompany()
+        window.location.href = '/login'
+      }
+    }
 
   // ============================================================
   // CHECK AUTH
   // ============================================================
   const checkAuth = async () => {
-    if (!token.value) return false
     try {
       const response = await api.get('/auth/me')
-      if (response.data.user) {
+      if (response.data.user || response.data.email) {
         user.value = {
           id: response.data.user_id,
           public_id: response.data.public_id,
@@ -185,7 +191,6 @@ export const useAuthStore = defineStore('auth', () => {
           schema: response.data.schema
         }
         
-        // ✅ NUEVO: Verificar política de contraseñas desde /auth/me si el backend lo retorna
         mustChangePassword.value = response.data.must_change_password || false
         passwordExpiresAt.value = response.data.password_expires_at || null
         
@@ -199,9 +204,12 @@ export const useAuthStore = defineStore('auth', () => {
       }
       return true
     } catch (err) {
-      console.error('Error al verificar auth:', err)
-      logout()
-      return false
+        console.error('Error al verificar auth:', err)
+        // ✅ Limpiar estado si el token expiró o es inválido
+        user.value = null
+        mustChangePassword.value = false
+        passwordExpiresAt.value = null
+        return false
     }
   }
 
@@ -211,7 +219,6 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    token,
     user,
     loading,
     mustChangePassword,  // ✅ NUEVO

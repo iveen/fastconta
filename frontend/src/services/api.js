@@ -5,19 +5,15 @@ const api = axios.create({
   baseURL: '/api/v1',
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  withCredentials: true
 })
 
-// Interceptor para añadir el token JWT
 api.interceptors.request.use(config => {
-  const token = localStorage.getItem('token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
   if (!(config.data instanceof FormData)) {
     config.headers['Content-Type'] = 'application/json'
   }
-
+  
   // Inyectar contexto de empresa si existe
   const companyStore = useCompanyStore()
   if (companyStore.selectedCompanyId) {
@@ -26,16 +22,24 @@ api.interceptors.request.use(config => {
   return config
 })
 
-// Interceptor para manejar errores 401
+
+// Interceptor para respuestas simplificado
 api.interceptors.response.use(
   response => response,
   error => {
-    // ✅ NO redirigir si el error viene del login (es parte del flujo normal)
+    // NO redirigir si el error viene del login (es parte del flujo normal)
     const isLoginRequest = error.config?.url?.includes('/auth/login')
+    const isRefreshRequest = error.config?.url?.includes('/auth/refresh')
     
-    if (error.response && error.response.status === 401 && !isLoginRequest) {
-      // Solo redirigir si es un 401 en OTROS endpoints (token expirado, etc.)
-      localStorage.removeItem('token')
+    if (
+      error.response && 
+      error.response.status === 401 && 
+      !isLoginRequest && 
+      !isRefreshRequest
+    ) {
+      // ❌ ELIMINAR: localStorage.removeItem('token')
+      // La cookie se limpia automáticamente al expirar o vía /logout
+      
       window.location.href = '/login'
     }
     return Promise.reject(error)

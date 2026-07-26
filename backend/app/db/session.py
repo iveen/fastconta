@@ -1,19 +1,15 @@
-# app/db/session.py
+# backend/app/db/session.py
 import logging
 from typing import AsyncGenerator
 
-from fastapi import Depends, HTTPException
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.jwt_utils import decode_access_token
-from app.core.tenant import tenant_schema_exists
 from app.db.base import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
-
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependencia base: garantiza cierre de sesión incluso con excepciones"""
@@ -24,8 +20,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         await session.rollback()
         raise
     finally:
-        await session.close()  # 👈 CRÍTICO: siempre cerrar
-
+        await session.close()
 
 async def get_public_db() -> AsyncGenerator[AsyncSession, None]:
     """Sesión forzada a schema public"""
@@ -36,24 +31,47 @@ async def get_public_db() -> AsyncGenerator[AsyncSession, None]:
     finally:
         await session.close()
 
-
-async def get_tenant_db(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)) -> AsyncSession:
-    """Configura search_path dinámico para tenant"""
+async def get_tenant_db(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+) -> AsyncGenerator[AsyncSession, None]:
+    """
+    Configura search_path dinámico para el tenant del usuario autenticado.
+    Lee el token directamente de la cookie HttpOnly o del header Authorization,
+    evitando así cualquier importación circular con app.core.security.
+    """
+    # 1. Extraer el token de la cookie HttpOnly (prioridad) o del header
+    auth_cookie = request.cookies.get("access_token")
+    token = None
+    
+    if auth_cookie and auth_cookie.startswith("Bearer "):
+        token = auth_cookie[7:]
+    else:
+        auth_header = request.headers.get("authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            
+    if not token:
+        raise HTTPException(
+            status_code=401, 
+            detail="No se proporcionó token de autenticación"
+        )
+        
+    # 2. Decodificar el token para obtener el schema
     payload = decode_access_token(token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Token inválido")
-
+    if not payload or not payload.get("schema"):
+        raise HTTPException(
+            status_code=401, 
+            detail="Token inválido o sin esquema de tenant"
+        )
+        
     schema_name = payload.get("schema")
-    if not schema_name:
-        raise HTTPException(status_code=400, detail="Token sin schema")
-
-    if not await tenant_schema_exists(db, schema_name):
-        raise HTTPException(status_code=400, detail="Tenant no configurado")
-
-    # 👇 SET LOCAL: el cambio solo aplica a esta transacción, no al pool
-    await db.execute(text("RESET search_path"))
-    await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
-    await db.flush()
-
-    db.info["current_user"] = payload
-    return db
+    
+    # 3. Configurar search_path para esta transacción
+    try:
+        await db.execute(text("RESET search_path"))
+        await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
+        yield db
+    finally:
+        # Limpieza al final de la request (buena práctica)
+        await db.execute(text("RESET search_path"))

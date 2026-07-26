@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import List, Set
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
 from passlib.context import CryptContext
@@ -19,7 +19,7 @@ from app.db.session import get_db
 from app.models.global_models import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 # Constantes de política
 MAX_LOGIN_ATTEMPTS = 5
@@ -33,6 +33,43 @@ RESET_TOKEN_LENGTH = 64
 RESET_TOKEN_EXPIRATION_MINUTES = 5
 
 
+async def get_token_from_cookie_or_header(
+    request: Request,
+    # auto_error=False permite que Swagger siga funcionando
+    token_from_header: str | None = Depends(oauth2_scheme),
+) -> str:
+    """
+    Extrae el token JWT priorizando la cookie HttpOnly.
+    Si no hay cookie, intenta leer del header Authorization (fallback).
+    
+    Esto permite:
+    - Producción: token via cookie HttpOnly (seguro)
+    - Swagger UI / testing: token via header Authorization
+    """
+    print(f"\n🔍 [{request.method}] {request.url.path}")
+    print(f"   🍪 Cookies recibidas: {dict(request.cookies)}")
+    print(f"   🔑 Header Authorization: {request.headers.get('authorization', 'NO')}")
+    print(f"   🌐 Origin: {request.headers.get('origin', 'NO')}")
+
+    # 1. Intentar leer de la cookie (producción)
+    auth_cookie = request.cookies.get("access_token")
+    if auth_cookie:
+        # La cookie tiene formato "Bearer <token>"
+        if auth_cookie.startswith("Bearer "):
+            return auth_cookie[7:]
+        return auth_cookie
+    
+    # 2. Fallback al header Authorization (Swagger, testing, cURL)
+    if token_from_header:
+        return token_from_header
+    
+    # 3. Si no hay token en ningún lado
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="No se proporcionó token de autenticación",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
@@ -43,7 +80,10 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)) -> User:
+async def get_current_user(
+        token: str = Depends(get_token_from_cookie_or_header),
+        db: AsyncSession = Depends(get_db)) -> User:
+    
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Credenciales inválidas o expiradas",

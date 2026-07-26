@@ -3,11 +3,12 @@ import logging
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.core.email.service import email_service
 from app.core.jwt_utils import create_access_token
 from app.core.security import (
@@ -41,17 +42,22 @@ from app.schemas.auth import (
     LoginAuditResponse,
     LoginAuditStats,
     LoginRequest,
+    LoginResponse,
     RequestPasswordResetRequest,
     RequestPasswordResetResponse,
-    TokenResponse,
 )
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 logger = logging.getLogger(__name__)
 
 
-@router.post("/login", response_model=TokenResponse)
-async def login(login_data: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
+@router.post("/login", response_model=LoginResponse)
+async def login(
+    login_data: LoginRequest,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db)
+):
     """
     Autenticación de usuario con política de bloqueo por intentos fallidos.
 
@@ -190,11 +196,24 @@ async def login(login_data: LoginRequest, request: Request, db: AsyncSession = D
         tenant_name=tenant.name if tenant else "N/A",
     )
 
-    return TokenResponse(
-        access_token=access_token,
-        token_type="bearer",
+    response.set_cookie(
+        key="access_token",
+        value=f"Bearer {access_token}",
+        httponly=True,
+        secure=settings.ENVIRONMENT == "production",
+        samesite="lax",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES*60 ,
+        path="/",
+    ) 
+
+    print("🍪 COOKIES SETEADAS EN RESPONSE:")
+    for header_name, header_value in response.raw_headers:
+        if header_name.decode().lower() == "set-cookie":
+            print(f"   {header_value.decode()}\n")
+
+    return LoginResponse(
         tenant_name=tenant.name if tenant else None,
-        role=role.codigo if role else None,
+        role=role.codigo,
         full_name=user.full_name,
         email=user.email,
         user_id=str(user.id),
@@ -202,7 +221,6 @@ async def login(login_data: LoginRequest, request: Request, db: AsyncSession = D
         must_change_password=must_change,
         password_expires_at=user.password_expires_at.isoformat() if user.password_expires_at else None,
     )
-
 
 @router.post("/change-password", status_code=status.HTTP_200_OK)
 async def change_password(
@@ -681,3 +699,70 @@ async def first_login_change_password(
         "message": "Contraseña actualizada exitosamente. Ya puedes usar el sistema.",
         "password_expires_at": current_user.password_expires_at.isoformat(),
     }
+
+@router.post("/refresh", response_model=LoginResponse)
+async def refresh_token(
+    request: Request,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Renueva el access token.
+    El frontend lo llama automáticamente cuando recibe 401.
+    """
+    # Verificar que el usuario siga activo
+    if not current_user.is_active:
+        response.delete_cookie(key="access_token", path="/")
+        raise HTTPException(status_code=401, detail="Usuario inactivo")
+    
+    # Cargar tenant y rol
+    tenant_stmt = select(Tenant).where(Tenant.id == current_user.tenant_id)
+    tenant = (await db.execute(tenant_stmt)).scalar_one_or_none()
+    
+    role_stmt = select(Role).where(Role.id == current_user.role_id)
+    role = (await db.execute(role_stmt)).scalar_one_or_none()
+    
+    # Crear nuevo token
+    new_token = create_access_token(
+        user_id=current_user.id,
+        tenant_id=current_user.tenant_id,
+        email=current_user.email,
+        role=role.codigo if role else "unknown",
+        schema=tenant.schema_name if tenant else "public",
+        tenant_name=tenant.name if tenant else "N/A",
+    )
+    
+    # Setear nueva cookie
+    response.set_cookie(
+        key="access_token",
+        value=f"Bearer {new_token}",
+        httponly=True,
+        secure=settings.ENVIRONMENT == "production",
+        samesite="lax",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    
+    return LoginResponse(
+        tenant_name=tenant.name if tenant else None,
+        role=role.codigo if role else None,
+        full_name=current_user.full_name,
+        email=current_user.email,
+        user_id=str(current_user.id),
+        public_id=str(current_user.public_id),
+        must_change_password=False,
+        password_expires_at=current_user.password_expires_at.isoformat() if current_user.password_expires_at else None,
+    )
+
+# app/api/endpoints/auth.py
+
+@router.post("/logout", status_code=status.HTTP_200_OK)
+async def logout(response: Response):
+    """Cierra la sesión eliminando la cookie de autenticación."""
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        samesite="lax",
+    )
+    return {"message": "Sesión cerrada exitosamente"}

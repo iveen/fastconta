@@ -9,6 +9,10 @@ Currently, FastAPI's built-in `BackgroundTasks` handles asynchronous jobs. This 
 - **No retry mechanism**: Failed tasks are silently dropped.
 - **No horizontal scaling**: Workers are tied to the web server lifecycle.
 - **No monitoring**: No visibility into task queues or failures.
+  
+Additionally, FastConta is a multi-tenant system where each tenant has its own 
+PostgreSQL schema. Background workers must configure `search_path` per task to 
+maintain tenant isolation, since workers are shared across tenants.
 
 With the projected growth of FastConta (more tenants, more invoices, more asset depreciation jobs), we need a robust, scalable async task system.
 
@@ -36,11 +40,17 @@ Celery wins due to its mature ecosystem, built-in retries, and excellent integra
 - Added infrastructure complexity (must run Redis + Celery worker in production).
 - Developers must run Redis locally (or via Docker).
 - Existing endpoints that rely on immediate background execution will need slight refactoring.
+- Temporary files created by the web server won't be accessible to workers on 
+  different processes/machines. We need a shared storage strategy (local volume 
+  mount for single-server, or S3/MinIO for multi-server).
 
 ## Migration Plan (Phased)
 1. **Phase 1 (Infrastructure)**: Add Redis to `docker-compose.yml`, add Celery dependencies, create `celery_app.py`.
-2. **Phase 2 (Task Migration)**: Convert one job (e.g., email sending) to a Celery task while keeping the old system as a fallback.
-3. **Phase 3 (Full Switch)**: Remove `BackgroundTasks` entirely and update all endpoint calls to Celery's `.delay()`.
+2. **Phase 2 (Parallel Run)**: Introduce a `USE_CELERY` feature flag. When enabled, 
+endpoints publish to Celery; when disabled, they fall back to BackgroundTasks. 
+This allows gradual rollout and instant rollback without redeploy.
+3. **Phase 3 (Task Migration)**: Convert one job (e.g., email sending) to a Celery task while keeping the old system as a fallback.
+4. **Phase 4 (Full Switch)**: Remove `BackgroundTasks` entirely and update all endpoint calls to Celery's `.delay()`.
 
 ## Related Links
 - Issue: #123 (replace with your actual issue number once created)

@@ -56,14 +56,21 @@ export const useAuthStore = defineStore('auth', () => {
   // ============================================================
   // LOGIN - Con manejo de errores complejos
   // ============================================================
-  const login = async (credentials) => {
+    const login = async (credentials) => {
     loading.value = true
-    loginError.value = null  // ✅ Limpiar error previo
-    
+    loginError.value = null
     try {
       const response = await api.post('/auth/login', credentials)
       const data = response.data
       
+      // ✅ Debug: Log de la respuesta del backend
+      console.log('📡 Respuesta del backend /auth/login:', data)
+      
+      // ✅ Verificar que la respuesta tiene la estructura esperada
+      if (!data || !data.user_id) {
+        console.error('❌ Respuesta inesperada del backend:', data)
+        throw new Error('Respuesta inválida del servidor')
+      }
       
       // ✅ Guardar estado de política de contraseñas
       mustChangePassword.value = data.must_change_password || false
@@ -88,13 +95,12 @@ export const useAuthStore = defineStore('auth', () => {
         console.log('👑 Superadmin detectado - omitiendo carga de empresas')
       }
       
+      // ✅ Retornar data explícitamente
       return data
     } catch (err) {
       console.error('Error en login:', err)
-      
       // ✅ NUEVO: Manejar errores complejos del backend
       const errorDetail = err.response?.data?.detail
-      
       if (err.response?.status === 423) {
         // Cuenta bloqueada
         loginError.value = {
@@ -124,7 +130,6 @@ export const useAuthStore = defineStore('auth', () => {
             : 'Error al iniciar sesión'
         }
       }
-      
       throw err
     } finally {
       loading.value = false

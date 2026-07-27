@@ -1,4 +1,5 @@
 import enum
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import (
     BigInteger,
@@ -15,6 +16,8 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    func,
+    select,
 )
 from sqlalchemy.dialects.postgresql import JSON, JSONB
 from sqlalchemy.orm import relationship
@@ -74,7 +77,6 @@ class Tenant(BigIntPKMixin, AuditableFull, SoftDelete, Base):
     
     def get_active_subscription(self) -> "TenantSubscription | None":
         """Retorna la suscripción activa del tenant"""
-        from datetime import datetime, timezone
         now = datetime.now(timezone.utc)
         
         for sub in self.subscriptions:
@@ -120,10 +122,7 @@ class Tenant(BigIntPKMixin, AuditableFull, SoftDelete, Base):
     @staticmethod
     async def count_active_sessions(db: AsyncSession, tenant_id: int) -> int:
         """Cuenta sesiones activas del tenant (últimos 15 min)"""
-        from datetime import datetime, timedelta, timezone
 
-        from sqlalchemy import func, select
-        
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
         count = await db.scalar(
             select(func.count(SessionAudit.id)).where(
@@ -269,14 +268,12 @@ class TenantSubscription(BigIntPKMixin, AuditableFull, Base):
     @property
     def days_remaining(self) -> int:
         """Días restantes del período actual"""
-        from datetime import datetime
-        delta = self.current_period_end - datetime.now(datetime.timezone.utc)
+        delta = self.current_period_end - datetime.now(timezone.utc)
         return max(0, delta.days)
     
     @property
     def is_expired(self) -> bool:
         """Verifica si el período ha expirado"""
-        from datetime import datetime
         return datetime.now(datetime.timezone.utc) > self.current_period_end
     
     def calculate_total_price(self) -> float:
@@ -297,7 +294,6 @@ class TenantSubscription(BigIntPKMixin, AuditableFull, Base):
     
     def renew_period(self, new_status: str = None):
         """Renueva el período de suscripción"""
-        from datetime import timedelta
         
         self.current_period_start = self.current_period_end
         self.current_period_end = self.current_period_start + timedelta(days=30)
@@ -344,7 +340,7 @@ class SubscriptionUsageLog(BigIntPKMixin, Base):
     subscription = relationship("TenantSubscription", back_populates="usage_logs")
 
 
-class SessionAudit(BigIntPKMixin, Base):
+class SessionAudit(BigIntPKMixin, AuditableFull, Base):
     """
     Auditoría de sesiones - Tracking de login/logout
     """
@@ -365,7 +361,6 @@ class SessionAudit(BigIntPKMixin, Base):
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     
     # Timestamps
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP"))
     last_activity = Column(DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP"))
     expires_at = Column(DateTime(timezone=True), nullable=True)
     

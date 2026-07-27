@@ -205,12 +205,7 @@ async def login(
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES*60 ,
         path="/",
     ) 
-
-    print("🍪 COOKIES SETEADAS EN RESPONSE:")
-    for header_name, header_value in response.raw_headers:
-        if header_name.decode().lower() == "set-cookie":
-            print(f"   {header_value.decode()}\n")
-
+    
     return LoginResponse(
         tenant_name=tenant.name if tenant else None,
         role=role.codigo,

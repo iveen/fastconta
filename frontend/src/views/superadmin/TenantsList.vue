@@ -33,13 +33,14 @@
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">NIT</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Plan</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sesiones</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuarios</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
-          <tr v-for="tenant in tenants" :key="tenant.id" class="hover:bg-gray-50">
+          <tr v-for="tenant in tenants" :key="tenant.public_id" class="hover:bg-gray-50">
             <td class="px-6 py-4">
               <div class="text-sm font-medium text-gray-900">{{ tenant.name }}</div>
               <div class="text-xs text-gray-500 font-mono">{{ tenant.schema_name }}</div>
@@ -50,9 +51,25 @@
                 {{ tenant.plan }}
               </span>
             </td>
+            <!-- 🆕 Sesiones Concurrentes con Barra de Progreso -->
+            <td class="px-6 py-4 text-sm">
+              <div class="flex items-center gap-2">
+                <div class="flex-1 bg-gray-200 rounded-full h-2">
+                  <div 
+                    class="h-2 rounded-full transition-all"
+                    :class="getSessionColor(tenant)"
+                    :style="{ width: getSessionPercentage(tenant) + '%' }"
+                  ></div>
+                </div>
+                <span class="text-xs text-gray-600 whitespace-nowrap">
+                  {{ tenant.current_usage?.active_sessions || 0 }}/{{ tenant.max_concurrent_sessions }}
+                </span>
+              </div>
+            </td>
+            <!-- 🆕 Usuarios Registrados -->
             <td class="px-6 py-4 text-sm text-gray-500">
-              {{ tenant.max_usuarios }}
-              <span v-if="tenant.trial_until && isTrialActive(tenant)" class="text-xs text-amber-600 ml-1">
+              {{ tenant.max_users_registered }}
+              <span v-if="tenant.active_subscription?.status === 'prueba'" class="text-xs text-amber-600 ml-1">
                 (trial)
               </span>
             </td>
@@ -139,7 +156,7 @@ import { useSuperAdminStore } from '@/stores/superAdmin'
 import { toast } from 'vue3-toastify'
 
 const store = useSuperAdminStore()
-
+ 
 const tenants = ref([])
 
 const showDeactivateModal = ref(false)
@@ -155,9 +172,18 @@ const loadTenants = async () => {
   }
 }
 
-const isTrialActive = (tenant) => {
-  if (!tenant.trial_until) return false
-  return new Date(tenant.trial_until) > new Date()
+// 🆕 Helpers para sesiones concurrentes
+const getSessionPercentage = (tenant) => {
+  if (!tenant.max_concurrent_sessions) return 0
+  const active = tenant.current_usage?.active_sessions || 0
+  return Math.min(100, (active / tenant.max_concurrent_sessions) * 100)
+}
+
+const getSessionColor = (tenant) => {
+  const pct = getSessionPercentage(tenant)
+  if (pct >= 90) return 'bg-red-500'
+  if (pct >= 70) return 'bg-amber-500'
+  return 'bg-green-500'
 }
 
 const openDeactivateModal = (tenant) => {
@@ -169,7 +195,7 @@ const openDeactivateModal = (tenant) => {
 const handleDeactivate = async () => {
   deactivating.value = true
   try {
-    await store.deactivateTenant(selectedTenant.value.id, deactivateForm.reason)
+    await store.deactivateTenant(selectedTenant.value.public_id, deactivateForm.reason)
     toast.success('Tenant desactivado')
     showDeactivateModal.value = false
     await loadTenants()
@@ -182,9 +208,9 @@ const handleDeactivate = async () => {
 
 const handleActivate = async (tenant) => {
   if (!confirm(`¿Reactivar "${tenant.name}"?`)) return
-  
+
   try {
-    await store.activateTenant(tenant.id)
+    await store.activateTenant(tenant.public_id)
     toast.success('Tenant reactivado')
     await loadTenants()
   } catch (err) {

@@ -1,4 +1,5 @@
 import enum
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import (
     BigInteger,
@@ -15,6 +16,8 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    func,
+    select,
 )
 from sqlalchemy.dialects.postgresql import JSON, JSONB
 from sqlalchemy.orm import relationship
@@ -22,11 +25,9 @@ from sqlalchemy.sql import text
 
 from app.db.base import Base
 from app.db.mixins import AuditableFull, BigIntPKMixin, SoftDelete
+from app.db.session import AsyncSession
 
 
-# ============================================================
-# TENANT (Firma Contable) - CON SoftDelete
-# ============================================================
 class Tenant(BigIntPKMixin, AuditableFull, SoftDelete, Base):
     __tablename__ = "tenants"
     __table_args__ = {"schema": "public"}
@@ -35,66 +36,136 @@ class Tenant(BigIntPKMixin, AuditableFull, SoftDelete, Base):
     nit = Column(String(15), unique=True, nullable=False)
     schema_name = Column(String(63), unique=True, nullable=False)
     admin_email = Column(String(255), nullable=True)
-    plan = Column(String(20), default="freemium", nullable=False)
-    max_usuarios = Column(Integer, default=3, nullable=False)
+    
+    # ✅ Campos "efectivos" - caché del valor actual de la suscripción
+    # Se actualizan automáticamente cuando cambia TenantSubscription
+    plan = Column(String(20), default="freemium", nullable=False, index=True)
+    max_concurrent_sessions = Column(Integer, default=1, nullable=False)
+    max_users_registered = Column(Integer, default=3, nullable=False)
 
-    # Campos de Trial
-    trial_until = Column(
-        DateTime(timezone=True), nullable=True, index=True, comment="Fecha de expiración del trial (si aplica)"
+    # Relaciones
+    subscriptions = relationship(
+        "TenantSubscription",
+        back_populates="tenant",
+        cascade="all, delete-orphan",
+        order_by="desc(TenantSubscription.current_period_start)"
     )
-    trial_max_usuarios = Column(Integer, nullable=True, comment="Máximo de usuarios durante el trial (si aplica)")
-
+    
+    sessions = relationship(
+        "SessionAudit",
+        back_populates="tenant",
+        foreign_keys="[SessionAudit.tenant_id]",
+        cascade="all, delete-orphan"
+    )
+    
     users = relationship(
         "User",
         back_populates="tenant",
         foreign_keys="[User.tenant_id]",
     )
+    
     empresas = relationship(
-        "Empresa", back_populates="tenant", foreign_keys="[Empresa.tenant_id]", cascade="all, delete-orphan"
+        "Empresa", 
+        back_populates="tenant", 
+        foreign_keys="[Empresa.tenant_id]", 
+        cascade="all, delete-orphan"
     )
 
     # ============================================================
     # MÉTODOS HELPER
     # ============================================================
-
-    def get_effective_user_limit(self) -> int:
-        """
-        Retorna el límite efectivo de usuarios considerando el trial.
-
-        Lógica:
-        - Si trial_until existe Y no ha expirado → usa trial_max_usuarios
-        - Si no → usa max_usuarios del plan
-
-        Returns:
-            int: Límite máximo de usuarios permitidos
-        """
-        from datetime import datetime
-
-        if self.trial_until and self.trial_max_usuarios:
-            now = datetime.now(datetime.timezone.utc)
-            if self.trial_until > now:
-                return self.trial_max_usuarios
-
-        return self.max_usuarios
-
+    
+    def get_active_subscription(self) -> "TenantSubscription | None":
+        """Retorna la suscripción activa del tenant"""
+        now = datetime.now(timezone.utc)
+        
+        for sub in self.subscriptions:
+            if sub.is_active and sub.current_period_start <= now <= sub.current_period_end:
+                return sub
+        
+        return self.subscriptions[0] if self.subscriptions else None
+    
     def is_trial_active(self) -> bool:
-        """Verifica si el tenant tiene un trial activo."""
-        from datetime import datetime
-
-        if not self.trial_until or not self.trial_max_usuarios:
-            return False
-
-        return self.trial_until > datetime.now(datetime.timezone.utc)
-
+        """Verifica si el tenant tiene un trial activo"""
+        sub = self.get_active_subscription()
+        return sub.is_trial if sub else False
+    
     def trial_days_remaining(self) -> int | None:
-        """Retorna los días restantes del trial, o None si no hay trial activo."""
-        from datetime import datetime
+        """Retorna los días restantes del trial"""
+        sub = self.get_active_subscription()
+        return sub.days_remaining if sub and sub.is_trial else None
+    
+    def sync_from_subscription(self):
+        """
+        Sincroniza los campos efectivos del tenant con la suscripción activa.
+        Llamar después de crear/actualizar TenantSubscription.
+        """
+        sub = self.get_active_subscription()
+        if sub:
+            self.plan = sub.plan_type
+            self.max_concurrent_sessions = sub.max_concurrent_sessions
+            self.max_users_registered = sub.max_users_registered
+    
+    @staticmethod
+    async def count_active_users(db: AsyncSession, tenant_id: int) -> int:
+        """Cuenta usuarios activos del tenant (optimizado)"""
+        from sqlalchemy import func, select
+        count = await db.scalar(
+            select(func.count(User.id)).where(
+                User.tenant_id == tenant_id,
+                User.is_active.is_(True),
+                User.is_deleted.is_(False),
+            )
+        )
+        return count or 0
+    
+    @staticmethod
+    async def count_active_sessions(db: AsyncSession, tenant_id: int) -> int:
+        """Cuenta sesiones activas del tenant (últimos 15 min)"""
 
-        if not self.is_trial_active():
-            return None
-
-        delta = self.trial_until - datetime.now(datetime.timezone.utc)
-        return max(0, delta.days)
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+        count = await db.scalar(
+            select(func.count(SessionAudit.id)).where(
+                SessionAudit.tenant_id == tenant_id,
+                SessionAudit.is_active.is_(True),
+                SessionAudit.last_activity >= cutoff
+            )
+        )
+        return count or 0
+    
+    async def can_add_user(self, db: AsyncSession) -> bool:
+        """Verifica si se puede agregar más usuarios"""
+        count = await self.count_active_users(db, self.id)
+        return count < self.max_users_registered
+    
+    async def can_create_session(self, db: AsyncSession) -> bool:
+        """Verifica si se puede crear una nueva sesión concurrente"""
+        count = await self.count_active_sessions(db, self.id)
+        return count < self.max_concurrent_sessions
+    
+    async def get_usage_summary(self, db: AsyncSession) -> dict:
+        """Retorna resumen de uso completo (para dashboard)"""
+        users_count = await self.count_active_users(db, self.id)
+        sessions_count = await self.count_active_sessions(db, self.id)
+        
+        return {
+            "users": {
+                "actual": users_count,
+                "limite": self.max_users_registered,
+                "disponibles": max(0, self.max_users_registered - users_count),
+                "porcentaje": round((users_count / self.max_users_registered * 100) if self.max_users_registered > 0 else 0, 1)
+            },
+            "sessions": {
+                "actual": sessions_count,
+                "limite": self.max_concurrent_sessions,
+                "disponibles": max(0, self.max_concurrent_sessions - sessions_count),
+                "porcentaje": round((sessions_count / self.max_concurrent_sessions * 100) if self.max_concurrent_sessions > 0 else 0, 1)
+            },
+            "trial": {
+                "activo": self.is_trial_active(),
+                "dias_restantes": self.trial_days_remaining()
+            }
+        }
 
 
 class RegistrationAttempt(BigIntPKMixin, AuditableFull, Base):
@@ -102,6 +173,212 @@ class RegistrationAttempt(BigIntPKMixin, AuditableFull, Base):
     __table_args__ = {"schema": "public"}
     ip_address = Column(String(45), nullable=False)
 
+
+# ============================================================
+# TENANT SUBSCRIPTION MODELS
+# ============================================================
+
+class SubscriptionStatus(str, enum.Enum):
+    active = "activa"
+    trial = "prueba"
+    expired = "expirada"
+    cancelled = "cancelada"
+    suspended = "suspendida"
+
+class BillingCycle(str, enum.Enum):
+    monthly = "mensual"
+    quarterly = "trimestral"
+    yearly = "anual"
+
+class TenantSubscription(BigIntPKMixin, AuditableFull, Base):
+    """
+    Suscripción del tenant - Maneja planes, límites y facturación
+    """
+    __tablename__ = "tenant_subscriptions"
+    __table_args__ = (
+        Index("idx_tenant_subscriptions_tenant", "tenant_id"),
+        Index("idx_tenant_subscriptions_status", "status"),
+        Index("idx_tenant_subscriptions_period", "current_period_start", "current_period_end"),
+        UniqueConstraint("tenant_id", "current_period_start", name="uq_tenant_active_subscription"),
+        {"schema": "public"},
+    )
+    
+    # Relación con tenant
+    tenant_id = Column(BigInteger, ForeignKey("public.tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Información del plan
+    plan_type = Column(String(20), nullable=False, index=True)
+    # freemium, basico, profesional, empresarial
+    
+    # Límites
+    max_concurrent_sessions = Column(Integer, nullable=False, default=1)
+    max_users_registered = Column(Integer, nullable=False, default=1)
+    # Usuarios que pueden estar registrados (no concurrentes)
+    
+    # Precios
+    price_per_user = Column(Numeric(10, 2), nullable=False, server_default="0.00")
+    base_price = Column(Numeric(10, 2), nullable=False, server_default="0.00")
+    total_monthly_price = Column(Numeric(10, 2), nullable=False, server_default="0.00")
+    
+    # Ciclo de facturación
+    billing_cycle = Column(String(20), nullable=False, default=BillingCycle.monthly.value)
+    
+    # Período actual
+    current_period_start = Column(DateTime(timezone=True), nullable=False, index=True)
+    current_period_end = Column(DateTime(timezone=True), nullable=False, index=True)
+    
+    # Estado
+    status = Column(String(20), nullable=False, default=SubscriptionStatus.trial.value, index=True)
+    
+    # Información de pago
+    payment_method = Column(String(50), nullable=True)
+    # tarjeta, transferencia, pendiente
+    last_payment_date = Column(DateTime(timezone=True), nullable=True)
+    last_payment_amount = Column(Numeric(10, 2), nullable=True)
+    next_billing_date = Column(DateTime(timezone=True), nullable=True)
+    
+    # Facturación
+    billing_email = Column(String(255), nullable=True)
+    billing_address = Column(Text, nullable=True)
+    nit_facturacion = Column(String(15), nullable=True)
+    
+    # Metadatos
+    stripe_subscription_id = Column(String(255), nullable=True)
+    # Si usas Stripe en el futuro
+    notes = Column(Text, nullable=True)
+    
+    # Relaciones
+    tenant = relationship("Tenant", back_populates="subscriptions")
+    usage_logs = relationship("SubscriptionUsageLog", back_populates="subscription", cascade="all, delete-orphan")
+    
+    # ============================================================
+    # MÉTODOS HELPER
+    # ============================================================
+    
+    @property
+    def is_active(self) -> bool:
+        """Verifica si la suscripción está activa"""
+        return self.status in [SubscriptionStatus.active.value, SubscriptionStatus.trial.value]
+    
+    @property
+    def is_trial(self) -> bool:
+        """Verifica si está en período de prueba"""
+        return self.status == SubscriptionStatus.trial.value
+    
+    @property
+    def days_remaining(self) -> int:
+        """Días restantes del período actual"""
+        delta = self.current_period_end - datetime.now(timezone.utc)
+        return max(0, delta.days)
+    
+    @property
+    def is_expired(self) -> bool:
+        """Verifica si el período ha expirado"""
+        return datetime.now(datetime.timezone.utc) > self.current_period_end
+    
+    def calculate_total_price(self) -> float:
+        """Calcula el precio total basado en usuarios y ciclo de facturación"""
+        base = float(self.base_price or 0)
+        per_user = float(self.price_per_user or 0)
+        users = self.max_users_registered
+        
+        monthly_total = base + (per_user * users)
+        
+        # Aplicar descuento según ciclo
+        if self.billing_cycle == BillingCycle.quarterly.value:
+            return monthly_total * 3 * 0.95  # 5% descuento
+        elif self.billing_cycle == BillingCycle.yearly.value:
+            return monthly_total * 12 * 0.80  # 20% descuento
+        
+        return monthly_total
+    
+    def renew_period(self, new_status: str = None):
+        """Renueva el período de suscripción"""
+        
+        self.current_period_start = self.current_period_end
+        self.current_period_end = self.current_period_start + timedelta(days=30)
+        
+        if new_status:
+            self.status = new_status
+        
+        self.total_monthly_price = self.calculate_total_price()
+    
+    def upgrade_plan(self, new_plan: str, new_max_sessions: int, new_price_per_user: float):
+        """Actualiza el plan de suscripción"""
+        self.plan_type = new_plan
+        self.max_concurrent_sessions = new_max_sessions
+        self.price_per_user = new_price_per_user
+        self.total_monthly_price = self.calculate_total_price()
+
+
+class SubscriptionUsageLog(BigIntPKMixin, Base):
+    """
+    Log de uso de la suscripción - Para tracking y facturación
+    """
+    __tablename__ = "subscription_usage_logs"
+    __table_args__ = (
+        Index("idx_usage_logs_subscription", "subscription_id"),
+        Index("idx_usage_logs_date", "logged_at"),
+        {"schema": "public"},
+    )
+    
+    subscription_id = Column(BigInteger, ForeignKey("public.tenant_subscriptions.id", ondelete="CASCADE"), nullable=False)
+    
+    # Métricas
+    concurrent_sessions_used = Column(Integer, nullable=False, default=0)
+    total_users_registered = Column(Integer, nullable=False, default=0)
+    peak_concurrent_sessions = Column(Integer, nullable=False, default=0)
+    
+    # Timestamp
+    logged_at = Column(DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP"))
+    
+    # Metadatos
+    session_details = Column(JSONB, nullable=True)
+    # Información detallada de sesiones activas
+    
+    # Relaciones
+    subscription = relationship("TenantSubscription", back_populates="usage_logs")
+
+
+class SessionAudit(BigIntPKMixin, AuditableFull, Base):
+    """
+    Auditoría de sesiones - Tracking de login/logout
+    """
+    __tablename__ = "session_audit"
+    __table_args__ = (
+        Index("idx_session_audit_user", "user_id"),
+        Index("idx_session_audit_tenant", "tenant_id"),
+        Index("idx_session_audit_session", "session_token", unique=True),
+        Index("idx_session_audit_active", "is_active", "last_activity"),
+        {"schema": "public"},
+    )
+    
+    user_id = Column(BigInteger, ForeignKey("public.users.id", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(BigInteger, ForeignKey("public.tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Sesión
+    session_token = Column(String(500), nullable=False, unique=True, index=True)
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+    
+    # Timestamps
+    last_activity = Column(DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP"))
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Información del dispositivo
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    device_info = Column(JSONB, nullable=True)
+    # {browser: "Chrome", os: "Windows", device_type: "desktop"}
+    
+    # Metadata
+    login_method = Column(String(20), nullable=True)
+    # password, oauth, api_key
+    logout_reason = Column(String(50), nullable=True)
+    # user_logout, timeout, admin_terminated, expired
+    
+    # Relaciones
+    user = relationship("User", foreign_keys=[user_id])
+    tenant = relationship("Tenant", foreign_keys=[tenant_id])
 
 # ============================================================
 # TENANT REQUESTS - Solicitudes de registro público

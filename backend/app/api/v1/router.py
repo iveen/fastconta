@@ -6,6 +6,7 @@ from app.api.v1.endpoints import (
 from app.api.v1.endpoints.base import (
     domicilios,
     empresas,
+    registration,
     representantes_legales,
     tenant_requests,
     tenants,
@@ -34,7 +35,6 @@ from app.api.v1.endpoints.contabilidad import (
 )
 from app.api.v1.endpoints.fel import router as fel_router
 from app.api.v1.endpoints.inventario import router as inventario_router
-from app.api.v1.endpoints.public import registration
 from app.api.v1.endpoints.sat import (
     declaraciones,
     formularios_sat,

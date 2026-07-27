@@ -142,10 +142,12 @@
     </div>
 
     <!-- Modal Aprobar -->
+    <!-- Reemplazar el modal de aprobación completo -->
     <div v-if="showApproveModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div class="bg-white rounded-lg p-6 w-full max-w-lg shadow-2xl">
+      <div class="bg-white rounded-lg p-6 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
         <h3 class="text-xl font-bold mb-4 text-gray-800">Aprobar Solicitud</h3>
         
+        <!-- Info de la empresa -->
         <div class="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
           <p class="text-sm text-blue-800">
             <strong>🏢 {{ selectedRequest?.company_name }}</strong><br>
@@ -154,6 +156,7 @@
         </div>
 
         <form @submit.prevent="handleApprove" class="space-y-4">
+          <!-- Email del Admin -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
               Email del Administrador *
@@ -167,7 +170,8 @@
             />
             <p class="text-xs text-gray-500 mt-1">Este será el usuario admin del nuevo tenant</p>
           </div>
-          
+
+          <!-- Nombre del Admin -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
               Nombre Completo del Admin *
@@ -180,37 +184,88 @@
               :placeholder="selectedRequest?.contact_name"
             />
           </div>
-          
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Plan</label>
-              <select v-model="approveForm.plan" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                <option value="freemium">Freemium (3 usuarios)</option>
-                <option value="basic">Basic (5 usuarios)</option>
-                <option value="pro">Pro (10 usuarios)</option>
-                <option value="enterprise">Enterprise (ilimitado)</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Max Usuarios</label>
-              <input
-                v-model.number="approveForm.max_usuarios"
-                type="number"
-                min="1"
-                max="1000"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
+
+          <!-- 🆕 Selector de Plan con Sesiones Concurrentes -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Plan de Suscripción *</label>
+            <div class="grid grid-cols-2 gap-3">
+              <button
+                v-for="plan in availablePlans"
+                :key="plan.value"
+                type="button"
+                @click="selectPlan(plan.value)"
+                class="p-3 border-2 rounded-lg text-left transition-all"
+                :class="approveForm.plan === plan.value 
+                  ? 'border-blue-500 bg-blue-50' 
+                  : 'border-gray-200 hover:border-gray-300'"
+              >
+                <div class="font-semibold text-sm text-gray-900">{{ plan.label }}</div>
+                <div class="text-xs text-gray-500 mt-1">{{ plan.description }}</div>
+                <div class="text-xs font-bold text-blue-600 mt-1">{{ plan.price }}</div>
+              </button>
             </div>
           </div>
 
+          <!--  Usuarios Registrados -->
+          <div v-if="approveForm.plan !== 'freemium'">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Usuarios Registrados *
+            </label>
+            <input
+              v-model.number="approveForm.max_users_registered"
+              type="number"
+              :min="minUsersForPlan"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
+            <p class="text-xs text-gray-500 mt-1">
+              Mínimo {{ minUsersForPlan }} usuarios para plan {{ approveForm.plan }}
+            </p>
+          </div>
+
+          <!-- 🆕 Ciclo de Facturación -->
+          <div v-if="approveForm.plan !== 'freemium'">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Ciclo de Facturación</label>
+            <select v-model="approveForm.billing_cycle" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+              <option value="mensual">Mensual</option>
+              <option value="trimestral">Trimestral (5% descuento)</option>
+              <option value="anual">Anual (20% descuento)</option>
+            </select>
+          </div>
+
+          <!-- 🆕 Días de Trial -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Días de Prueba</label>
+            <input
+              v-model.number="approveForm.trial_days"
+              type="number"
+              min="0"
+              max="365"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
+            <p class="text-xs text-gray-500 mt-1">0 = sin período de prueba</p>
+          </div>
+
+          <!-- 🆕 Resumen de Precio -->
+          <div class="bg-green-50 border border-green-200 rounded p-3">
+            <div class="flex justify-between items-center">
+              <span class="font-medium text-sm text-green-900">Precio Mensual:</span>
+              <span class="text-lg font-bold text-green-700">Q{{ calculateMonthlyPrice() }}</span>
+            </div>
+            <p class="text-xs text-green-600 mt-1">
+              {{ approveForm.max_users_registered }} usuario(s) × Q{{ pricePerUser }}/mes
+            </p>
+          </div>
+
+          <!-- Info de aprovisionamiento -->
           <div class="bg-yellow-50 border border-yellow-200 rounded p-3">
             <p class="text-xs text-yellow-800">
-              ️ <strong>Al aprobar:</strong> Se creará un schema PostgreSQL nuevo, 
+              ⚠️ <strong>Al aprobar:</strong> Se creará un schema PostgreSQL nuevo, 
               se ejecutarán las migraciones, y se <strong>generará automáticamente</strong> 
               una contraseña segura que se enviará por email al administrador.
             </p>
           </div>
-          
+
+          <!-- Botones -->
           <div class="flex gap-3 pt-4">
             <button
               type="button"
@@ -382,6 +437,7 @@
   </div>
 </template>
 
+// Reemplazar el script setup completo
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useSuperAdminStore } from '@/stores/superAdmin'
@@ -394,21 +450,64 @@ const statusFilter = ref('pending')
 const loading = ref(false)
 const showResendEmailModal = ref(false)
 const resendingEmail = ref(false)
-
-// ✅ NUEVO: Estado del modal de reenviar credenciales
 const showResendCredentialsModal = ref(false)
 const resendingCredentials = ref(false)
-
 const showApproveModal = ref(false)
 const showRejectModal = ref(false)
 const selectedRequest = ref(null)
 
+// 🆕 Formulario de aprobación actualizado
 const approveForm = reactive({
   admin_email: '',
   admin_full_name: '',
   plan: 'freemium',
-  max_usuarios: 3
+  max_concurrent_sessions: 1,
+  max_users_registered: 3,
+  trial_days: 14,
+  trial_max_concurrent_sessions: 1,
+  trial_max_users_registered: 3,
+  billing_cycle: 'mensual'
 })
+
+// 🆕 Planes disponibles con sesiones concurrentes
+const availablePlans = [
+  {
+    value: 'freemium',
+    label: 'Freemium',
+    description: '1 sesión concurrente, 3 usuarios',
+    price: 'Q0/mes',
+    sessions: 1,
+    minUsers: 1,
+    pricePerUser: 0
+  },
+  {
+    value: 'basico',
+    label: 'Básico',
+    description: '2 sesiones concurrentes',
+    price: 'Q75/usuario/mes',
+    sessions: 2,
+    minUsers: 2,
+    pricePerUser: 75
+  },
+  {
+    value: 'profesional',
+    label: 'Profesional',
+    description: '5 sesiones concurrentes',
+    price: 'Q60/usuario/mes',
+    sessions: 5,
+    minUsers: 5,
+    pricePerUser: 60
+  },
+  {
+    value: 'empresarial',
+    label: 'Empresarial',
+    description: '10 sesiones concurrentes',
+    price: 'Q45/usuario/mes',
+    sessions: 10,
+    minUsers: 10,
+    pricePerUser: 45
+  }
+]
 
 const rejectForm = reactive({
   reason: ''
@@ -430,21 +529,52 @@ const resendEmailForm = reactive({
   contact_email: ''
 })
 
-// Abrir modal de reenviar email
+// 🆕 Computed properties para el formulario
+const minUsersForPlan = computed(() => {
+  const plan = availablePlans.find(p => p.value === approveForm.plan)
+  return plan?.minUsers || 1
+})
+
+const pricePerUser = computed(() => {
+  const plan = availablePlans.find(p => p.value === approveForm.plan)
+  return plan?.pricePerUser || 0
+})
+
+// 🆕 Seleccionar plan
+const selectPlan = (planValue) => {
+  const plan = availablePlans.find(p => p.value === planValue)
+  if (plan) {
+    approveForm.plan = plan.value
+    approveForm.max_concurrent_sessions = plan.sessions
+    if (approveForm.max_users_registered < plan.minUsers) {
+      approveForm.max_users_registered = plan.minUsers
+    }
+  }
+}
+
+//  Calcular precio mensual
+const calculateMonthlyPrice = () => {
+  if (approveForm.plan === 'freemium') return 0
+  const monthly = approveForm.max_users_registered * pricePerUser.value
+  
+  if (approveForm.billing_cycle === 'trimestral') return (monthly * 3 * 0.95).toFixed(2)
+  if (approveForm.billing_cycle === 'anual') return (monthly * 12 * 0.80).toFixed(2)
+  return monthly.toFixed(2)
+}
+
 const openResendEmailModal = (request) => {
   selectedRequest.value = request
   resendEmailForm.contact_email = request.contact_email
   showResendEmailModal.value = true
 }
 
-// Manejar reenvío de email
 const handleResendEmail = async () => {
   resendingEmail.value = true
   try {
     const newEmail = resendEmailForm.contact_email !== selectedRequest.value.contact_email 
       ? resendEmailForm.contact_email 
       : null
-    
+
     await store.resendRequestEmail(selectedRequest.value.id, newEmail)
     showResendEmailModal.value = false
   } catch (err) {
@@ -454,18 +584,15 @@ const handleResendEmail = async () => {
   }
 }
 
-// ✅ NUEVO: Abrir modal de reenviar credenciales
 const openResendCredentialsModal = (request) => {
   selectedRequest.value = request
   showResendCredentialsModal.value = true
 }
 
-// ✅ NUEVO: Manejar reenvío de credenciales
 const handleResendCredentials = async () => {
   resendingCredentials.value = true
   try {
     const result = await store.resendTenantCredentials(selectedRequest.value.id)
-    
     toast.success(`✅ ${result.message}`)
     showResendCredentialsModal.value = false
   } catch (err) {
@@ -477,7 +604,7 @@ const handleResendCredentials = async () => {
 
 const loadRequests = async () => {
   loading.value = true
-  
+
   try {
     const result = await store.fetchTenantRequests(statusFilter.value)
     requests.value = result || []
@@ -490,12 +617,18 @@ const loadRequests = async () => {
   }
 }
 
+// 🆕 Abrir modal de aprobación con valores por defecto
 const openApproveModal = (request) => {
   selectedRequest.value = request
   approveForm.admin_email = request.contact_email
   approveForm.admin_full_name = request.contact_name
   approveForm.plan = 'freemium'
-  approveForm.max_usuarios = 3
+  approveForm.max_concurrent_sessions = 1
+  approveForm.max_users_registered = 3
+  approveForm.trial_days = 14
+  approveForm.trial_max_concurrent_sessions = 1
+  approveForm.trial_max_users_registered = 3
+  approveForm.billing_cycle = 'mensual'
   showApproveModal.value = true
 }
 
@@ -505,11 +638,22 @@ const openRejectModal = (request) => {
   showRejectModal.value = true
 }
 
+// 🆕 Manejar aprobación con nuevo payload
 const handleApprove = async () => {
   approving.value = true
   try {
-    const result = await store.approveTenantRequest(selectedRequest.value.id, approveForm)
-    
+    const result = await store.approveTenantRequest(selectedRequest.value.id, {
+      admin_email: approveForm.admin_email,
+      admin_full_name: approveForm.admin_full_name,
+      plan: approveForm.plan,
+      max_concurrent_sessions: approveForm.max_concurrent_sessions,
+      max_users_registered: approveForm.max_users_registered,
+      trial_days: approveForm.trial_days,
+      trial_max_concurrent_sessions: approveForm.trial_max_concurrent_sessions,
+      trial_max_users_registered: approveForm.trial_max_users_registered,
+      billing_cycle: approveForm.billing_cycle
+    })
+
     toast.success(`✅ ${result.message}`)
     showApproveModal.value = false
     await loadRequests()

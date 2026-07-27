@@ -53,6 +53,24 @@
         <p class="text-sm text-red-700">{{ authStore.loginError.message }}</p>
       </div>
 
+      <!-- Error: Límite de sesiones alcanzado -->
+      <div v-else-if="authStore.loginError?.type === 'session_limit'" class="bg-purple-50 border-l-4 border-purple-500 p-4 rounded-lg mb-4">
+        <div class="flex items-start gap-3">
+          <Users class="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
+          <div class="flex-1">
+            <p class="font-semibold text-purple-800 text-sm">Límite de sesiones alcanzado</p>
+            <p class="text-sm text-purple-700 mt-1">{{ authStore.loginError.message }}</p>
+            <p v-if="authStore.loginError.active_sessions && authStore.loginError.max_sessions" 
+              class="text-xs text-purple-600 mt-2">
+              Sesiones activas: {{ authStore.loginError.active_sessions }} / {{ authStore.loginError.max_sessions }}
+            </p>
+            <p class="text-xs text-purple-600 mt-2">
+              Contacta al administrador de tu firma para liberar sesiones o actualizar el plan.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <!-- Formulario de Login -->
       <form @submit.prevent="handleLogin" class="space-y-6">
         <div>
@@ -127,7 +145,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { BookOpen, BarChart3, Lock, AlertTriangle } from '@lucide/vue'
+import { BookOpen, BarChart3, Lock, AlertTriangle, Users } from '@lucide/vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -149,9 +167,19 @@ async function handleLogin() {
       password: password.value
     })
 
+    // ✅ Verificar que data existe antes de acceder a sus propiedades
+    if (!data) {
+      console.error('❌ Login falló: no se recibió respuesta del servidor')
+      authStore.loginError = {
+        type: 'generic',
+        message: 'Error al iniciar sesión. Intenta nuevamente.'
+      }
+      return
+    }
+
     // ✅ Si debe cambiar contraseña, redirigir
     if (data.must_change_password) {
-      console.log('⚠️ Usuario debe cambiar contraseña, redirigiendo...')
+      console.log('️ Usuario debe cambiar contraseña, redirigiendo...')
       router.push('/change-password')
       return
     }

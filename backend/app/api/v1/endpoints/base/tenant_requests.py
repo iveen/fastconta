@@ -17,8 +17,16 @@ from app.core.security import (
     get_password_hash,
 )
 from app.db.session import get_db, get_public_db
-from app.models.global_models import Role, Tenant, TenantRequest, User
-from app.schemas.public.public_registration import (
+from app.models.global_models import (
+    BillingCycle,
+    Role,
+    SubscriptionStatus,
+    Tenant,
+    TenantRequest,
+    TenantSubscription,
+    User,
+)
+from app.schemas.base.tenant import (
     TenantApprovalPayload,
     TenantRejectionPayload,
     TenantRequestListResponse,
@@ -147,97 +155,122 @@ async def count_pending_requests(
     return {"pending_count": count or 0}
 
 
+# app/api/v1/endpoints/tenant_requests.py
+
+
+
 @router.post("/{request_id}/approve", response_model=dict, status_code=status.HTTP_202_ACCEPTED)
 async def approve_tenant_request(
     request_id: int,
-    payload: TenantApprovalPayload,
-    background_tasks: BackgroundTasks,  # ✅ Inyectar BackgroundTasks
+    payload: TenantApprovalPayload,  # Ahora incluye subscription_data
+    background_tasks: BackgroundTasks,
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Aprueba una solicitud, crea registros INACTIVOS y dispara tarea en segundo plano.
-    Responde inmediatamente con 202 Accepted.
+    Aprueba una solicitud, crea tenant + suscripción, y dispara background task.
     """
     if scope.role_code != "superadmin":
         raise HTTPException(status_code=403, detail="Acceso denegado")
-
+    
     # 1. Obtener solicitud
     result = await db.execute(select(TenantRequest).where(TenantRequest.id == request_id))
     tenant_request = result.scalar_one_or_none()
-
     if not tenant_request:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
-
     if tenant_request.status != "pending":
         raise HTTPException(status_code=400, detail=f"La solicitud ya está {tenant_request.status}")
-
+    
     # 2. Validaciones de NIT y Email
     existing_tenant = await db.execute(select(Tenant).where(Tenant.nit == tenant_request.nit))
     if existing_tenant.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Ya existe un tenant con este NIT")
-
+    
     existing_user = await db.execute(select(User).where(User.email == payload.admin_email))
     if existing_user.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Ya existe un usuario con este email")
-
+    
     # 3. Obtener rol
     role_result = await db.execute(select(Role).where(Role.codigo == "tenant_manager"))
     role = role_result.scalar_one_or_none()
     if not role:
         raise HTTPException(status_code=500, detail="Rol 'tenant_manager' no encontrado")
-
-    # 4. Crear tenant (⚠️ INACTIVO hasta que las migraciones terminen)
+    
+    # 4. Crear tenant (INACTIVO)
     new_tenant = Tenant(
         name=tenant_request.company_name,
         nit=tenant_request.nit,
         schema_name="pending",
-        plan=payload.plan,
-        max_usuarios=payload.max_usuarios,
         admin_email=payload.admin_email,
-        is_active=False,  # ✅ CLAVE: Inactivo
+        is_active=False,
     )
-    if payload.trial_days and payload.trial_max_usuarios:
-        new_tenant.trial_until = datetime.now(UTC) + timedelta(days=payload.trial_days)
-        new_tenant.trial_max_usuarios = payload.trial_max_usuarios
-
     db.add(new_tenant)
-    await db.flush()  # Para obtener new_tenant.id y public_id
-
+    await db.flush()
+    
     # 5. Generar schema_name
     safe_uuid = str(new_tenant.public_id).replace("-", "")
     schema_name = f"t_{safe_uuid}"
     new_tenant.schema_name = schema_name
     await db.flush()
-
-    # 6. Generar contraseña segura
+    
+    # 6. 🆕 Crear suscripción inicial
+    subscription_data = payload.subscription_data  # Del nuevo payload
+    
+    # Configuración por defecto según plan
+    plan_configs = {
+        "freemium": {"sessions": 1, "users": 3, "price_per_user": 0, "base_price": 0},
+        "basico": {"sessions": 2, "users": subscription_data.max_users_registered, "price_per_user": 75, "base_price": 0},
+        "profesional": {"sessions": 5, "users": subscription_data.max_users_registered, "price_per_user": 60, "base_price": 0},
+        "empresarial": {"sessions": 10, "users": subscription_data.max_users_registered, "price_per_user": 45, "base_price": 0},
+    }
+    
+    config = plan_configs[subscription_data.plan_type]
+    now = datetime.now(UTC)
+    trial_days = subscription_data.trial_days or (30 if subscription_data.plan_type == "freemium" else 14)
+    
+    subscription = TenantSubscription(
+        tenant_id=new_tenant.id,
+        plan_type=subscription_data.plan_type,
+        max_concurrent_sessions=config["sessions"],
+        max_users_registered=config["users"],
+        price_per_user=config["price_per_user"],
+        base_price=config["base_price"],
+        billing_cycle=subscription_data.billing_cycle or BillingCycle.monthly.value,
+        current_period_start=now,
+        current_period_end=now + timedelta(days=trial_days),
+        status=SubscriptionStatus.trial.value if trial_days > 0 else SubscriptionStatus.active.value,
+        billing_email=payload.admin_email,
+        nit_facturacion=tenant_request.nit,
+    )
+    subscription.total_monthly_price = subscription.calculate_total_price()
+    db.add(subscription)
+    
+    # 7. Generar contraseña segura
     admin_password = generate_secure_password(length=16)
     password_expires_at = calculate_password_expiration(days=90)
-
-    # 7. Crear usuario admin (⚠️ INACTIVO hasta que las migraciones terminen)
+    
+    # 8. Crear usuario admin (INACTIVO)
     admin_user = User(
         tenant_id=new_tenant.id,
         email=payload.admin_email,
         hashed_password=get_password_hash(admin_password),
         full_name=payload.admin_full_name,
         role_id=role.id,
-        is_active=False,  # ✅ CLAVE: Inactivo
+        is_active=False,
         must_change_password=True,
         password_changed_at=datetime.now(UTC),
         password_expires_at=password_expires_at,
     )
     db.add(admin_user)
     await db.flush()
-
-    # 8. Actualizar solicitud como aprobada
+    
+    # 9. Actualizar solicitud como aprobada
     tenant_request.status = "approved"
     tenant_request.reviewed_by = scope.user.id
     tenant_request.reviewed_at = datetime.now(UTC)
-
     await db.commit()
-    logger.info(f"✅ Solicitud {request_id} registrada. Schema: {schema_name}. Iniciando background task...")
-
-    # 9. ✅ DISPARAR TAREA EN SEGUNDO PLANO
+    
+    # 10. Disparar background task
     background_tasks.add_task(
         provision_tenant_background,
         tenant_id=new_tenant.id,
@@ -248,14 +281,14 @@ async def approve_tenant_request(
         company_name=new_tenant.name,
         contact_name=payload.admin_full_name,
     )
-
-    # 10. Responder inmediatamente al frontend
+    
     return {
-        "message": "Provisionamiento iniciado en segundo plano. El usuario será notificado por email al completarse.",
+        "message": "Provisionamiento iniciado",
         "tenant_id": str(new_tenant.public_id),
-        "tenant_name": new_tenant.name,
+        "subscription_id": subscription.id,
+        "plan_type": subscription.plan_type,
+        "trial_days": trial_days,
         "status": "provisioning",
-        "admin_email": admin_user.email,
     }
 
 

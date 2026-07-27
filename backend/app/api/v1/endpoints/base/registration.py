@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.email.service import email_service
 from app.db.session import get_db
 from app.models.global_models import RegistrationAttempt, Tenant, TenantRequest
-from app.schemas.public.public_registration import (
+from app.schemas.base.tenant import (
     TenantRequestCreate,
     TenantRequestResponse,
 )

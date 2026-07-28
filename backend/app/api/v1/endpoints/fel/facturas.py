@@ -21,6 +21,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.dispatcher import dispatch_fel_job
 from app.core.file_handlers import FileHandlerRegistry
 from app.core.security import DataScope, get_data_scope
 from app.db.session import get_public_db
@@ -36,7 +37,6 @@ from app.services.facturas.contabilidad_service import (
 )
 from app.services.facturas.tipo_cambio_service import obtener_tipo_cambio
 from app.services.fel.context import FelIngestionContext
-from app.services.fel.zip_processor import FELZipProcessor
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -157,8 +157,8 @@ async def upload_facturas(
             await db.refresh(job)
 
             # 4. Programar procesamiento en background
-            background_tasks.add_task(
-                FELZipProcessor.process_job,
+            dispatch_fel_job(
+                background_tasks,
                 job_id=job.id,
                 tenant_id=scope.tenant_id,
                 empresa_id=empresa_id_final,
@@ -495,8 +495,8 @@ async def reprocesar_fel_job(
     await db.refresh(nuevo_job)
 
     # Programar en background
-    background_tasks.add_task(
-        FELZipProcessor.process_job,
+    dispatch_fel_job(
+        background_tasks,
         job_id=nuevo_job.id,
         tenant_id=job.tenant_id,
         empresa_id=job.empresa_id,

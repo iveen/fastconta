@@ -1,7 +1,7 @@
 # ADR 001: Replace BackgroundTasks with Redis + Celery
 
 ## Status
-🟡 Proposed
+🟢 Accepted (Phase 1 & 2 completed)
 
 ## Context
 Currently, FastAPI's built-in `BackgroundTasks` handles asynchronous jobs. This approach has several limitations:
@@ -53,8 +53,8 @@ This allows gradual rollout and instant rollback without redeploy.
 4. **Phase 4 (Full Switch)**: Remove `BackgroundTasks` entirely and update all endpoint calls to Celery's `.delay()`.
 
 ## Related Links
-- Issue: #123 (replace with your actual issue number once created)
+- Issue: #24 
 - Branch: `feature/redis-celery-overhaul` 
 ## Related Links
-- Issue: #42
-- Branch: feature/redis-celery-overhaul
+- Issue: #24
+- Branch: [feature/redis-celery-overhaul](https://github.com/iveen/fastconta/tree/24-feature-overhaul-backgroundtasks-to-use-redis-celery)

@@ -27,7 +27,7 @@ celery_app = Celery(
     backend=settings.CELERY_RESULT_BACKEND,
     include=[
         # Registrar módulos de tareas aquí (se agregan en PRs siguientes)
-        # "app.tasks.fel_tasks",
+        "app.tasks.fel_tasks",
         # "app.tasks.inventario_tasks",
     ],
 )

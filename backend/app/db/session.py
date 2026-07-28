@@ -1,5 +1,6 @@
 # backend/app/db/session.py
 import logging
+from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import Depends, HTTPException, Request
@@ -75,3 +76,68 @@ async def get_tenant_db(
     finally:
         # Limpieza al final de la request (buena práctica)
         await db.execute(text("RESET search_path"))
+
+
+@asynccontextmanager
+async def get_tenant_db_session(schema_name: str):
+    """
+    Crea una sesión de BD independiente para uso en workers Celery.
+    
+    A diferencia de get_public_db() y get_tenant_db() (que son dependencias 
+    de FastAPI), esta función es un context manager que se puede usar fuera 
+    del ciclo de vida de un request HTTP.
+    
+    Args:
+        schema_name: Nombre del schema PostgreSQL del tenant 
+                     (ej: "tenant_abc123"). Se configura como search_path.
+    
+    Uso en worker Celery:
+        async with get_tenant_db_session("tenant_abc123") as db:
+            await db.execute(text("SELECT * FROM facturas_electronicas"))
+            await db.commit()
+    
+    Seguridad:
+        - Valida que schema_name sea alfanumérico (previene SQL injection)
+        - Configura search_path al schema del tenant + public (para tablas globales)
+        - Rollback automático en caso de excepción
+        - Cierre garantizado de la sesión
+    """
+    # Validar schema_name para prevenir SQL injection
+    if not schema_name.replace("_", "").isalnum():
+        raise ValueError(f"Schema name inválido: {schema_name}")
+    
+    async with AsyncSessionLocal() as session:
+        try:
+            # Configurar search_path al schema del tenant + public
+            await session.execute(
+                text(f"SET LOCAL search_path TO {schema_name}, public")
+            )
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+@asynccontextmanager
+async def get_public_db_session():
+    """
+    Crea una sesión de BD independiente para uso en workers Celery.
+    Apunta al schema 'public' (tablas globales del sistema).
+    
+    Para operaciones en schemas de tenant, usa get_tenant_db_session(schema_name).
+    
+    Uso en worker Celery:
+        async with get_db_session() as db:
+            await db.execute(text("SELECT * FROM public.tenants"))
+            await db.commit()
+    """
+    async with AsyncSessionLocal() as session:
+        try:
+            await session.execute(text("SET LOCAL search_path TO public"))
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()

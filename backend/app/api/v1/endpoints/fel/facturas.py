@@ -9,7 +9,6 @@ from typing import List
 
 from fastapi import (
     APIRouter,
-    BackgroundTasks,
     Depends,
     File,
     HTTPException,
@@ -78,7 +77,6 @@ async def _set_schema_for_query(
 # ============================================================
 @router.post("/upload", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def upload_facturas(
-    background_tasks: BackgroundTasks,
     empresa_id: int | None = Query(None),
     tenant_id: int | None = Query(None),
     files: List[UploadFile] = File(...),
@@ -158,7 +156,6 @@ async def upload_facturas(
 
             # 4. Programar procesamiento en background
             dispatch_fel_job(
-                background_tasks,
                 job_id=job.id,
                 tenant_id=scope.tenant_id,
                 empresa_id=empresa_id_final,
@@ -372,7 +369,6 @@ async def cancelar_fel_job(
 async def reprocesar_fel_job(
     job_id: int,
     solo_errores: bool = Query(False, description="Si es True, solo reprocesa los XMLs que fallaron"),
-    background_tasks: BackgroundTasks = ...,
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_public_db),
 ):
@@ -496,7 +492,6 @@ async def reprocesar_fel_job(
 
     # Programar en background
     dispatch_fel_job(
-        background_tasks,
         job_id=nuevo_job.id,
         tenant_id=job.tenant_id,
         empresa_id=job.empresa_id,

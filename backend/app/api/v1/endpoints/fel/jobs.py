@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import List
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -164,7 +164,6 @@ async def cancelar_fel_job(
 async def reprocesar_fel_job(
     job_id: int,
     solo_errores: bool = Query(False, description="Si es True, solo reprocesa los XMLs que fallaron"),
-    background_tasks: BackgroundTasks = ...,
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_public_db),
 ):
@@ -277,7 +276,6 @@ async def reprocesar_fel_job(
     await db.refresh(nuevo_job)
 
     dispatch_fel_job(
-        background_tasks,
         job_id=nuevo_job.id,
         tenant_id=job.tenant_id,
         empresa_id=job.empresa_id,

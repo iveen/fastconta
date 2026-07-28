@@ -13,7 +13,6 @@ from uuid import UUID
 
 from fastapi import (
     APIRouter,
-    BackgroundTasks,
     Depends,
     File,
     HTTPException,
@@ -58,7 +57,6 @@ MAX_FILE_SIZE = 100 * 1024 * 1024
 )
 async def importar_inventario(
     toma_public_id: UUID,
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     modo: str = Query(
         "REEMPLAZAR",
@@ -127,7 +125,6 @@ async def importar_inventario(
 
     # ✅ Disparar procesamiento en background
     dispatch_inventario_job(
-        background_tasks,
         job_id=job.id,
         tenant_schema=scope.tenant_schema,
     )

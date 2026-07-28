@@ -1,7 +1,12 @@
 # ADR 001: Replace BackgroundTasks with Redis + Celery
 
 ## Status
-🟢 Accepted (Phase 1 & 2 completed)
+🟢 Accepted — Fully Implemented (2026-07-29)
+
+All background jobs (FEL invoice processing, inventory imports) have been
+migrated from FastAPI BackgroundTasks to Celery with Redis as broker.
+The USE_CELERY feature flag has been removed. Celery is now the sole
+background processing mechanism.
 
 ## Context
 Currently, FastAPI's built-in `BackgroundTasks` handles asynchronous jobs. This approach has several limitations:

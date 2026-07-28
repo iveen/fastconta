@@ -61,3 +61,30 @@ def dispatch_inventario_job(
         job_id,
         tenant_schema,
     )
+def dispatch_tenant_job(
+    *,
+    tenant_id: int,
+    user_id: int,
+    schema_name: str,
+    admin_email: str,
+    admin_password: str,
+    company_name: str,
+    contact_name: str,
+) -> None:
+    """Publica un job de provisionamiento de tenant a la cola de Celery."""
+    from app.tasks.tenant_tasks import provision_tenant
+
+    provision_tenant.delay(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        schema_name=schema_name,
+        admin_email=admin_email,
+        admin_password=admin_password,
+        company_name=company_name,
+        contact_name=contact_name,
+    )
+    logger.info(
+        "📤 Job provisionamiento tenant %d publicado a Celery (schema=%s)",
+        tenant_id,
+        schema_name,
+    )

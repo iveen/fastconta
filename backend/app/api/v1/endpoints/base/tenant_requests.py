@@ -4,10 +4,11 @@ import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.dispatcher import dispatch_tenant_job
 from app.core.email.service import email_service
 from app.core.security import (
     DataScope,
@@ -163,7 +164,6 @@ async def count_pending_requests(
 async def approve_tenant_request(
     request_id: int,
     payload: TenantApprovalPayload,  # Ahora incluye subscription_data
-    background_tasks: BackgroundTasks,
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_db),
 ):
@@ -269,19 +269,18 @@ async def approve_tenant_request(
     tenant_request.reviewed_by = scope.user.id
     tenant_request.reviewed_at = datetime.now(UTC)
     await db.commit()
-    
-    # 10. Disparar background task
-    background_tasks.add_task(
-        provision_tenant_background,
+
+    # 10 Dispatch Background Task
+    dispatch_tenant_job(
         tenant_id=new_tenant.id,
-        user_id=admin_user.id,
+        usier_id=admin_user.id,
         schema_name=schema_name,
         admin_email=admin_user.email,
         admin_password=admin_password,
         company_name=new_tenant.name,
-        contact_name=payload.admin_full_name,
+        contact_name=payload.admin_full_name
     )
-    
+   
     return {
         "message": "Provisionamiento iniciado",
         "tenant_id": str(new_tenant.public_id),

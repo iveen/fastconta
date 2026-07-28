@@ -29,6 +29,7 @@ celery_app = Celery(
         # Registrar módulos de tareas aquí (se agregan en PRs siguientes)
         "app.tasks.fel_tasks",
         "app.tasks.inventario_tasks",
+        "app.tasks.tenant_tasks",
     ],
 )
 
@@ -78,6 +79,7 @@ celery_app.conf.update(
         "app.tasks.fel_tasks.*": {"queue": "fel"},
         "app.tasks.inventario_tasks.*": {"queue": "inventario"},
         "app.tasks.email_tasks.*": {"queue": "email"},
+        "app.tasks.tenant_tasks.*": {"queue": "tenant"},
     },
     
     # ── Resultado ──────────────────────────────

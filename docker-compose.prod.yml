@@ -96,6 +96,7 @@ services:
       --concurrency=4
       --max-tasks-per-child=50
       --hostname=worker@%h
+      -Q fel,inventario,tenant,celery
     networks:
       - fastconta_net
     deploy:

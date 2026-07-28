@@ -3,8 +3,11 @@
 ## Status
 🟢 Accepted — Fully Implemented (2026-07-29)
 
-All background jobs (FEL invoice processing, inventory imports) have been
-migrated from FastAPI BackgroundTasks to Celery with Redis as broker.
+All background jobs have been migrated from FastAPI BackgroundTasks to Celery:
+- FEL invoice processing (ZIPs de XMLs)
+- Inventory imports (xlsx/csv)
+- Tenant provisioning (migraciones + emails)
+
 The USE_CELERY feature flag has been removed. Celery is now the sole
 background processing mechanism.
 

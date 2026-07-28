@@ -28,7 +28,7 @@ celery_app = Celery(
     include=[
         # Registrar módulos de tareas aquí (se agregan en PRs siguientes)
         "app.tasks.fel_tasks",
-        # "app.tasks.inventario_tasks",
+        "app.tasks.inventario_tasks",
     ],
 )
 

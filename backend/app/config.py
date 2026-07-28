@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
 
     # Feature flag para migración gradual
-    USE_CELERY: bool = False
+    USE_CELERY: bool = True
 
     # Flower (monitoreo)
     FLOWER_USER: str = "admin"

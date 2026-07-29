@@ -8,17 +8,17 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import List
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.dispatcher import dispatch_fel_job
 from app.core.security import DataScope, get_data_scope
 from app.db.session import get_public_db
 from app.dependencies.empresa import get_active_empresa
 from app.models.global_models import FELImportJob
 from app.models.tenant_models import Empresa
 from app.schemas.fel.job import FELImportJobResponse, FELJobCreatedResponse
-from app.services.fel.zip_processor import FELZipProcessor
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -164,7 +164,6 @@ async def cancelar_fel_job(
 async def reprocesar_fel_job(
     job_id: int,
     solo_errores: bool = Query(False, description="Si es True, solo reprocesa los XMLs que fallaron"),
-    background_tasks: BackgroundTasks = ...,
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_public_db),
 ):
@@ -276,8 +275,7 @@ async def reprocesar_fel_job(
     await db.commit()
     await db.refresh(nuevo_job)
 
-    background_tasks.add_task(
-        FELZipProcessor.process_job,
+    dispatch_fel_job(
         job_id=nuevo_job.id,
         tenant_id=job.tenant_id,
         empresa_id=job.empresa_id,

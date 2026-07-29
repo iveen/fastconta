@@ -9,7 +9,6 @@ from typing import List
 
 from fastapi import (
     APIRouter,
-    BackgroundTasks,
     Depends,
     File,
     HTTPException,
@@ -21,6 +20,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.dispatcher import dispatch_fel_job
 from app.core.file_handlers import FileHandlerRegistry
 from app.core.security import DataScope, get_data_scope
 from app.db.session import get_public_db
@@ -36,7 +36,6 @@ from app.services.facturas.contabilidad_service import (
 )
 from app.services.facturas.tipo_cambio_service import obtener_tipo_cambio
 from app.services.fel.context import FelIngestionContext
-from app.services.fel.zip_processor import FELZipProcessor
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -78,7 +77,6 @@ async def _set_schema_for_query(
 # ============================================================
 @router.post("/upload", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def upload_facturas(
-    background_tasks: BackgroundTasks,
     empresa_id: int | None = Query(None),
     tenant_id: int | None = Query(None),
     files: List[UploadFile] = File(...),
@@ -157,8 +155,7 @@ async def upload_facturas(
             await db.refresh(job)
 
             # 4. Programar procesamiento en background
-            background_tasks.add_task(
-                FELZipProcessor.process_job,
+            dispatch_fel_job(
                 job_id=job.id,
                 tenant_id=scope.tenant_id,
                 empresa_id=empresa_id_final,
@@ -372,7 +369,6 @@ async def cancelar_fel_job(
 async def reprocesar_fel_job(
     job_id: int,
     solo_errores: bool = Query(False, description="Si es True, solo reprocesa los XMLs que fallaron"),
-    background_tasks: BackgroundTasks = ...,
     scope: DataScope = Depends(get_data_scope),
     db: AsyncSession = Depends(get_public_db),
 ):
@@ -495,8 +491,7 @@ async def reprocesar_fel_job(
     await db.refresh(nuevo_job)
 
     # Programar en background
-    background_tasks.add_task(
-        FELZipProcessor.process_job,
+    dispatch_fel_job(
         job_id=nuevo_job.id,
         tenant_id=job.tenant_id,
         empresa_id=job.empresa_id,

@@ -40,6 +40,17 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      
+      # 🆕 Redis para tests de Celery
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     defaults:
       run:
@@ -55,6 +66,11 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://${{ secrets.TEST_DATABASE_USER }}:${{ secrets.TEST_DATABASE_PASSWORD }}@localhost:5432/${{ secrets.TEST_DATABASE_NAME }}
       SECRET_KEY: ${{ secrets.TEST_SECRET_KEY }}
       TENANT_SCHEMA: public
+      # 🆕 Variables de Redis para tests
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/0
+      CELERY_RESULT_BACKEND: redis://localhost:6379/1
+      USE_CELERY: false  # En CI usamos BackgroundTasks para tests rápidos
 
     steps:
       - name: Checkout código

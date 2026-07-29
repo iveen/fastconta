@@ -1,90 +1,103 @@
+# docker-compose.yml — Stack local de desarrollo FastConta
+# Uso: docker compose up -d
 version: '3.8'
 
 services:
+  # ──────────────────────────────────────────────
+  # PostgreSQL (base de datos multi-tenant)
+  # ──────────────────────────────────────────────
   db:
     image: postgres:16-alpine
-    container_name: fastconta_db
+    container_name: fastconta_db_dev
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DATABASE_NAME:-fastconta}
       POSTGRES_USER: ${DATABASE_USER:-fastconta}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-fastconta_dev}
+    ports:
+      - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata_dev:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-fastconta}"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    networks:
-      - fastconta_net
-
-  # ──────────────────────────────────────────────
-  # 🆕 Redis (broker + backend de Celery)
-  # ──────────────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    container_name: fastconta_redis
-    restart: unless-stopped
-    command: >
-      redis-server
-      --appendonly yes
-      --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
+      interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - fastconta_net
+      - fastconta_dev_net
 
+  # ──────────────────────────────────────────────
+  # Redis (broker + backend de Celery)
+  # ──────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: fastconta_redis_dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - fastconta_dev_net
+
+  # ──────────────────────────────────────────────
+  # Backend FastAPI
+  # ──────────────────────────────────────────────
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: fastconta_backend
+    container_name: fastconta_backend_dev
     restart: unless-stopped
     env_file:
-      - .env
+      - ./backend/.env
     environment:
-      # ⚠️ En prod, estos overrides apuntan a los servicios del compose
+      # Overrides para desarrollo (apuntan a los servicios del compose)
       DATABASE_HOST: db
+      DATABASE_PORT: 5432
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
     ports:
-      - "127.0.0.1:8001:8001"
+      - "8001:8001"
     volumes:
-      - uploads_prod:/app/uploads  # 🆕 Volumen compartido con worker
+      - ./backend:/app
+      - uploads_dev:/app/uploads
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    command: >
+      uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
     networks:
-      - fastconta_net
+      - fastconta_dev_net
 
   # ──────────────────────────────────────────────
-  # 🆕 Celery Worker (FEL + Inventarios)
+  # Celery Worker (procesa jobs FEL e inventarios)
   # ──────────────────────────────────────────────
   worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: fastconta_worker
+    container_name: fastconta_worker_dev
     restart: unless-stopped
     env_file:
-      - .env
+      - ./backend/.env
     environment:
       DATABASE_HOST: db
+      DATABASE_PORT: 5432
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
     volumes:
-      - uploads_prod:/app/uploads  # ⚠️ DEBE coincidir con backend
+      - ./backend:/app
+      - uploads_dev:/app/uploads  # ⚠️ Volumen compartido con backend para temp files
     depends_on:
       db:
         condition: service_healthy
@@ -92,34 +105,26 @@ services:
         condition: service_healthy
     command: >
       celery -A app.core.celery_app worker
-      --loglevel=warning
-      --concurrency=4
-      --max-tasks-per-child=50
+      --loglevel=info
+      --concurrency=2
       --hostname=worker@%h
-      -Q fel,inventario,tenant,celery
     networks:
-      - fastconta_net
-    deploy:
-      resources:
-        limits:
-          memory: 2G
+      - fastconta_dev_net
 
   # ──────────────────────────────────────────────
-  # 🆕 Flower (monitoreo) — expuesto solo en localhost
+  # Flower (monitoreo de Celery) — solo desarrollo
   # ──────────────────────────────────────────────
   flower:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: fastconta_flower
+    container_name: fastconta_flower_dev
     restart: unless-stopped
     environment:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
-      # 🔒 Proteger Flower con auth básica en producción
-      FLOWER_BASIC_AUTH: ${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-changeme}
     ports:
-      - "127.0.0.1:5555:5555"  # Solo accesible desde el servidor
+      - "5555:5555"
     depends_on:
       redis:
         condition: service_healthy
@@ -127,15 +132,14 @@ services:
       celery -A app.core.celery_app flower
       --port=5555
       --broker_api=redis://redis:6379/0
-      --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-changeme}
     networks:
-      - fastconta_net
+      - fastconta_dev_net
 
 networks:
-  fastconta_net:
+  fastconta_dev_net:
     driver: bridge
 
 volumes:
-  pgdata:
-  redis_data:        # 🆕
-  uploads_prod:      # 🆕 Volumen compartido backend ↔ worker
+  pgdata_dev:
+  redis_dev:
+  uploads_dev:  # ⚠️ CRÍTICO: backend y worker comparten este volumen

@@ -13,7 +13,6 @@ from uuid import UUID
 
 from fastapi import (
     APIRouter,
-    BackgroundTasks,
     Depends,
     File,
     HTTPException,
@@ -26,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.core.dependencies import resolve_public_id
+from app.core.dispatcher import dispatch_inventario_job
 from app.core.security import DataScope, get_data_scope
 from app.db.session import get_tenant_db
 from app.models.tenant_models import InventarioImportacion, InventarioToma
@@ -57,7 +57,6 @@ MAX_FILE_SIZE = 100 * 1024 * 1024
 )
 async def importar_inventario(
     toma_public_id: UUID,
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     modo: str = Query(
         "REEMPLAZAR",
@@ -106,8 +105,9 @@ async def importar_inventario(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El archivo está vacío",
         )
-
+    
     svc = ImportService(db)
+
     try:
         job = await svc.guardar_archivo(
             toma=toma,
@@ -124,7 +124,10 @@ async def importar_inventario(
         )
 
     # ✅ Disparar procesamiento en background
-    background_tasks.add_task(svc.procesar_job, job.id)
+    dispatch_inventario_job(
+        job_id=job.id,
+        tenant_schema=scope.tenant_schema,
+    )
 
     return ImportacionJobResponse(
         public_id=job.public_id,

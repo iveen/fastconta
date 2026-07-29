@@ -10,7 +10,11 @@ from decimal import Decimal
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.email.service import email_service
+from app.core.dispatcher import (
+    dispatch_email_fel_cancelada,
+    dispatch_email_fel_completada,
+    dispatch_email_fel_fallida,
+)
 from app.core.file_handlers import FileContent
 from app.db.base import AsyncSessionLocal  # ✅ Import directo desde base
 from app.models.global_models import FELImportJob
@@ -71,19 +75,16 @@ class FELZipProcessor:
                             await db.commit()
 
                             # Notificar cancelación
-                            try:
-                                await email_service.send_fel_import_cancelada(
-                                    to=user_email,
-                                    full_name=user_full_name,
-                                    archivo_nombre=job.archivo_original,
-                                    archivos_procesados=job.archivos_procesados,
-                                    archivos_totales=job.archivos_totales,
-                                )
-                                job.notificado = True
-                                job.notificado_en = datetime.now(UTC)
-                                await db.commit()
-                            except Exception as email_err:
-                                logger.error(f"Error enviando email de cancelación: {email_err}")
+                            dispatch_email_fel_cancelada(
+                                to=user_email,
+                                full_name=user_full_name,
+                                archivo_nombre=job.archivo_original,
+                                archivos_procesados=job.archivos_procesados,
+                                archivos_totales=job.archivos_totales,
+                            )
+                            job.notificado = True
+                            job.notificado_en = datetime.now(UTC)
+                            await db.commit()
 
                             return
 
@@ -205,21 +206,18 @@ class FELZipProcessor:
                 await db.commit()
 
                 # Enviar email de éxito
-                try:
-                    await email_service.send_fel_import_completada(
-                        to=user_email,
-                        full_name=user_full_name,
-                        archivo_nombre=job.archivo_original,
-                        total_archivos=job.archivos_totales,
-                        facturas_creadas=facturas_creadas,
-                        facturas_duplicadas=facturas_duplicadas,
-                        facturas_con_error=len(errores),
-                    )
-                    job.notificado = True
-                    job.notificado_en = datetime.now(UTC)
-                    await db.commit()
-                except Exception as e:
-                    logger.error(f"Error enviando email de completado: {e}", exc_info=True)
+                dispatch_email_fel_completada(
+                    to=user_email,
+                    full_name=user_full_name,
+                    archivo_nombre=job.archivo_original,
+                    total_archivos=job.archivos_totales,
+                    facturas_creadas=facturas_creadas,
+                    facturas_duplicadas=facturas_duplicadas,
+                    facturas_con_error=len(errores),
+                )
+                job.notificado = True
+                job.notificado_en = datetime.now(UTC)
+                await db.commit()
 
                 logger.info(
                     f"✅ Job {job_id} completado: "
@@ -236,18 +234,16 @@ class FELZipProcessor:
                 await db.commit()
 
                 # Enviar email de fallo
-                try:
-                    await email_service.send_fel_import_fallida(
-                        to=user_email,
-                        full_name=user_full_name,
-                        archivo_nombre=job.archivo_original,
-                        error_mensaje=str(e)[:500],
-                    )
-                    job.notificado = True
-                    job.notificado_en = datetime.now(UTC)
-                    await db.commit()
-                except Exception as email_err:
-                    logger.error(f"Error enviando email de fallo: {email_err}", exc_info=True)
+                dispatch_email_fel_fallida(
+                    to=user_email,
+                    full_name=user_full_name,
+                    archivo_nombre=job.archivo_original,
+                    error_mensaje=str(e)[:500]
+                )
+                job.notificado = True
+                job.notificado_en = datetime.now(UTC)
+                await db.commit()
+
 
 
 async def _crear_factura_background(

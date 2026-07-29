@@ -7,9 +7,11 @@ All background jobs have been migrated from FastAPI BackgroundTasks to Celery:
 - FEL invoice processing (ZIPs de XMLs)
 - Inventory imports (xlsx/csv)
 - Tenant provisioning (migraciones + emails)
+- **Email notifications** (FEL, inventario, tenant approval/rejection)
 
 The USE_CELERY feature flag has been removed. Celery is now the sole
-background processing mechanism.
+background processing mechanism. Email sending has its own dedicated queue
+to avoid blocking heavy jobs (FEL, inventario) with SMTP latency.
 
 ## Context
 Currently, FastAPI's built-in `BackgroundTasks` handles asynchronous jobs. This approach has several limitations:

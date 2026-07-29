@@ -13,7 +13,7 @@ import logging
 from sqlalchemy import select
 
 from app.core.celery_app import celery_app
-from app.core.email.service import email_service
+from app.core.dispatcher import dispatch_email_tenant_aprobado
 from app.models.global_models import Tenant, User
 from app.services.base.tenant_setup import (
     cleanup_tenant_schema,
@@ -142,7 +142,7 @@ async def _ejecutar_provisionamiento(
 
             # 4. Enviar email con credenciales
             try:
-                await email_service.send_tenant_aprobado(
+                dispatch_email_tenant_aprobado(
                     to=admin_email,
                     company_name=company_name,
                     admin_email=admin_email,

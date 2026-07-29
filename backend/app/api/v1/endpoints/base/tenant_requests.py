@@ -8,8 +8,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dispatcher import dispatch_tenant_job
-from app.core.email.service import email_service
+from app.core.dispatcher import (
+    dispatch_email_solicitud_recibida,
+    dispatch_email_tenant_aprobado,
+    dispatch_email_tenant_rechazado,
+    dispatch_tenant_job,
+)
 from app.core.security import (
     DataScope,
     calculate_password_expiration,
@@ -84,7 +88,7 @@ async def provision_tenant_background(
 
             # 3. Enviar email con credenciales
             try:
-                await email_service.send_tenant_aprobado(
+                dispatch_email_tenant_aprobado(
                     to=admin_email,
                     company_name=company_name,
                     admin_email=admin_email,
@@ -320,7 +324,7 @@ async def reject_tenant_request(
     logger.info(f"❌ Solicitud {request_id} rechazada: {payload.reason}")
 
     try:
-        await email_service.send_tenant_rechazado(
+        dispatch_email_tenant_rechazado(
             to=tenant_request.contact_email,
             company_name=tenant_request.company_name,
             reason=payload.reason,
@@ -367,7 +371,7 @@ async def resend_request_email(
         logger.info(f"📧 Email actualizado de {tenant_request.contact_email} a {new_email}")
 
     try:
-        await email_service.send_solicitud_recibida(
+        dispatch_email_solicitud_recibida(
             to=tenant_request.contact_email,
             company_name=tenant_request.company_name,
             contact_name=tenant_request.contact_name,
@@ -453,9 +457,8 @@ async def resend_tenant_credentials(
 
     # 7. ✅ Enviar email con las nuevas credenciales
     try:
-        from app.core.email.service import email_service
 
-        await email_service.send_tenant_aprobado(
+        dispatch_email_tenant_aprobado(
             to=admin_user.email,
             company_name=tenant.name,
             admin_email=admin_user.email,

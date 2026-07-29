@@ -20,6 +20,10 @@ import pandas as pd
 from sqlalchemy import and_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.dispatcher import (
+    dispatch_email_importacion_completada,
+    dispatch_email_importacion_fallida,
+)
 from app.models.global_models import InventarioImportacionJob, User
 from app.models.tenant_models import (
     InventarioBodega,
@@ -478,10 +482,9 @@ class ImportService:
             periodo = f"{toma.anio_periodo}/{str(toma.mes_periodo).zfill(2)}"
 
         # ✅ Usar el EmailService existente
-        from app.core.email.service import email_service
 
         if job.estado == "COMPLETADO":
-            await email_service.send_importacion_completada(
+            dispatch_email_importacion_completada(
                 to=usuario.email,
                 full_name=usuario.full_name or usuario.email,
                 archivo_nombre=job.archivo_original,
@@ -492,7 +495,7 @@ class ImportService:
                 filas_con_error=job.filas_con_error,
             )
         else:
-            await email_service.send_importacion_fallida(
+            dispatch_email_importacion_fallida(
                 to=usuario.email,
                 full_name=usuario.full_name or usuario.email,
                 archivo_nombre=job.archivo_original,

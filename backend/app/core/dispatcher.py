@@ -88,3 +88,173 @@ def dispatch_tenant_job(
         tenant_id,
         schema_name,
     )
+# ============================================================
+# Email dispatchers
+# ============================================================
+
+def dispatch_email_fel_completada(
+    *,
+    to: str,
+    full_name: str,
+    archivo_nombre: str,
+    total_archivos: int,
+    facturas_creadas: int,
+    facturas_duplicadas: int,
+    facturas_con_error: int,
+) -> None:
+    """Publica email de FEL completada a la cola de Celery."""
+    from app.tasks.email_tasks import send_fel_import_completada
+
+    send_fel_import_completada.delay(
+        to=to,
+        full_name=full_name,
+        archivo_nombre=archivo_nombre,
+        total_archivos=total_archivos,
+        facturas_creadas=facturas_creadas,
+        facturas_duplicadas=facturas_duplicadas,
+        facturas_con_error=facturas_con_error,
+    )
+    logger.info("📧 Email FEL completada publicado a Celery (to=%s)", to)
+
+
+def dispatch_email_fel_fallida(
+    *,
+    to: str,
+    full_name: str,
+    archivo_nombre: str,
+    error_mensaje: str,
+) -> None:
+    """Publica email de FEL fallida a la cola de Celery."""
+    from app.tasks.email_tasks import send_fel_import_fallida
+
+    send_fel_import_fallida.delay(
+        to=to,
+        full_name=full_name,
+        archivo_nombre=archivo_nombre,
+        error_mensaje=error_mensaje,
+    )
+    logger.info("📧 Email FEL fallida publicado a Celery (to=%s)", to)
+
+
+def dispatch_email_fel_cancelada(
+    *,
+    to: str,
+    full_name: str,
+    archivo_nombre: str,
+    archivos_procesados: int,
+    archivos_totales: int,
+) -> None:
+    """Publica email de FEL cancelada a la cola de Celery."""
+    from app.tasks.email_tasks import send_fel_import_cancelada
+
+    send_fel_import_cancelada.delay(
+        to=to,
+        full_name=full_name,
+        archivo_nombre=archivo_nombre,
+        archivos_procesados=archivos_procesados,
+        archivos_totales=archivos_totales,
+    )
+    logger.info("📧 Email FEL cancelada publicado a Celery (to=%s)", to)
+
+
+def dispatch_email_importacion_completada(
+    *,
+    to: str,
+    full_name: str,
+    archivo_nombre: str,
+    periodo: str,
+    modo: str,
+    filas_procesadas: int,
+    filas_validas: int,
+    filas_con_error: int,
+) -> None:
+    """Publica email de importación completada a la cola de Celery."""
+    from app.tasks.email_tasks import send_importacion_completada
+
+    send_importacion_completada.delay(
+        to=to,
+        full_name=full_name,
+        archivo_nombre=archivo_nombre,
+        periodo=periodo,
+        modo=modo,
+        filas_procesadas=filas_procesadas,
+        filas_validas=filas_validas,
+        filas_con_error=filas_con_error,
+    )
+    logger.info("📧 Email importación completada publicado a Celery (to=%s)", to)
+
+
+def dispatch_email_importacion_fallida(
+    *,
+    to: str,
+    full_name: str,
+    archivo_nombre: str,
+    error_mensaje: str,
+) -> None:
+    """Publica email de importación fallida a la cola de Celery."""
+    from app.tasks.email_tasks import send_importacion_fallida
+
+    send_importacion_fallida.delay(
+        to=to,
+        full_name=full_name,
+        archivo_nombre=archivo_nombre,
+        error_mensaje=error_mensaje,
+    )
+    logger.info("📧 Email importación fallida publicado a Celery (to=%s)", to)
+
+
+def dispatch_email_tenant_aprobado(
+    *,
+    to: str,
+    company_name: str,
+    admin_email: str,
+    admin_password: str,
+    contact_name: str,
+) -> None:
+    """Publica email de tenant aprobado a la cola de Celery."""
+    from app.tasks.email_tasks import send_tenant_aprobado
+
+    send_tenant_aprobado.delay(
+        to=to,
+        company_name=company_name,
+        admin_email=admin_email,
+        admin_password=admin_password,
+        contact_name=contact_name,
+    )
+    logger.info("📧 Email tenant aprobado publicado a Celery (to=%s)", to)
+
+
+def dispatch_email_tenant_rechazado(
+    *,
+    to: str,
+    company_name: str,
+    reason: str,
+    contact_name: str,
+) -> None:
+    """Publica email de tenant rechazado a la cola de Celery."""
+    from app.tasks.email_tasks import send_tenant_rechazado
+
+    send_tenant_rechazado.delay(
+        to=to,
+        company_name=company_name,
+        reason=reason,
+        contact_name=contact_name,
+    )
+    logger.info("📧 Email tenant rechazado publicado a Celery (to=%s)", to)
+
+
+def dispatch_email_solicitud_recibida(
+    *,
+    to: str,
+    company_name: str,
+    contact_name: str,
+) -> None:
+    """Publica email de solicitud recibida a la cola de Celery."""
+    from app.tasks.email_tasks import send_solicitud_recibida
+
+    send_solicitud_recibida.delay(
+        to=to,
+        company_name=company_name,
+        contact_name=contact_name,
+    )
+    logger.info("📧 Email solicitud recibida publicado a Celery (to=%s)", to)

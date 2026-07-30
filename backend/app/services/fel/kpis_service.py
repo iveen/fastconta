@@ -173,9 +173,15 @@ class FELKPIsService:
                 COUNT(*) AS total
             FROM facturas_electronicas
             WHERE empresa_id = :empresa_id
-              AND fecha_emision BETWEEN :fecha_inicio AND :fecha_fin
+            AND DATE(fecha_emision) BETWEEN :fecha_inicio AND :fecha_fin
         """)
-
+        
+        # Debug: Verificar qué fechas se están consultando
+        logger.info(
+            f"🔍 Contando facturas: empresa_id={empresa_id}, "
+            f"fecha_inicio={fecha_inicio}, fecha_fin={fecha_fin}"
+        )
+        
         result = await db.execute(
             query,
             {
@@ -185,15 +191,26 @@ class FELKPIsService:
             },
         )
         row = result.first()
-
+        
         if not row:
+            logger.warning("⚠️ No se encontraron facturas en el período")
             return KPIsConteos()
-
+        
+        emitidos = row.emitidos or 0
+        recibidos = row.recibidos or 0
+        anulados = row.anulados or 0
+        total = row.total or 0
+        
+        logger.info(
+            f"✅ Conteos: emitidos={emitidos}, recibidos={recibidos}, "
+            f"anulados={anulados}, total={total}"
+        )
+        
         return KPIsConteos(
-            emitidos=row.emitidos or 0,
-            recibidos=row.recibidos or 0,
-            anulados=row.anulados or 0,
-            total=row.total or 0,
+            emitidos=emitidos,
+            recibidos=recibidos,
+            anulados=anulados,
+            total=total,
         )
 
     @staticmethod
@@ -207,59 +224,52 @@ class FELKPIsService:
         query = text("""
             SELECT
                 TO_CHAR(fecha_emision, 'YYYY-MM') AS periodo,
-                
                 -- Compras (sin IVA)
                 COALESCE(SUM(
                     CASE WHEN tipo_operacion = 'Compra' 
-                         AND estado != 'Anulada'
-                         AND es_exportacion = false
+                        AND estado != 'Anulada'
+                        AND es_exportacion = false
                     THEN total_gravado_gtq ELSE 0 END
                 ), 0) AS compras,
-                
                 -- Ventas locales (sin IVA)
                 COALESCE(SUM(
                     CASE WHEN tipo_operacion = 'Venta' 
-                         AND estado != 'Anulada'
-                         AND es_exportacion = false
+                        AND estado != 'Anulada'
+                        AND es_exportacion = false
                     THEN total_gravado_gtq ELSE 0 END
                 ), 0) AS ventas_locales,
-                
                 -- Exportaciones
                 COALESCE(SUM(
                     CASE WHEN tipo_operacion = 'Venta' 
-                         AND estado != 'Anulada'
-                         AND es_exportacion = true
+                        AND estado != 'Anulada'
+                        AND es_exportacion = true
                     THEN total_gravado_gtq ELSE 0 END
                 ), 0) AS exportaciones,
-                
                 -- Crédito Fiscal
                 COALESCE(SUM(
                     CASE WHEN tipo_operacion = 'Compra' 
-                         AND estado != 'Anulada'
+                        AND estado != 'Anulada'
                     THEN total_iva_gtq ELSE 0 END
                 ), 0) AS credito_fiscal,
-                
                 -- Débito Fiscal
                 COALESCE(SUM(
                     CASE WHEN tipo_operacion = 'Venta' 
-                         AND estado != 'Anulada'
-                         AND es_exportacion = false
+                        AND estado != 'Anulada'
+                        AND es_exportacion = false
                     THEN total_iva_gtq ELSE 0 END
                 ), 0) AS debito_fiscal,
-                
                 -- Documentos emitidos (no anulados)
                 COUNT(*) FILTER (WHERE tipo_operacion = 'Venta' AND estado != 'Anulada') AS documentos_emitidos,
-                
                 -- Documentos recibidos (no anulados)
-                COUNT(*) FILTER (WHERE tipo_operacion = 'Compra' AND estado != 'Anulada') AS documentos_recibidos
-                
+                COUNT(*) FILTER (WHERE tipo_operacion = 'Compra' AND estado != 'Anulada') AS documentos_recibidos,
+                -- ✅ NUEVO: Documentos anulados
+                COUNT(*) FILTER (WHERE estado = 'Anulada') AS documentos_anulados
             FROM facturas_electronicas
             WHERE empresa_id = :empresa_id
-              AND fecha_emision BETWEEN :fecha_inicio AND :fecha_fin
+            AND fecha_emision BETWEEN :fecha_inicio AND :fecha_fin
             GROUP BY TO_CHAR(fecha_emision, 'YYYY-MM')
             ORDER BY periodo ASC
         """)
-
         result = await db.execute(
             query,
             {
@@ -268,7 +278,6 @@ class FELKPIsService:
                 "fecha_fin": fecha_fin,
             },
         )
-
         return [
             SerieTemporalPoint(
                 periodo=row.periodo,
@@ -279,6 +288,7 @@ class FELKPIsService:
                 debito_fiscal=Decimal(str(row.debito_fiscal or 0)),
                 documentos_emitidos=row.documentos_emitidos or 0,
                 documentos_recibidos=row.documentos_recibidos or 0,
+                documentos_anulados=row.documentos_anulados or 0,  # ✅ NUEVO
             )
             for row in result
         ]

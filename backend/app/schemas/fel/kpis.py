@@ -46,6 +46,7 @@ class SerieTemporalPoint(BaseModel):
     debito_fiscal: Decimal = Decimal(0)
     documentos_emitidos: int = 0
     documentos_recibidos: int = 0
+    documentos_anulados: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -86,22 +86,37 @@
             </button>
           </div>
 
+          
           <!-- TARJETAS DE RESUMEN -->
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <!-- Compras -->
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p class="text-sm text-blue-600 font-medium">Compras del Período</p>
-              <p class="text-2xl font-bold text-blue-700">{{ formatCurrency(totalesCompras, 'GTQ') }}</p>
+              <p class="text-2xl font-bold text-blue-700">Q {{ formatNumber(totalesCompras.gtq) }}</p>
+              <p v-if="totalesCompras.usd > 0" class="text-sm text-blue-600 mt-1">
+                ($ {{ formatNumber(totalesCompras.usd) }} USD)
+              </p>
               <p class="text-xs text-blue-600 mt-1">{{ facturasFiltradas.filter(f => f.tipo_operacion === 'Compra').length }} facturas recibidas</p>
             </div>
+            
+            <!-- Ventas -->
             <div class="bg-green-50 border border-green-200 rounded-lg p-4">
               <p class="text-sm text-green-600 font-medium">Ventas del Período</p>
-              <p class="text-2xl font-bold text-green-700">{{ formatCurrency(totalesVentas, 'GTQ') }}</p>
+              <p class="text-2xl font-bold text-green-700">Q {{ formatNumber(totalesVentas.gtq) }}</p>
+              <p v-if="totalesVentas.usd > 0" class="text-sm text-green-600 mt-1">
+                ($ {{ formatNumber(totalesVentas.usd) }} USD)
+              </p>
               <p class="text-xs text-green-600 mt-1">{{ facturasFiltradas.filter(f => f.tipo_operacion === 'Venta').length }} facturas emitidas</p>
             </div>
+            
+            <!-- Balance Neto -->
             <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
               <p class="text-sm text-gray-600 font-medium">Balance Neto</p>
-              <p class="text-2xl font-bold" :class="totalesVentas - totalesCompras >= 0 ? 'text-green-700' : 'text-red-700'">
-                {{ formatCurrency(totalesVentas - totalesCompras, 'GTQ') }}
+              <p class="text-2xl font-bold" :class="totalesVentas.gtq - totalesCompras.gtq >= 0 ? 'text-green-700' : 'text-red-700'">
+                Q {{ formatNumber(totalesVentas.gtq - totalesCompras.gtq) }}
+              </p>
+              <p v-if="totalesVentas.usd > 0 || totalesCompras.usd > 0" class="text-sm text-gray-600 mt-1">
+                ($ {{ formatNumber(totalesVentas.usd - totalesCompras.usd) }} USD)
               </p>
               <p class="text-xs text-gray-600 mt-1">Ventas - Compras</p>
             </div>
@@ -198,15 +213,26 @@
                 <tfoot v-if="facturasFiltradas.length > 0" class="bg-gray-100 font-semibold">
                   <tr>
                     <td colspan="9" class="px-4 py-3 text-right text-sm text-gray-700">TOTALES DEL PERÍODO:</td>
-                    <td class="px-4 py-3 text-right text-sm font-mono text-blue-700">
-                      {{ formatCurrency(totalesCompras, 'GTQ') }}
+                    <td class="px-4 py-3 text-right">
+                      <div class="text-sm font-mono text-blue-700">
+                        Q {{ formatNumber(totalesCompras.gtq) }}
+                      </div>
+                      <div v-if="totalesCompras.usd > 0" class="text-xs font-mono text-blue-600">
+                        $ {{ formatNumber(totalesCompras.usd) }} USD
+                      </div>
                     </td>
-                    <td class="px-4 py-3 text-right text-sm font-mono text-green-700">
-                      {{ formatCurrency(totalesVentas, 'GTQ') }}
+                    <td class="px-4 py-3 text-right">
+                      <div class="text-sm font-mono text-green-700">
+                        Q {{ formatNumber(totalesVentas.gtq) }}
+                      </div>
+                      <div v-if="totalesVentas.usd > 0" class="text-xs font-mono text-green-600">
+                        $ {{ formatNumber(totalesVentas.usd) }} USD
+                      </div>
                     </td>
                     <td></td>
                   </tr>
                 </tfoot>
+
               </table>
             </div>
           </div>
@@ -307,21 +333,55 @@ const facturasFiltradas = computed(() => {
 })
 
 const totalesCompras = computed(() => {
-  return facturasFiltradas.value
-    .filter(f => f.tipo_operacion === 'Compra')
-    .reduce((sum, f) => {
-      const monto = f.total_gtq ? parseFloat(f.total_gtq) : parseFloat(f.total) || 0
-      return sum + monto
-    }, 0)
+  const compras = facturasFiltradas.value.filter(f => f.tipo_operacion === 'Compra')
+  
+  const gtq = compras.reduce((sum, f) => {
+    // Si es GTQ, usar total directamente
+    if (f.moneda === 'GTQ') {
+      return sum + (parseFloat(f.total) || 0)
+    }
+    // Si es USD u otra moneda, usar total_gtq si existe, o calcular conversión
+    if (f.total_gtq) {
+      return sum + parseFloat(f.total_gtq)
+    }
+    // Fallback: calcular conversión si tenemos tipo_cambio
+    if (f.tipo_cambio && f.total) {
+      return sum + (parseFloat(f.total) * parseFloat(f.tipo_cambio))
+    }
+    return sum
+  }, 0)
+  
+  const usd = compras
+    .filter(f => f.moneda === 'USD')
+    .reduce((sum, f) => sum + (parseFloat(f.total) || 0), 0)
+  
+  return { gtq, usd }
 })
 
 const totalesVentas = computed(() => {
-  return facturasFiltradas.value
-    .filter(f => f.tipo_operacion === 'Venta')
-    .reduce((sum, f) => {
-      const monto = f.total_gtq ? parseFloat(f.total_gtq) : parseFloat(f.total) || 0
-      return sum + monto
-    }, 0)
+  const ventas = facturasFiltradas.value.filter(f => f.tipo_operacion === 'Venta')
+  
+  const gtq = ventas.reduce((sum, f) => {
+    // Si es GTQ, usar total directamente
+    if (f.moneda === 'GTQ') {
+      return sum + (parseFloat(f.total) || 0)
+    }
+    // Si es USD u otra moneda, usar total_gtq si existe, o calcular conversión
+    if (f.total_gtq) {
+      return sum + parseFloat(f.total_gtq)
+    }
+    // Fallback: calcular conversión si tenemos tipo_cambio
+    if (f.tipo_cambio && f.total) {
+      return sum + (parseFloat(f.total) * parseFloat(f.tipo_cambio))
+    }
+    return sum
+  }, 0)
+  
+  const usd = ventas
+    .filter(f => f.moneda === 'USD')
+    .reduce((sum, f) => sum + (parseFloat(f.total) || 0), 0)
+  
+  return { gtq, usd }
 })
 
 const aplicarFiltros = () => {}
@@ -354,6 +414,10 @@ const formatCurrency = (amount, moneda) => {
   if (!amount || isNaN(amount)) return '0.00'
   const symbol = moneda === 'GTQ' ? 'Q' : (moneda === 'USD' ? '$' : moneda)
   return `${symbol} ${Number(amount).toLocaleString('es-GT', { minimumFractionDigits: 2 })}`
+}
+const formatNumber = (amount) => {
+  if (!amount || isNaN(amount)) return '0.00'
+  return Number(amount).toLocaleString('es-GT', { minimumFractionDigits: 2 })
 }
 
 const getTipoDTEClass = (codigo) => {

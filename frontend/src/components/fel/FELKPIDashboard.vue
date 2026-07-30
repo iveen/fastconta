@@ -7,7 +7,9 @@
           <label class="block text-sm font-medium text-gray-700 mb-1">Fecha Inicio</label>
           <input
             v-model="fechaInicio"
-            type="date"
+            type="text"
+            placeholder="dd/mm/yyyy"
+            @input="formatDateInput($event, 'fechaInicio')"
             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -15,7 +17,9 @@
           <label class="block text-sm font-medium text-gray-700 mb-1">Fecha Fin</label>
           <input
             v-model="fechaFin"
-            type="date"
+            type="text"
+            placeholder="dd/mm/yyyy"
+            @input="formatDateInput($event, 'fechaFin')"
             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -78,14 +82,32 @@
         :valor="conteos.emitidos"
         color="indigo"
         icono="📄"
-        esNumero
+        :es-numero="true"
       />
+      <KPICard
+        titulo="Documentos Recibidos"
+        :valor="conteos.recibidos"
+        color="pink"
+        icono="📥"
+        :es-numero="true"
+      />
+    </div>
+
+    <!-- Tercera fila - Documentos Anulados -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <KPICard
         titulo="Documentos Anulados"
         :valor="conteos.anulados"
         color="red"
         icono="❌"
-        esNumero
+        :es-numero="true"
+      />
+      <KPICard
+        titulo="Total Documentos"
+        :valor="conteos.total"
+        color="gray"
+        icono="📋"
+        :es-numero="true"
       />
     </div>
 
@@ -136,14 +158,20 @@ import VueApexCharts from 'vue3-apexcharts'
 import { toast } from 'vue3-toastify'
 import KPICard from './KPICard.vue'
 import { felAPI } from '@/stores/fel.js'
- 
 
 const apexchart = VueApexCharts
 
 // Estado
-const fechaInicio = ref(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0])
-const fechaFin = ref(new Date().toISOString().split('T')[0])
+const today = new Date()
+const currentMonth = String(today.getMonth() + 1).padStart(2, '0')
+const currentYear = today.getFullYear()
+const firstDayOfMonth = `01/${currentMonth}/${currentYear}`
+const todayFormatted = `${String(today.getDate()).padStart(2, '0')}/${currentMonth}/${currentYear}`
+
+const fechaInicio = ref(firstDayOfMonth)
+const fechaFin = ref(todayFormatted)
 const cargando = ref(false)
+
 const financieros = ref({
   compras_sin_iva: 0,
   ventas_locales_sin_iva: 0,
@@ -152,28 +180,82 @@ const financieros = ref({
   debito_fiscal: 0,
   iva_por_pagar: 0,
 })
+
 const conteos = ref({
   emitidos: 0,
   recibidos: 0,
   anulados: 0,
   total: 0,
 })
+
 const seriesTemporales = ref([])
+
+// Formatear fecha mientras se escribe (dd/mm/yyyy)
+const formatDateInput = (event, fieldName) => {
+  let value = event.target.value.replace(/\D/g, '') // Solo números
+  
+  if (value.length > 2) {
+    value = value.slice(0, 2) + '/' + value.slice(2)
+  }
+  if (value.length > 5) {
+    value = value.slice(0, 5) + '/' + value.slice(5, 9)
+  }
+  
+  event.target.value = value.slice(0, 10) // dd/mm/yyyy
+  
+  // Actualizar el ref correspondiente
+  if (fieldName === 'fechaInicio') {
+    fechaInicio.value = value.slice(0, 10)
+  } else if (fieldName === 'fechaFin') {
+    fechaFin.value = value.slice(0, 10)
+  }
+}
+
+// Convertir dd/mm/yyyy a yyyy-mm-dd para la API
+const formatDateForAPI = (dateStr) => {
+  if (!dateStr || dateStr.length !== 10) return null
+  const [day, month, year] = dateStr.split('/')
+  return `${year}-${month}-${day}`
+}
+
+// Validar fecha dd/mm/yyyy
+const isValidDate = (dateStr) => {
+  if (!dateStr || dateStr.length !== 10) return false
+  const regex = /^\d{2}\/\d{2}\/\d{4}$/
+  if (!regex.test(dateStr)) return false
+  
+  const [day, month, year] = dateStr.split('/').map(Number)
+  const date = new Date(year, month - 1, day)
+  return date.getFullYear() === year && 
+         date.getMonth() === month - 1 && 
+         date.getDate() === day
+}
 
 // Cargar KPIs
 const cargarKPIs = async () => {
+  // Validar fechas
+  if (!isValidDate(fechaInicio.value)) {
+    toast.error('⚠️ Fecha de inicio inválida. Use el formato dd/mm/yyyy')
+    return
+  }
+  if (!isValidDate(fechaFin.value)) {
+    toast.error('⚠️ Fecha de fin inválida. Use el formato dd/mm/yyyy')
+    return
+  }
+  
   cargando.value = true
   try {
     const response = await felAPI.getKPIs({
-      fecha_inicio: fechaInicio.value,
-      fecha_fin: fechaFin.value,
+      fecha_inicio: formatDateForAPI(fechaInicio.value),
+      fecha_fin: formatDateForAPI(fechaFin.value),
     })
     financieros.value = response.financieros
     conteos.value = response.conteos
     seriesTemporales.value = response.series_temporales
+    toast.success('✅ KPIs cargados correctamente')
   } catch (error) {
     console.error('Error cargando KPIs:', error)
-    toast.error('Error al cargar KPIs')  // ✅ Usar toast de vue3-toastify
+    toast.error('Error al cargar KPIs: ' + (error.response?.data?.detail || error.message))
   } finally {
     cargando.value = false
   }
@@ -258,6 +340,10 @@ const seriesDocumentos = computed(() => [
     name: 'Recibidos',
     data: seriesTemporales.value.map(s => s.documentos_recibidos),
   },
+  {
+    name: 'Anulados',
+    data: seriesTemporales.value.map(s => s.documentos_anulados),
+  },
 ])
 
 const chartOptionsDocumentos = computed(() => ({
@@ -270,7 +356,7 @@ const chartOptionsDocumentos = computed(() => ({
   yaxis: {
     title: { text: 'Cantidad de Documentos' },
   },
-  colors: ['#6366F1', '#EC4899'],
+  colors: ['#6366F1', '#EC4899', '#EF4444'],
   fill: {
     type: 'gradient',
     gradient: {
@@ -278,6 +364,9 @@ const chartOptionsDocumentos = computed(() => ({
       opacityFrom: 0.7,
       opacityTo: 0.3,
     },
+  },
+  legend: {
+    position: 'bottom',
   },
 }))
 

@@ -105,7 +105,7 @@ async def upload_facturas(
     # Obtener info del usuario para notificación
     user_res = await db.execute(
         text("SELECT id, email, full_name FROM public.users WHERE id = :uid"),
-        {"uid": scope.user_id},
+        {"uid": scope.user.id},
     )
     user_data = user_res.first()
     if not user_data:
@@ -142,7 +142,7 @@ async def upload_facturas(
             job = FELImportJob(
                 tenant_id=scope.tenant_id,
                 empresa_id=empresa_id_final,
-                usuario_id=scope.user_id,
+                usuario_id=scope.user.id,
                 archivo_original=zip_file.filename,
                 archivo_ruta=tmp_path,
                 formato="ZIP",
@@ -421,7 +421,7 @@ async def reprocesar_fel_job(
     # Obtener info del usuario
     user_res = await db.execute(
         text("SELECT id, email, full_name FROM public.users WHERE id = :uid"),
-        {"uid": scope.user_id},
+        {"uid": scope.user.id},
     )
     user_data = user_res.first()
     if not user_data:
@@ -478,7 +478,7 @@ async def reprocesar_fel_job(
     nuevo_job = FELImportJob(
         tenant_id=job.tenant_id,
         empresa_id=job.empresa_id,
-        usuario_id=scope.user_id,
+        usuario_id=scope.user.id,
         archivo_original=f"reproceso_{job.archivo_original}",
         archivo_ruta=str(zip_path),  # Reutiliza la misma ruta
         formato="ZIP",
@@ -590,6 +590,8 @@ async def listar_facturas(
     db: AsyncSession = Depends(get_public_db),
     empresa_from_header: Empresa | None = Depends(get_active_empresa),
 ):
+    await _set_schema_for_query(db, scope, tenant_id)
+
     empresa_id_final = empresa_id or (empresa_from_header.id if empresa_from_header else None)
     stmt = (
         select(FacturaElectronica)

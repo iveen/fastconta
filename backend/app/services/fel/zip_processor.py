@@ -16,7 +16,6 @@ from app.core.dispatcher import (
     dispatch_email_fel_fallida,
 )
 from app.core.file_handlers import FileContent
-from app.db.base import AsyncSessionLocal  # ✅ Import directo desde base
 from app.models.global_models import FELImportJob
 from app.services.facturas.contabilidad_service import clasificar_gasto_sat
 from app.services.facturas.tipo_cambio_service import obtener_tipo_cambio
@@ -28,7 +27,6 @@ logger = logging.getLogger(__name__)
 class FELZipProcessor:
     """
     Procesa un job de importación FEL en background.
-    Crea su propia sesión de BD (no reutiliza la del request HTTP).
     """
 
     @staticmethod
@@ -41,9 +39,20 @@ class FELZipProcessor:
         user_email: str,
         user_full_name: str,
         xml_files: list[dict],
+        session_factory=None,  # ✅ NUEVO PARÁMETRO
     ):
-        # ✅ Crear sesión independiente usando AsyncSessionLocal
-        async with AsyncSessionLocal() as db:
+        # ✅ Usar el factory proporcionado o el global (para compatibilidad)
+        if session_factory is None:
+            from app.db.base import AsyncSessionLocal
+            SessionFactory = AsyncSessionLocal
+        else:
+            SessionFactory = session_factory
+
+        # ✅ Crear sesión independiente
+        async with SessionFactory() as db:
+            # ✅ Configurar search_path para TODA la sesión
+            await db.execute(text(f"SET SESSION search_path TO {schema_name}, public"))
+            
             job = await db.get(FELImportJob, job_id)
             if not job:
                 logger.error(f"❌ Job {job_id} no encontrado")
@@ -56,16 +65,13 @@ class FELZipProcessor:
             await db.commit()
 
             try:
-                # Configurar search_path para acceder a tablas del tenant
-                await db.execute(text(f"SET LOCAL search_path TO {schema_name}, public"))
-
                 facturas_creadas = 0
                 facturas_duplicadas = 0
                 errores = []
 
                 for xml_data in xml_files:
                     try:
-                        # ✅ VERIFICAR CANCELACIÓN antes de procesar cada XML
+                        # ✅ VERIFICAR CANCELACIÓN
                         await db.refresh(job)
                         if job.estado == "CANCELADO":
                             logger.info(f"⏹️ Job {job_id} cancelado por el usuario")
@@ -74,7 +80,6 @@ class FELZipProcessor:
                             job.mensaje_error = "Cancelado por el usuario"
                             await db.commit()
 
-                            # Notificar cancelación
                             dispatch_email_fel_cancelada(
                                 to=user_email,
                                 full_name=user_full_name,
@@ -85,10 +90,9 @@ class FELZipProcessor:
                             job.notificado = True
                             job.notificado_en = datetime.now(UTC)
                             await db.commit()
-
                             return
 
-                        # 1. Construir FileContent para el XML individual
+                        # 1. Construir FileContent
                         xml_content = FileContent(
                             raw_bytes=xml_data["raw_bytes"],
                             filename=xml_data["filename"],
@@ -97,16 +101,13 @@ class FELZipProcessor:
                             parsed_data={"xml_text": xml_data["xml_text"]},
                         )
 
-                        # 2. Parsear con FelIngestionContext (reutiliza XmlFelStrategy)
+                        # 2. Parsear
                         result = await FelIngestionContext.ingest(xml_content, db)
-
                         if not result.success:
-                            errores.append(
-                                {
-                                    "file": xml_data["filename"],
-                                    "error": result.error or "Error de parseo",
-                                }
-                            )
+                            errores.append({
+                                "file": xml_data["filename"],
+                                "error": result.error or "Error de parseo",
+                            })
                             job.archivos_procesados += 1
                             job.porcentaje = int((job.archivos_procesados / job.archivos_totales) * 100)
                             await db.commit()
@@ -122,15 +123,12 @@ class FELZipProcessor:
                             """),
                             {"e": empresa_id, "n": datos.get("numero_autorizacion")},
                         )
-
                         if dup.first():
                             facturas_duplicadas += 1
-                            errores.append(
-                                {
-                                    "file": xml_data["filename"],
-                                    "error": "Duplicada (ya existe en el sistema)",
-                                }
-                            )
+                            errores.append({
+                                "file": xml_data["filename"],
+                                "error": "Duplicada (ya existe en el sistema)",
+                            })
                             job.archivos_procesados += 1
                             job.porcentaje = int((job.archivos_procesados / job.archivos_totales) * 100)
                             await db.commit()
@@ -139,18 +137,15 @@ class FELZipProcessor:
                         # 4. Determinar tipo de operación
                         em = datos.get("emisor_nit", "").replace("-", "")
                         rec = datos.get("receptor_nit", "").replace("-", "")
-
                         if em == empresa_nit:
                             tipo_op = "Venta"
                         elif rec == empresa_nit:
                             tipo_op = "Compra"
                         else:
-                            errores.append(
-                                {
-                                    "file": xml_data["filename"],
-                                    "error": "La empresa no participa en esta factura",
-                                }
-                            )
+                            errores.append({
+                                "file": xml_data["filename"],
+                                "error": "La empresa no participa en esta factura",
+                            })
                             job.archivos_procesados += 1
                             job.porcentaje = int((job.archivos_procesados / job.archivos_totales) * 100)
                             await db.commit()
@@ -167,7 +162,7 @@ class FELZipProcessor:
                                 fecha = fecha.date()
                             tc = await obtener_tipo_cambio(fecha, datos["moneda"], db) or tc
 
-                        # 7. Crear factura en BD
+                        # 7. Crear factura
                         await _crear_factura_background(
                             db,
                             datos,
@@ -178,19 +173,16 @@ class FELZipProcessor:
                             xml_data["filename"],
                             xml_data["xml_text"],
                         )
-
                         facturas_creadas += 1
 
                     except Exception as e:
                         logger.error(f"Error procesando {xml_data['filename']}: {e}", exc_info=True)
-                        errores.append(
-                            {
-                                "file": xml_data["filename"],
-                                "error": str(e),
-                            }
-                        )
+                        errores.append({
+                            "file": xml_data["filename"],
+                            "error": str(e),
+                        })
 
-                    # Actualizar progreso (commit por cada archivo para no perder avance)
+                    # Actualizar progreso
                     job.archivos_procesados += 1
                     job.facturas_creadas = facturas_creadas
                     job.facturas_duplicadas = facturas_duplicadas
@@ -205,7 +197,7 @@ class FELZipProcessor:
                 job.locked_at = None
                 await db.commit()
 
-                # Enviar email de éxito
+                # Enviar email
                 dispatch_email_fel_completada(
                     to=user_email,
                     full_name=user_full_name,
@@ -233,7 +225,6 @@ class FELZipProcessor:
                 job.locked_at = None
                 await db.commit()
 
-                # Enviar email de fallo
                 dispatch_email_fel_fallida(
                     to=user_email,
                     full_name=user_full_name,
@@ -243,7 +234,6 @@ class FELZipProcessor:
                 job.notificado = True
                 job.notificado_en = datetime.now(UTC)
                 await db.commit()
-
 
 
 async def _crear_factura_background(
@@ -256,9 +246,7 @@ async def _crear_factura_background(
     filename: str,
     xml_text: str,
 ):
-    """
-    Crea la factura en BD (versión para background, sin depender del endpoint).
-    """
+    """Crea la factura en BD (versión para background)."""
     from app.models.tenant_models import FacturaDetalle, FacturaElectronica
 
     items = datos.pop("items", [])

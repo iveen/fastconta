@@ -127,6 +127,8 @@ const emit = defineEmits(['updated', 'cancelled', 'reprocessed'])
 const showErrors = ref(false)
 const actionLoading = ref(false)
 const localJob = ref({ ...props.job })
+const jobId = computed(() => localJob.value.id || localJob.value.job_id)
+
 let pollInterval = null
 
 const isProcessing = computed(() =>
@@ -162,12 +164,20 @@ const formatTime = (dateStr) => {
 
 const startPolling = () => {
   stopPolling()
+  
+  if (!jobId.value) {
+    console.error('No se pudo determinar el ID del job:', localJob.value)
+    return
+  }
+
   pollInterval = setInterval(async () => {
     try {
-      const updated = await felAPI.getJobStatus(localJob.value.id)
+      // ✅ CORREGIDO: Usar jobId.value
+      const updated = await felAPI.getJobStatus(jobId.value)
+      
       localJob.value = updated
       emit('updated', updated)
-
+      
       if (!isProcessing.value) {
         stopPolling()
         if (updated.estado === 'COMPLETADO') {
@@ -195,7 +205,7 @@ const cancelJob = async () => {
   if (!confirm('¿Cancelar este job? Las facturas ya procesadas se mantendrán.')) return
   actionLoading.value = true
   try {
-    const updated = await felAPI.cancelJob(localJob.value.id)
+    const updated = await felAPI.cancelJob(jobId.value)
     localJob.value = updated
     emit('cancelled', updated)
     toast.info('⏹️ Job cancelado')
@@ -210,7 +220,7 @@ const cancelJob = async () => {
 const reprocessJob = async (soloErrores) => {
   actionLoading.value = true
   try {
-    const result = await felAPI.reprocessJob(localJob.value.id, soloErrores)
+    const result = await felAPI.reprocessJob(jobId.value, soloErrores)
     toast.success(`🔄 ${result.message}`)
     emit('reprocessed', result)
   } catch (error) {

@@ -87,7 +87,7 @@ class RegimenDteService:
             select(TipoDTE)
             .join(RegimenDteConfig, RegimenDteConfig.dte_id == TipoDTE.id)
             .where(RegimenDteConfig.regimen_id == regimen_id)
-            .where(TipoDTE.activo.is_(True))
+            .where(TipoDTE.is_active.is_(True))
             .order_by(TipoDTE.codigo)
         )
         result = await self.db.execute(query)

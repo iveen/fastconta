@@ -8,10 +8,14 @@ ImportService.procesar_job() crea su propia sesión de BD internamente
 La sesión que pasamos al constructor es solo para satisfacer la firma, 
 pero procesar_job() la ignora y usa la suya propia.
 """
+
 import asyncio
 import logging
 
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
 from app.core.celery_app import celery_app
+from app.db.base import create_celery_engine
 
 logger = logging.getLogger(__name__)
 
@@ -37,17 +41,32 @@ def procesar_inventario(
         job_id,
         tenant_schema,
     )
-
     try:
-        result = asyncio.run(_ejecutar_import_service(job_id, tenant_schema))
-
-        logger.info("✅ Job inventario %d completado: %s", job_id, result)
-        return result
-
+        # ✅ Crear un nuevo event loop para esta tarea
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            # ✅ Crear engine INDEPENDIENTE dentro del loop
+            celery_engine = create_celery_engine()
+            CelerySessionLocal = async_sessionmaker(
+                bind=celery_engine,
+                class_=AsyncSession,
+                expire_on_commit=False,
+            )
+            
+            result = loop.run_until_complete(
+                _ejecutar_import_service(job_id, tenant_schema, CelerySessionLocal)
+            )
+            return result
+        finally:
+            # ✅ Cerrar el engine y el loop
+            loop.run_until_complete(celery_engine.dispose())
+            loop.close()
+            asyncio.set_event_loop(None)
+            
     except Exception as exc:
         logger.exception("❌ Job inventario %d falló con error: %s", job_id, str(exc))
-
-        # Retry automático para errores transitorios
         if self.request.retries < self.max_retries:
             logger.warning(
                 "🔄 Reintentando job inventario %d (intento %d/%d)...",
@@ -56,24 +75,22 @@ def procesar_inventario(
                 self.max_retries,
             )
             raise self.retry(exc=exc)
-
-        # Nota: NO necesitamos marcar el job como FALLIDO aquí.
-        # ImportService._marcar_fallido() ya lo hace internamente cuando hay excepción.
         return {"status": "failed", "error": str(exc)}
 
 
-async def _ejecutar_import_service(job_id: int, tenant_schema: str) -> dict:
+async def _ejecutar_import_service(
+    job_id: int, 
+    tenant_schema: str,
+    session_factory,
+) -> dict:
     """
     Wrapper async que ejecuta ImportService.procesar_job.
     """
-    # Imports diferidos para evitar carga circular o overhead innecesario
-    from app.db.base import AsyncSessionLocal
     from app.services.inventario import ImportService
-
-    # Creamos una sesión "dummy" porque el constructor de ImportService la exige.
-    # procesar_job() la ignorará y creará la suya propia con el search_path correcto.
-    async with AsyncSessionLocal() as db:
-        svc = ImportService(db)
+    
+    # Crear sesión con el factory proporcionado
+    async with session_factory() as db:
+        svc = ImportService(db, tenant_schema=tenant_schema)
         await svc.procesar_job(job_id)
-
+    
     return {"status": "completed", "job_id": job_id}

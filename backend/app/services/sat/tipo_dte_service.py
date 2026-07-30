@@ -46,7 +46,7 @@ class TipoDTEService:
     # LISTAR ACTIVOS (para dropdowns)
     # ---------------------------------------------------------------
     async def obtener_todos_activos(self) -> list[TipoDTE]:
-        query = select(TipoDTE).where(TipoDTE.activo.is_(True)).order_by(TipoDTE.codigo)
+        query = select(TipoDTE).where(TipoDTE.is_active.is_(True)).order_by(TipoDTE.codigo)
         result = await self.db.execute(query)
         return list(result.scalars().all())
 

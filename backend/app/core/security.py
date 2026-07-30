@@ -46,10 +46,6 @@ async def get_token_from_cookie_or_header(
     - Producción: token via cookie HttpOnly (seguro)
     - Swagger UI / testing: token via header Authorization
     """
-    print(f"\n🔍 [{request.method}] {request.url.path}")
-    print(f"   🍪 Cookies recibidas: {dict(request.cookies)}")
-    print(f"   🔑 Header Authorization: {request.headers.get('authorization', 'NO')}")
-    print(f"   🌐 Origin: {request.headers.get('origin', 'NO')}")
 
     # 1. Intentar leer de la cookie (producción)
     auth_cookie = request.cookies.get("access_token")

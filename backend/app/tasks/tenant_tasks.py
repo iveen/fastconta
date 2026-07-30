@@ -7,13 +7,16 @@ Este job es especial porque:
 - Requiere rollback manual si falla (limpia schema de Postgres)
 - Envía email con credenciales al admin del nuevo tenant
 """
+
 import asyncio
 import logging
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.celery_app import celery_app
 from app.core.dispatcher import dispatch_email_tenant_aprobado
+from app.db.base import create_celery_engine
 from app.models.global_models import Tenant, User
 from app.services.base.tenant_setup import (
     cleanup_tenant_schema,
@@ -30,9 +33,8 @@ logger = logging.getLogger(__name__)
     max_retries=2,
     default_retry_delay=120,
     acks_late=True,
-    # Timeouts más largos: las migraciones pueden tardar
-    soft_time_limit=600,  # 10 min
-    time_limit=660,       # 11 min
+    soft_time_limit=600,
+    time_limit=660,
 )
 def provision_tenant(
     self,
@@ -46,38 +48,51 @@ def provision_tenant(
 ) -> dict:
     """
     Tarea Celery para ejecutar migraciones y notificar al usuario.
-    Si falla, realiza rollback del schema y mantiene el tenant inactivo.
     """
     logger.info(
         "🚀 Iniciando provisionamiento tenant=%d schema='%s'",
         tenant_id,
         schema_name,
     )
-
     try:
-        result = asyncio.run(
-            _ejecutar_provisionamiento(
-                tenant_id=tenant_id,
-                user_id=user_id,
-                schema_name=schema_name,
-                admin_email=admin_email,
-                admin_password=admin_password,
-                company_name=company_name,
-                contact_name=contact_name,
+        # ✅ Crear un nuevo event loop para esta tarea
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            # ✅ Crear engine INDEPENDIENTE dentro del loop
+            celery_engine = create_celery_engine()
+            CelerySessionLocal = async_sessionmaker(
+                bind=celery_engine,
+                class_=AsyncSession,
+                expire_on_commit=False,
             )
-        )
-
-        logger.info("✅ Tenant %d provisionado exitosamente", tenant_id)
-        return result
-
+            
+            result = loop.run_until_complete(
+                _ejecutar_provisionamiento(
+                    tenant_id=tenant_id,
+                    user_id=user_id,
+                    schema_name=schema_name,
+                    admin_email=admin_email,
+                    admin_password=admin_password,
+                    company_name=company_name,
+                    contact_name=contact_name,
+                    session_factory=CelerySessionLocal,
+                )
+            )
+            return result
+        finally:
+            # ✅ Cerrar el engine y el loop
+            loop.run_until_complete(celery_engine.dispose())
+            loop.close()
+            asyncio.set_event_loop(None)
+            
     except Exception as exc:
         logger.exception(
             "❌ Provisionamiento tenant %d falló: %s",
             tenant_id,
             str(exc),
         )
-
-        # Retry automático para errores transitorios
         if self.request.retries < self.max_retries:
             logger.warning(
                 "🔄 Reintentando provisionamiento tenant %d (intento %d/%d)...",
@@ -86,7 +101,6 @@ def provision_tenant(
                 self.max_retries,
             )
             raise self.retry(exc=exc)
-
         # Si agotamos los retries, hacer rollback completo
         asyncio.run(
             _rollback_provisionamiento(
@@ -106,19 +120,18 @@ async def _ejecutar_provisionamiento(
     admin_password: str,
     company_name: str,
     contact_name: str,
+    session_factory,
 ) -> dict:
     """
     Wrapper async que ejecuta el provisionamiento completo.
     """
-    from app.db.session import get_public_db_session
-
-    async with get_public_db_session() as db:
+    async with session_factory() as db:
         try:
-            # 1. Ejecutar migraciones (síncrono, usar to_thread)
+            # 1. Ejecutar migraciones
             logger.info(f"🔨 Ejecutando migraciones para '{schema_name}'")
             await asyncio.to_thread(initialize_tenant_schema, schema_name)
             logger.info(f"✅ Migraciones completadas para '{schema_name}'")
-
+            
             # 2. Activar tenant
             tenant = (
                 await db.execute(select(Tenant).where(Tenant.id == tenant_id))
@@ -126,7 +139,7 @@ async def _ejecutar_provisionamiento(
             if tenant:
                 tenant.is_active = True
                 logger.info(f"✅ Tenant {tenant_id} activado")
-
+            
             # 3. Activar usuario
             user = (
                 await db.execute(select(User).where(User.id == user_id))
@@ -134,12 +147,10 @@ async def _ejecutar_provisionamiento(
             if user:
                 user.is_active = True
                 logger.info(f"✅ User {user_id} activado")
-
+            
             await db.commit()
-            logger.info(
-                f"✅ Tenant {tenant_id} y User {user_id} activados en BD"
-            )
-
+            logger.info(f"✅ Tenant {tenant_id} y User {user_id} activados en BD")
+            
             # 4. Enviar email con credenciales
             try:
                 dispatch_email_tenant_aprobado(
@@ -152,15 +163,10 @@ async def _ejecutar_provisionamiento(
                 logger.info(f"📧 Email de aprobación enviado a {admin_email}")
             except Exception as e:
                 logger.error(f"⚠️ No se pudo enviar email de aprobación: {e}")
-                # No fallamos el job por un error de email
-
+            
             return {"status": "completed", "tenant_id": tenant_id}
-
         except Exception as e:
-            logger.error(
-                f"❌ Error en provisionamiento para {schema_name}: {e}"
-            )
-            # Hacer rollback
+            logger.error(f"❌ Error en provisionamiento para {schema_name}: {e}")
             await _rollback_provisionamiento(
                 tenant_id=tenant_id,
                 user_id=user_id,
@@ -177,27 +183,40 @@ async def _rollback_provisionamiento(
     """
     Rollback: desactiva registros y limpia schema en Postgres.
     """
-    from app.db.session import get_public_db_session
-
     try:
-        async with get_public_db_session() as db:
-            tenant = (
-                await db.execute(select(Tenant).where(Tenant.id == tenant_id))
-            ).scalar_one_or_none()
-            if tenant:
-                tenant.is_active = False
-
-            user = (
-                await db.execute(select(User).where(User.id == user_id))
-            ).scalar_one_or_none()
-            if user:
-                user.is_active = False
-
-            await db.commit()
-
-        # Limpiar schema fallido
-        await asyncio.to_thread(cleanup_tenant_schema, schema_name)
-        logger.info(f"🗑️ Rollback de schema '{schema_name}' completado")
-
+        # ✅ Crear engine independiente para el rollback
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            celery_engine = create_celery_engine()
+            CelerySessionLocal = async_sessionmaker(
+                bind=celery_engine,
+                class_=AsyncSession,
+                expire_on_commit=False,
+            )
+            
+            async with CelerySessionLocal() as db:
+                tenant = (
+                    await db.execute(select(Tenant).where(Tenant.id == tenant_id))
+                ).scalar_one_or_none()
+                if tenant:
+                    tenant.is_active = False
+                
+                user = (
+                    await db.execute(select(User).where(User.id == user_id))
+                ).scalar_one_or_none()
+                if user:
+                    user.is_active = False
+                
+                await db.commit()
+            
+            # Limpiar schema fallido
+            await asyncio.to_thread(cleanup_tenant_schema, schema_name)
+            logger.info(f"🗑️ Rollback de schema '{schema_name}' completado")
+        finally:
+            loop.run_until_complete(celery_engine.dispose())
+            loop.close()
+            asyncio.set_event_loop(None)
     except Exception as cleanup_err:
         logger.error(f"❌ Error crítico en rollback: {cleanup_err}")

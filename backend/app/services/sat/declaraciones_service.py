@@ -5,9 +5,8 @@ Flujo:
   1. Cargar formulario + secciones + casillas + reglas + exclusiones desde BD
   2. Cargar facturas FEL del período
   3. Calcular casillas con reglas de filtrado (SUMA / CONTEO)
-  4. Evaluar fórmulas ({3.1} + {3.2} * 0.12) con resolución de dependencias
-  5. Calcular secciones especiales (7: Determinación, 11: Accesorios)
-  6. Persistir DeclaracionImpuesto + DetalleDeclaracionImpuesto + DeclaracionImpuestoFactura
+  4. Evaluar fórmulas ({3.1} + {3.2} * 0.12, CASE WHEN, etc.)
+  5. Persistir DeclaracionImpuesto + DetalleDeclaracionImpuesto + DeclaracionImpuestoFactura
 """
 
 import logging
@@ -40,25 +39,16 @@ logger = logging.getLogger(__name__)
 # CONSTANTES
 # ============================================================
 CODIGO_FORMULARIO_SAT_2237 = "SAT-2237"
-MAX_ITERACIONES_FORMULA = 20  # límite para resolver dependencias circulares
-PATRON_REFERENCIA = re.compile(r"\{([^}]+)\}")  # captura {3.1}, {5.12_C}, etc.
+MAX_ITERACIONES_FORMULA = 20
+PATRON_REFERENCIA = re.compile(r"\{([^}]+)\}")
 
 # Campos numéricos de FacturaElectronica que se pueden usar en campo_factura
 CAMPOS_NUMERICOS_FACTURA = {
-    "total_gravado_gtq",
-    "total_iva_gtq",
-    "total_exento_gtq",
-    "total_gtq",
-    "total_gravado_bienes_gtq",
-    "total_iva_bienes_gtq",
-    "total_gravado_servicios_gtq",
-    "total_iva_servicios_gtq",
-    "total_gravado",
-    "total_iva",
-    "total_exento",
-    "total_monto",
-    "retencion_iva",
-    "retencion_isr",
+    "total_gravado_gtq", "total_iva_gtq", "total_exento_gtq", "total_gtq",
+    "total_gravado_bienes_gtq", "total_iva_bienes_gtq",
+    "total_gravado_servicios_gtq", "total_iva_servicios_gtq",
+    "total_gravado", "total_iva", "total_exento", "total",
+    "retencion_iva", "retencion_isr",
 }
 
 
@@ -87,16 +77,7 @@ def factura_cumple_criterios(factura: FacturaElectronica, criterios: dict) -> bo
     """
     Evalúa si una factura cumple TODOS los criterios (AND implícito).
 
-    Formatos soportados en criterios_json:
-      {"tipo_operacion": "VENTA"}                   → igualdad
-      {"tipo_operacion": ["VENTA", "COMPRA"]}       → IN
-      {"es_exento": false}                          → booleano
-      {"pais_destino": null}                        → IS NULL
-      {"retencion_iva": {"$gt": 0}}                → mayor que
-      {"retencion_iva": {"$gte": 0, "$lt": 100}}   → rango
-      {"tipo_documento": {"$ne": "NCDE"}}           → distinto
-      {"tipo_documento": {"$not_in": ["NCDE"]}}     → NOT IN
-      {"es_exportacion": {"$is_null": false}}       → IS NOT NULL
+    Operadores soportados: $gt, $gte, $lt, $lte, $ne, $in, $not_in, $is_null
     """
     if not criterios:
         return True
@@ -147,10 +128,7 @@ def factura_cumple_criterios(factura: FacturaElectronica, criterios: dict) -> bo
 
 
 def factura_cumple_exclusion(factura: FacturaElectronica, exclusiones: list[dict]) -> bool:
-    """
-    Retorna True si la factura debe ser EXCLUIDA (cumple alguna exclusión).
-    Cada exclusión tiene criterios_exclusion_json.
-    """
+    """Retorna True si la factura debe ser EXCLUIDA (cumple alguna exclusión)."""
     for exc_criterios in exclusiones:
         if factura_cumple_criterios(factura, exc_criterios):
             return True
@@ -158,46 +136,69 @@ def factura_cumple_exclusion(factura: FacturaElectronica, exclusiones: list[dict
 
 
 # ============================================================
-# EVALUADOR DE FÓRMULAS
+# EVALUADOR DE FÓRMULAS (con soporte CASE WHEN)
 # ============================================================
+def _convertir_case_when(expresion: str, valores: dict[str, Decimal]) -> str:
+    """
+    Convierte sintaxis SQL CASE WHEN a expresión Python.
+
+    Ejemplo:
+      "CASE WHEN {5_SUM} > {3_SUM} THEN {5_SUM} - {3_SUM} ELSE 0 END"
+      → "(({5_SUM}) - ({3_SUM}) if ({5_SUM}) > ({3_SUM}) else 0)"
+    """
+    # Reemplazar referencias {codigo} por valores envueltos en paréntesis
+    def wrap_ref(match: re.Match) -> str:
+        codigo = match.group(1).strip()
+        val = valores.get(codigo, Decimal("0"))
+        return f"({val})"
+
+    expr = PATRON_REFERENCIA.sub(wrap_ref, expresion)
+
+    # Patrón: CASE WHEN <cond> THEN <val_si> ELSE <val_no> END
+    patron_case = re.compile(
+        r"CASE\s+WHEN\s+(.+?)\s+THEN\s+(.+?)\s+ELSE\s+(.+?)\s+END",
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    def reemplazar_case(match: re.Match) -> str:
+        cond = match.group(1).strip()
+        val_si = match.group(2).strip()
+        val_no = match.group(3).strip()
+        # Convertir operadores SQL a Python
+        cond_py = cond.replace(">", ">").replace("<", "<")
+        return f"(({val_si}) if ({cond_py}) else ({val_no}))"
+
+    expr = patron_case.sub(reemplazar_case, expr)
+    return expr
+
+
 def evaluar_formula(
     formula: str,
     valores: dict[str, Decimal],
 ) -> Decimal:
     """
-    Evalúa una fórmula tipo '{3.1} + {3.2} + {3.4}' o '{5.12} * 0.12'.
-
-    Reemplaza cada {codigo} por su valor numérico y evalúa la expresión.
-    Solo permite operaciones aritméticas básicas (+, -, *, /) y funciones
-    max() / min() para seguridad.
+    Evalúa una fórmula tipo '{3.1} + {3.2} + {3.4}' o '{5.12} * 0.12'
+    o 'CASE WHEN {5_SUM} > {3_SUM} THEN {5_SUM} - {3_SUM} ELSE 0 END'.
     """
     if not formula:
         return Decimal("0")
 
-    def reemplazar(match: re.Match) -> str:
+    # Primero convertir CASE WHEN
+    expresion = _convertir_case_when(formula, valores)
+
+    # Luego reemplazar referencias restantes (si no había CASE WHEN)
+    def reemplazar_ref(match: re.Match) -> str:
         codigo = match.group(1).strip()
         val = valores.get(codigo, Decimal("0"))
         return str(val)
 
-    expresion = PATRON_REFERENCIA.sub(reemplazar, formula)
-
-    # Sanitizar: solo permitir dígitos, punto, operadores, paréntesis, espacios,
-    # y las funciones max/min
-    sanitizada = expresion.strip()
-    if not re.match(r'^[\d\.\+\-\*\/\(\)\s,]+(max|min)?[\d\.\+\-\*\/\(\)\s,]*$', sanitizada):
-        # Fallback: intentar evaluar de todas formas con namespace restringido
-        pass
+    expresion = PATRON_REFERENCIA.sub(reemplazar_ref, expresion)
 
     try:
-        # Namespace restringido: solo operaciones matemáticas
         resultado = eval(  # noqa: S307
-            sanitizada,
+            expresion,
             {"__builtins__": {}},
-            {
-                "max": lambda *a: max(*a),
-                "min": lambda *a: min(*a),
-                "Decimal": Decimal,
-            },
+            {"max": lambda *a: max(*a), "min": lambda *a: min(*a), "Decimal": Decimal},
         )
         return Decimal(str(resultado))
     except Exception as e:
@@ -215,46 +216,38 @@ def calcular_casilla_con_reglas(
 ) -> tuple[Decimal, Decimal, list[int]]:
     """
     Calcula el valor de una casilla aplicando sus reglas de filtrado y exclusiones.
-
     Retorna: (base_calculada, impuesto_calculado, ids_facturas_asociadas)
     """
     base_total = Decimal("0.00")
     impuesto_total = Decimal("0.00")
     facturas_ids: list[int] = []
 
-    # Pre-procesar exclusiones a lista de dicts
     exc_criterios_list = [
         exc.criterios_exclusion_json
         for exc in exclusiones
-        if exc.es_activa and exc.criterios_exclusion_json
+        if getattr(exc, "es_activa", True) and exc.criterios_exclusion_json
     ]
 
-    # Ordenar reglas por orden
     reglas_ordenadas = sorted(reglas, key=lambda r: r.orden or 0)
 
     for regla in reglas_ordenadas:
-        if not regla.es_activa:
+        if not getattr(regla, "es_activa", True):
             continue
 
         criterios = regla.criterios_json or {}
-        campo = regla.campo_factura  # ej: "total_gravado_gtq", "total_iva_gtq"
+        campo = regla.campo_factura
         operacion = (regla.operacion or "SUMA").upper()
 
         for f in facturas:
             try:
-                # 1. ¿Cumple criterios de inclusión?
                 if not factura_cumple_criterios(f, criterios):
                     continue
-
-                # 2. ¿Cumple alguna exclusión?
                 if exc_criterios_list and factura_cumple_exclusion(f, exc_criterios_list):
                     continue
 
-                # 3. Acumular
                 facturas_ids.append(f.id)
 
                 if operacion == "CONTEO":
-                    # Para CONTEO, cada factura suma 1
                     base_total += Decimal("1")
                 elif operacion in ("SUMA", "PROMEDIO"):
                     if campo and campo in CAMPOS_NUMERICOS_FACTURA:
@@ -262,9 +255,6 @@ def calcular_casilla_con_reglas(
                         if valor is not None:
                             base_total += Decimal(str(valor))
                 elif operacion == "SUMA_BASE_E_IMPUESTO":
-                    # Suma base e impuesto por separado
-                    # Se usa cuando campo_factura tiene formato "base|impuesto"
-                    # o cuando se necesitan ambos
                     if campo and "|" in campo:
                         campo_base, campo_imp = campo.split("|", 1)
                         base_total += Decimal(str(getattr(f, campo_base, 0) or 0))
@@ -276,7 +266,6 @@ def calcular_casilla_con_reglas(
                 logger.error(f"Error procesando factura {f.id} en regla '{regla.nombre}': {e}")
                 continue
 
-    # Promedio
     if reglas_ordenadas and reglas_ordenadas[0].operacion == "PROMEDIO" and len(facturas_ids) > 0:
         base_total = base_total / Decimal(str(len(facturas_ids)))
 
@@ -291,25 +280,27 @@ async def generar_formulario_sombra(
     empresa_id: int,
     anio: int,
     mes: int,
+    codigo_formulario: str = CODIGO_FORMULARIO_SAT_2237,
     usuario_id: int | None = None,
 ) -> dict:
     """
     Genera (o regenera) la declaración sombra del SAT-2237 para un período.
-
-    Flujo:
-      1. Cargar estructura del formulario desde BD
-      2. Cargar facturas FEL del período
-      3. Calcular casillas con reglas → evaluar fórmulas → secciones especiales
-      4. Persistir todo
+    Usa los campos reales del modelo:
+      - DeclaracionImpuesto: formulario_sat_id, anio, mes
+      - DetalleDeclaracionImpuesto: casilla_sat_id, base_imponible, monto_impuesto
+      - DeclaracionImpuestoFactura: detalle_declaracion_id, factura_id, base_asignada, impuesto_asignado
     """
 
     # ================================================================
     # PASO 1: Cargar formulario SAT-2237
     # ================================================================
-    stmt_form = select(FormularioSat).where(FormularioSat.codigo == CODIGO_FORMULARIO_SAT_2237)
+    stmt_form = select(FormularioSat).where(
+        FormularioSat.codigo == codigo_formulario,
+        FormularioSat.es_version_activa.is_(True),
+    )
     formulario = (await db.execute(stmt_form)).scalar_one_or_none()
     if formulario is None:
-        raise ValueError(f"Formulario {CODIGO_FORMULARIO_SAT_2237} no encontrado en BD. Ejecutar seed.")
+        raise ValueError(f"Formulario {codigo_formulario} no encontrado en BD. Ejecutar seed.")
 
     # ================================================================
     # PASO 2: Cargar secciones + casillas + reglas + exclusiones
@@ -328,7 +319,7 @@ async def generar_formulario_sombra(
     secciones = list((await db.execute(stmt_secciones)).scalars().unique().all())
 
     if not secciones:
-        raise ValueError(f"Formulario {CODIGO_FORMULARIO_SAT_2237} no tiene secciones configuradas.")
+        raise ValueError(f"Formulario {codigo_formulario} no tiene secciones configuradas.")
 
     # Aplanar casillas y construir índices
     todas_casillas: list[CasillaSat] = []
@@ -338,9 +329,7 @@ async def generar_formulario_sombra(
             todas_casillas.append(cas)
             casilla_por_codigo[cas.codigo] = cas
 
-    logger.info(
-        f"SAT-2237: {len(secciones)} secciones, {len(todas_casillas)} casillas cargadas"
-    )
+    logger.info(f"SAT-2237: {len(secciones)} secciones, {len(todas_casillas)} casillas cargadas")
 
     # ================================================================
     # PASO 3: Cargar facturas FEL del período
@@ -368,13 +357,13 @@ async def generar_formulario_sombra(
     )
 
     # ================================================================
-    # PASO 4: Verificar / crear declaración
+    # PASO 4: Verificar / crear declaración (campos REALES del modelo)
     # ================================================================
     stmt_decl = select(DeclaracionImpuesto).where(
         DeclaracionImpuesto.empresa_id == empresa_id,
-        DeclaracionImpuesto.formulario_codigo == CODIGO_FORMULARIO_SAT_2237,
-        DeclaracionImpuesto.anio_periodo == anio,
-        DeclaracionImpuesto.mes_periodo == mes,
+        DeclaracionImpuesto.formulario_sat_id == formulario.id,
+        DeclaracionImpuesto.anio == anio,
+        DeclaracionImpuesto.mes == mes,
     )
     declaracion = (await db.execute(stmt_decl)).scalar_one_or_none()
 
@@ -390,23 +379,31 @@ async def generar_formulario_sombra(
         )
         for det in (await db.execute(stmt_del_det)).scalars().all():
             await db.delete(det)
-
-        stmt_del_fac = select(DeclaracionImpuestoFactura).where(
-            DeclaracionImpuestoFactura.declaracion_id == declaracion.id
-        )
-        for df in (await db.execute(stmt_del_fac)).scalars().all():
-            await db.delete(df)
-
         await db.flush()
         declaracion.estado = "BORRADOR"
     else:
+        # Calcular remanente del período anterior
+        remanente_anterior = Decimal("0.00")
+        mes_ant = mes - 1 if mes > 1 else 12
+        anio_ant = anio if mes > 1 else anio - 1
+        stmt_rem = select(DeclaracionImpuesto.remanente_siguiente_periodo).where(
+            DeclaracionImpuesto.empresa_id == empresa_id,
+            DeclaracionImpuesto.formulario_sat_id == formulario.id,
+            DeclaracionImpuesto.anio == anio_ant,
+            DeclaracionImpuesto.mes == mes_ant,
+            DeclaracionImpuesto.estado == "FINALIZADO",
+        )
+        rem_val = (await db.execute(stmt_rem)).scalar_one_or_none()
+        if rem_val:
+            remanente_anterior = Decimal(str(rem_val))
+
         declaracion = DeclaracionImpuesto(
             empresa_id=empresa_id,
-            formulario_codigo=CODIGO_FORMULARIO_SAT_2237,
-            anio_periodo=anio,
-            mes_periodo=mes,
+            formulario_sat_id=formulario.id,
+            anio=anio,
+            mes=mes,
             estado="BORRADOR",
-            created_by=usuario_id,
+            remanente_periodo_anterior=remanente_anterior,
         )
         db.add(declaracion)
         await db.flush()
@@ -414,12 +411,11 @@ async def generar_formulario_sombra(
     # ================================================================
     # PASO 5: CALCULAR CASILLAS CON REGLAS DE FILTRADO
     # ================================================================
-    valores: dict[str, Decimal] = {}  # codigo → valor calculado
-    facturas_por_casilla: dict[str, list[int]] = {}  # codigo → [factura_ids]
+    valores: dict[str, Decimal] = {}
+    facturas_por_casilla: dict[str, list[int]] = {}
 
-    # 5a. Casillas con reglas de filtrado (tipo BASE_IMPONIBLE, CONTEO, etc.)
     for casilla in todas_casillas:
-        reglas_activas = [r for r in (casilla.reglas_filtrado or []) if r.es_activa]
+        reglas_activas = [r for r in (casilla.reglas_filtrado or []) if getattr(r, "es_activa", True)]
         if not reglas_activas:
             continue
 
@@ -429,24 +425,18 @@ async def generar_formulario_sombra(
             exclusiones=casilla.exclusiones or [],
         )
 
-        # Según tipo_casilla, decidir qué valor guardar
         tipo = (casilla.tipo_casilla or "").upper()
         if tipo == "CONTEO":
-            valores[casilla.codigo] = base  # base ya tiene el conteo
-        elif tipo in ("CREDITO_FISCAL",) and casilla.formula_calculo:
-            # Se calculará en el paso de fórmulas; guardar base como referencia
             valores[casilla.codigo] = base
         else:
             valores[casilla.codigo] = base
 
         facturas_por_casilla[casilla.codigo] = fac_ids
 
-    logger.info(
-        f"SAT-2237: {len(valores)} casillas calculadas con reglas de filtrado"
-    )
+    logger.info(f"SAT-2237: {len(valores)} casillas calculadas con reglas de filtrado")
 
     # ================================================================
-    # PASO 6: EVALUAR FÓRMULAS (resolución iterativa de dependencias)
+    # PASO 6: EVALUAR FÓRMULAS (con soporte CASE WHEN)
     # ================================================================
     casillas_con_formula = [
         c for c in todas_casillas
@@ -456,154 +446,122 @@ async def generar_formulario_sombra(
     for _iter in range(MAX_ITERACIONES_FORMULA):
         calculadas_en_iter = 0
         for casilla in list(casillas_con_formula):
-            # Verificar que todas las dependencias estén resueltas
             refs = PATRON_REFERENCIA.findall(casilla.formula_calculo)
             if all(ref.strip() in valores for ref in refs):
-                valores[casilla.codigo] = evaluar_formula(
-                    casilla.formula_calculo, valores
-                )
+                valores[casilla.codigo] = evaluar_formula(casilla.formula_calculo, valores)
                 casillas_con_formula.remove(casilla)
                 calculadas_en_iter += 1
 
         if not casillas_con_formula:
             break
         if calculadas_en_iter == 0:
-            # Dependencia circular o referencia faltante
             codigos_pendientes = [c.codigo for c in casillas_con_formula]
             logger.warning(
                 f"SAT-2237: No se pudieron resolver fórmulas (iter {_iter}): "
                 f"{codigos_pendientes}"
             )
-            # Asignar 0 a las pendientes
             for c in casillas_con_formula:
                 valores[c.codigo] = Decimal("0")
             break
 
-    logger.info(
-        f"SAT-2237: Fórmulas resueltas en {_iter + 1} iteración(es)"
-    )
+    logger.info(f"SAT-2237: Fórmulas resueltas en {_iter + 1} iteración(es)")
 
     # ================================================================
-    # PASO 7: SECCIÓN 7 – DETERMINACIÓN DEL IMPUESTO
+    # PASO 7: INICIALIZAR CASILLAS SIN VALOR EN 0
     # ================================================================
-    # Sumar débitos (sección 3) y créditos (secciones 5, 6)
-    debito_fiscal = Decimal("0")
-    credito_fiscal = Decimal("0")
-
     for casilla in todas_casillas:
-        naturaleza = (casilla.naturaleza or "").lower()
-        tipo = (casilla.tipo_casilla or "").upper()
-        val = valores.get(casilla.codigo, Decimal("0"))
-
-        if naturaleza == "deudora" or tipo in ("BASE_IMPONIBLE", "CALCULADO"):
-            # Verificar que pertenece a sección de débito (sección 3)
-            sec_num = str(casilla.seccion_rel.numero_seccion) if casilla.seccion_rel else ""
-            if sec_num.startswith("3"):
-                debito_fiscal += val
-
-        if naturaleza == "acreedora" or tipo == "CREDITO_FISCAL":
-            sec_num = str(casilla.seccion_rel.numero_seccion) if casilla.seccion_rel else ""
-            if sec_num.startswith(("5", "6")):
-                credito_fiscal += val
-
-    # Remanente del período anterior (casilla editable 5_REM o similar)
-    remanente_anterior = valores.get("5_REM", Decimal("0"))
-
-    # Impuesto determinado = max(0, débito - crédito - remanente)
-    impuesto_determinado = max(
-        Decimal("0"),
-        debito_fiscal - credito_fiscal - remanente_anterior,
-    )
-
-    # Crédito fiscal para período siguiente (si crédito > débito)
-    credito_fiscal_siguiente = max(
-        Decimal("0"),
-        credito_fiscal + remanente_anterior - debito_fiscal,
-    )
-
-    # Impuesto a pagar (puede tener retenciones, ajustes, etc.)
-    # Por ahora: impuesto_a_pagar = impuesto_determinado
-    impuesto_a_pagar = impuesto_determinado
-
-    # Remanente siguiente
-    remanente_siguiente = credito_fiscal_siguiente
-
-    # Guardar valores de la sección 7
-    valores_seccion_7 = {
-        "DEBITO_FISCAL_TOTAL": debito_fiscal,
-        "CREDITO_FISCAL_TOTAL": credito_fiscal,
-        "REMANENTE_ANTERIOR": remanente_anterior,
-        "IMPUESTO_DETERMINADO": impuesto_determinado,
-        "CREDITO_FISCAL_PERIODO_SIGUIENTE_LOCAL": credito_fiscal_siguiente,
-        "IMPUESTO_A_PAGAR": impuesto_a_pagar,
-        "REMANENTE_SIGUIENTE": remanente_siguiente,
-    }
-    valores.update(valores_seccion_7)
-
-    # ================================================================
-    # PASO 8: SECCIÓN 9 – INDICADORES / CONTEOS
-    # ================================================================
-    # Conteos y montos de operaciones realizadas (sección 9.1 y 9.2)
-    # Estos se calculan con reglas de filtrado si existen,
-    # o se dejan en 0 para que el usuario los complete.
-    for casilla in todas_casillas:
-        sec_num = str(casilla.seccion_rel.numero_seccion) if casilla.seccion_rel else ""
-        if sec_num.startswith("9") and casilla.codigo not in valores:
-            # Si no tiene reglas ni fórmula, inicializar en 0
+        if casilla.codigo not in valores:
             valores[casilla.codigo] = Decimal("0")
 
     # ================================================================
-    # PASO 9: SECCIÓN 11 – ACCESORIOS (multas, intereses, mora)
+    # PASO 8: PERSISTIR DETALLES Y ASOCIACIONES (campos REALES)
     # ================================================================
-    # Son casillas editables (AJUSTE). Se inicializan en 0.
-    for casilla in todas_casillas:
-        sec_num = str(casilla.seccion_rel.numero_seccion) if casilla.seccion_rel else ""
-        if sec_num.startswith("11") and casilla.codigo not in valores:
-            valores[casilla.codigo] = Decimal("0")
+    # Mapa: codigo → DetalleDeclaracionImpuesto creado
+    detalles_creados: dict[str, DetalleDeclaracionImpuesto] = {}
 
-    # ================================================================
-    # PASO 10: PERSISTIR DETALLES Y ASOCIACIONES
-    # ================================================================
     for casilla in todas_casillas:
         valor_raw = valores.get(casilla.codigo, Decimal("0"))
-        valor_final = redondear_entero(valor_raw)
+        tipo = (casilla.tipo_casilla or "").upper()
 
-        # DetalleDeclaracionImpuesto
+        # Decidir dónde va el valor según tipo_casilla
+        if tipo in ("BASE_IMPONIBLE", "REFERENCIA", "CONTEO"):
+            base_val = valor_raw
+            imp_val = Decimal("0")
+        elif tipo in ("DEBITO_FISCAL", "CREDITO_FISCAL", "CALCULADO", "AJUSTE", "REMANENTE"):
+            base_val = Decimal("0")
+            imp_val = valor_raw
+        else:
+            base_val = valor_raw
+            imp_val = Decimal("0")
+
         detalle = DetalleDeclaracionImpuesto(
             declaracion_id=declaracion.id,
-            casilla_id=casilla.id,
-            casilla_codigo=casilla.codigo,
-            seccion=str(casilla.seccion_rel.numero_seccion) if casilla.seccion_rel else "",
-            valor=Decimal(str(valor_final)),
-            valor_original=valor_raw,
-            tipo_casilla=casilla.tipo_casilla,
-            created_by=usuario_id,
+            casilla_sat_id=casilla.id,
+            base_imponible=redondear_entero(base_val),
+            monto_impuesto=redondear_entero(imp_val),
+            es_ajuste_manual=False,
         )
         db.add(detalle)
+        await db.flush()  # Necesario para obtener detalle.id
+        detalles_creados[casilla.codigo] = detalle
 
         # DeclaracionImpuestoFactura (asociaciones)
         fac_ids = facturas_por_casilla.get(casilla.codigo, [])
         for fid in fac_ids:
+            # Obtener valores asignados de la factura
+            factura_obj = next((f for f in todas_facturas if f.id == fid), None)
+            base_asig = Decimal("0")
+            imp_asig = Decimal("0")
+            if factura_obj:
+                # Buscar la regla que aplicó para obtener el campo correcto
+                for regla in (casilla.reglas_filtrado or []):
+                    if not getattr(regla, "es_activa", True):
+                        continue
+                    if factura_cumple_criterios(factura_obj, regla.criterios_json or {}):
+                        campo = regla.campo_factura
+                        if campo and campo in CAMPOS_NUMERICOS_FACTURA:
+                            base_asig = Decimal(str(getattr(factura_obj, campo, 0) or 0))
+                        break
+
             db.add(
                 DeclaracionImpuestoFactura(
-                    declaracion_id=declaracion.id,
+                    detalle_declaracion_id=detalle.id,
                     factura_id=fid,
-                    casilla_id=casilla.id,
-                    casilla_codigo=casilla.codigo,
-                    created_by=usuario_id,
+                    base_asignada=base_asig,
+                    impuesto_asignado=imp_asig,
                 )
             )
 
     # ================================================================
-    # PASO 11: ACTUALIZAR TOTALES DE LA DECLARACIÓN
+    # PASO 9: CALCULAR TOTALES DE LA DECLARACIÓN
     # ================================================================
-    declaracion.total_debito_fiscal = redondear_entero(debito_fiscal)
-    declaracion.total_credito_fiscal = redondear_entero(credito_fiscal)
-    declaracion.remanente_periodo_anterior = redondear_entero(remanente_anterior)
+    # Débito fiscal: suma de monto_impuesto de casillas tipo DEBITO_FISCAL
+    # Crédito fiscal: suma de monto_impuesto de casillas tipo CREDITO_FISCAL
+    total_debito = Decimal("0")
+    total_credito = Decimal("0")
+
+    for casilla in todas_casillas:
+        tipo = (casilla.tipo_casilla or "").upper()
+        val = valores.get(casilla.codigo, Decimal("0"))
+        if tipo == "DEBITO_FISCAL":
+            total_debito += val
+        elif tipo == "CREDITO_FISCAL":
+            total_credito += val
+
+    remanente_anterior = valores.get("5_REM", Decimal("0"))
+    impuesto_determinado = max(Decimal("0"), total_debito - total_credito - remanente_anterior)
+    remanente_siguiente = max(
+        Decimal("0"),
+        total_credito + remanente_anterior - total_debito,
+    )
+    impuesto_a_pagar = impuesto_determinado
+
+    declaracion.total_debito_fiscal = redondear_entero(total_debito)
+    declaracion.total_credito_fiscal = redondear_entero(total_credito)
     declaracion.impuesto_determinado = redondear_entero(impuesto_determinado)
+    declaracion.remanente_periodo_anterior = redondear_entero(remanente_anterior)
     declaracion.remanente_siguiente_periodo = redondear_entero(remanente_siguiente)
     declaracion.impuesto_a_pagar = redondear_entero(impuesto_a_pagar)
-    declaracion.updated_by = usuario_id
 
     await db.commit()
 
@@ -619,8 +577,8 @@ async def generar_formulario_sombra(
         "declaracion_id": declaracion.id,
         "estado": declaracion.estado,
         "totales": {
-            "debito_fiscal": redondear_entero(debito_fiscal),
-            "credito_fiscal": redondear_entero(credito_fiscal),
+            "debito_fiscal": redondear_entero(total_debito),
+            "credito_fiscal": redondear_entero(total_credito),
             "remanente_anterior": redondear_entero(remanente_anterior),
             "impuesto_determinado": redondear_entero(impuesto_determinado),
             "impuesto_a_pagar": redondear_entero(impuesto_a_pagar),
@@ -634,90 +592,57 @@ async def generar_formulario_sombra(
 # ============================================================
 # OBTENER DECLARACIÓN CON DETALLES
 # ============================================================
-async def obtener_declaracion(
-    db: AsyncSession,
-    declaracion_id: int,
-) -> dict | None:
+async def obtener_declaracion(db: AsyncSession, declaracion_id: int) -> dict | None:
     """Obtiene una declaración con todos sus detalles."""
     stmt = (
         select(DeclaracionImpuesto)
         .where(DeclaracionImpuesto.id == declaracion_id)
         .options(
-            selectinload(DeclaracionImpuesto.detalles),
+            selectinload(DeclaracionImpuesto.detalles)
+            .selectinload(DetalleDeclaracionImpuesto.casilla)
+            .selectinload(CasillaSat.seccion_rel),
         )
     )
     declaracion = (await db.execute(stmt)).scalar_one_or_none()
     if declaracion is None:
         return None
 
-    # Cargar estructura del formulario para enriquecer detalles
-    stmt_form = select(FormularioSat).where(
-        FormularioSat.codigo == declaracion.formulario_codigo
-    )
-    formulario = (await db.execute(stmt_form)).scalar_one_or_none()
-
-    # Cargar secciones + casillas para metadata
-    secciones_meta: dict[str, dict] = {}
-    if formulario:
-        stmt_sec = (
-            select(SeccionFormulario)
-            .where(SeccionFormulario.formulario_id == formulario.id)
-            .options(
-                selectinload(SeccionFormulario.casillas),
-            )
-            .order_by(SeccionFormulario.numero_seccion)
-        )
-        for sec in (await db.execute(stmt_sec)).scalars().unique().all():
-            secciones_meta[str(sec.numero_seccion)] = {
-                "nombre": sec.nombre,
-                "tipo_seccion": sec.tipo_seccion,
-                "casillas": {
-                    c.codigo: {
-                        "nombre": c.nombre,
-                        "tipo_casilla": c.tipo_casilla,
-                        "es_editable": c.es_editable,
-                        "naturaleza": c.naturaleza,
-                        "orden": c.orden_seccion,
-                    }
-                    for c in sec.casillas
-                },
-            }
-
     detalles_out = []
-    for det in sorted(declaracion.detalles, key=lambda d: d.casilla_codigo or ""):
-        meta_casilla = (
-            secciones_meta.get(det.seccion, {})
-            .get("casillas", {})
-            .get(det.casilla_codigo, {})
-        )
+    for det in declaracion.detalles:
+        casilla = det.casilla
         detalles_out.append({
             "id": det.id,
-            "casilla_id": det.casilla_id,
-            "casilla_codigo": det.casilla_codigo,
-            "seccion": det.seccion,
-            "valor": redondear_entero(det.valor),
-            "valor_original": float(det.valor_original) if det.valor_original else 0,
-            "tipo_casilla": det.tipo_casilla or meta_casilla.get("tipo_casilla"),
-            "nombre": meta_casilla.get("nombre", ""),
-            "es_editable": meta_casilla.get("es_editable", False),
-            "naturaleza": meta_casilla.get("naturaleza"),
+            "casilla_codigo": casilla.codigo if casilla else "",
+            "casilla_nombre": casilla.nombre if casilla else "",
+            "seccion": casilla.seccion_rel.numero_seccion if casilla and casilla.seccion_rel else "",
+            "tipo_casilla": casilla.tipo_casilla if casilla else "",
+            "base_imponible": int(det.base_imponible or 0),
+            "monto_impuesto": int(det.monto_impuesto or 0),
+            "es_ajuste_manual": det.es_ajuste_manual,
+            "motivo_ajuste": det.motivo_ajuste,
         })
+
+    # Obtener código del formulario
+    stmt_form = select(FormularioSat.codigo).where(
+        FormularioSat.id == declaracion.formulario_sat_id
+    )
+    form_codigo = (await db.execute(stmt_form)).scalar_one_or_none() or ""
 
     return {
         "id": declaracion.id,
         "empresa_id": declaracion.empresa_id,
-        "formulario_codigo": declaracion.formulario_codigo,
-        "anio_periodo": declaracion.anio_periodo,
-        "mes_periodo": declaracion.mes_periodo,
+        "formulario_codigo": form_codigo,
+        "anio": declaracion.anio,
+        "mes": declaracion.mes,
         "estado": declaracion.estado,
-        "total_debito_fiscal": redondear_entero(declaracion.total_debito_fiscal),
-        "total_credito_fiscal": redondear_entero(declaracion.total_credito_fiscal),
-        "remanente_periodo_anterior": redondear_entero(declaracion.remanente_periodo_anterior),
-        "impuesto_determinado": redondear_entero(declaracion.impuesto_determinado),
-        "remanente_siguiente_periodo": redondear_entero(declaracion.remanente_siguiente_periodo),
-        "impuesto_a_pagar": redondear_entero(declaracion.impuesto_a_pagar),
+        "total_debito_fiscal": int(declaracion.total_debito_fiscal or 0),
+        "total_credito_fiscal": int(declaracion.total_credito_fiscal or 0),
+        "remanente_periodo_anterior": int(declaracion.remanente_periodo_anterior or 0),
+        "impuesto_determinado": int(declaracion.impuesto_determinado or 0),
+        "remanente_siguiente_periodo": int(declaracion.remanente_siguiente_periodo or 0),
+        "impuesto_a_pagar": int(declaracion.impuesto_a_pagar or 0),
         "detalles": detalles_out,
-        "secciones": secciones_meta,
+        "created_at": declaracion.created_at.isoformat() if declaracion.created_at else None,
     }
 
 
@@ -729,7 +654,6 @@ async def finalizar_declaracion(
     declaracion_id: int,
     usuario_id: int | None = None,
 ) -> dict:
-    """Finaliza una declaración (ya no se puede modificar)."""
     stmt = select(DeclaracionImpuesto).where(DeclaracionImpuesto.id == declaracion_id)
     declaracion = (await db.execute(stmt)).scalar_one_or_none()
     if declaracion is None:
@@ -740,7 +664,6 @@ async def finalizar_declaracion(
     declaracion.estado = "FINALIZADO"
     declaracion.finalizado_por = usuario_id
     declaracion.fecha_cierre = datetime.now(timezone.utc)
-    declaracion.updated_by = usuario_id
 
     await db.commit()
     return {"mensaje": "Declaración finalizada exitosamente", "declaracion_id": declaracion.id}
@@ -753,11 +676,12 @@ async def aplicar_ajuste_manual(
     db: AsyncSession,
     declaracion_id: int,
     casilla_codigo: str,
-    nuevo_valor: Decimal,
-    justificacion: str | None = None,
+    base_imponible: Decimal | None = None,
+    monto_impuesto: Decimal | None = None,
+    motivo_ajuste: str | None = None,
     usuario_id: int | None = None,
 ) -> dict:
-    """Aplica un ajuste manual a una casilla editable y recalcula totales."""
+    """Aplica un ajuste manual a una casilla y recalcula totales."""
     stmt = select(DeclaracionImpuesto).where(DeclaracionImpuesto.id == declaracion_id)
     declaracion = (await db.execute(stmt)).scalar_one_or_none()
     if declaracion is None:
@@ -765,37 +689,34 @@ async def aplicar_ajuste_manual(
     if declaracion.estado == "FINALIZADO":
         raise ValueError("No se puede ajustar una declaración finalizada")
 
-    # Buscar el detalle
-    stmt_det = select(DetalleDeclaracionImpuesto).where(
-        DetalleDeclaracionImpuesto.declaracion_id == declaracion_id,
-        DetalleDeclaracionImpuesto.casilla_codigo == casilla_codigo,
+    # Buscar el detalle por casilla_codigo
+    stmt_det = (
+        select(DetalleDeclaracionImpuesto)
+        .join(CasillaSat, DetalleDeclaracionImpuesto.casilla_sat_id == CasillaSat.id)
+        .where(
+            DetalleDeclaracionImpuesto.declaracion_id == declaracion_id,
+            CasillaSat.codigo == casilla_codigo,
+        )
     )
     detalle = (await db.execute(stmt_det)).scalar_one_or_none()
     if detalle is None:
         raise ValueError(f"Casilla {casilla_codigo} no encontrada en la declaración")
 
     # Verificar que la casilla es editable
-    stmt_cas = (
-        select(CasillaSat)
-        .join(SeccionFormulario, CasillaSat.seccion_id == SeccionFormulario.id)
-        .where(
-            CasillaSat.codigo == casilla_codigo,
-            SeccionFormulario.formulario_id == select(FormularioSat.id).where(
-                FormularioSat.codigo == declaracion.formulario_codigo
-            ).scalar_subquery(),
-        )
-    )
-    casilla = (await db.execute(stmt_cas)).scalar_one_or_none()
+    casilla = await db.get(CasillaSat, detalle.casilla_sat_id)
     if casilla and not casilla.es_editable:
         raise ValueError(f"La casilla {casilla_codigo} no es editable")
 
     # Aplicar ajuste
-    detalle.valor = redondear_entero(nuevo_valor)
-    detalle.valor_original = nuevo_valor
-    detalle.justificacion = justificacion
-    detalle.updated_by = usuario_id
+    if base_imponible is not None:
+        detalle.base_imponible = redondear_entero(base_imponible)
+    if monto_impuesto is not None:
+        detalle.monto_impuesto = redondear_entero(monto_impuesto)
+    detalle.es_ajuste_manual = True
+    detalle.motivo_ajuste = motivo_ajuste
+    detalle.ajustado_por = usuario_id
 
-    # Recalcular totales de la declaración
+    # Recalcular totales
     await _recalcular_totales(db, declaracion)
 
     await db.commit()
@@ -804,34 +725,35 @@ async def aplicar_ajuste_manual(
 
 async def _recalcular_totales(db: AsyncSession, declaracion: DeclaracionImpuesto) -> None:
     """Recalcula los totales de la declaración a partir de sus detalles."""
-    stmt_dets = select(DetalleDeclaracionImpuesto).where(
-        DetalleDeclaracionImpuesto.declaracion_id == declaracion.id
+    stmt_dets = (
+        select(DetalleDeclaracionImpuesto, CasillaSat.tipo_casilla)
+        .join(CasillaSat, DetalleDeclaracionImpuesto.casilla_sat_id == CasillaSat.id)
+        .where(DetalleDeclaracionImpuesto.declaracion_id == declaracion.id)
     )
-    detalles = list((await db.execute(stmt_dets)).scalars().all())
+    rows = (await db.execute(stmt_dets)).all()
 
-    debito = Decimal("0")
-    credito = Decimal("0")
-
-    for det in detalles:
-        sec = det.seccion or ""
-        if sec.startswith("3"):
-            debito += det.valor or Decimal("0")
-        elif sec.startswith(("5", "6")):
-            credito += det.valor or Decimal("0")
-
+    total_debito = Decimal("0")
+    total_credito = Decimal("0")
     remanente_ant = Decimal("0")
-    for det in detalles:
-        if det.casilla_codigo == "5_REM":
-            remanente_ant = det.valor or Decimal("0")
-            break
 
-    impuesto_det = max(Decimal("0"), debito - credito - remanente_ant)
-    remanente_sig = max(Decimal("0"), credito + remanente_ant - debito)
+    for det, tipo_casilla in rows:
+        tipo = (tipo_casilla or "").upper()
+        if tipo == "DEBITO_FISCAL":
+            total_debito += det.monto_impuesto or Decimal("0")
+        elif tipo == "CREDITO_FISCAL":
+            total_credito += det.monto_impuesto or Decimal("0")
 
-    declaracion.total_debito_fiscal = redondear_entero(debito)
-    declaracion.total_credito_fiscal = redondear_entero(credito)
-    declaracion.remanente_periodo_anterior = redondear_entero(remanente_ant)
+        # Buscar casilla 5_REM para remanente anterior
+        if det.casilla and det.casilla.codigo == "5_REM":
+            remanente_ant = det.monto_impuesto or Decimal("0")
+
+    impuesto_det = max(Decimal("0"), total_debito - total_credito - remanente_ant)
+    remanente_sig = max(Decimal("0"), total_credito + remanente_ant - total_debito)
+
+    declaracion.total_debito_fiscal = redondear_entero(total_debito)
+    declaracion.total_credito_fiscal = redondear_entero(total_credito)
     declaracion.impuesto_determinado = redondear_entero(impuesto_det)
+    declaracion.remanente_periodo_anterior = redondear_entero(remanente_ant)
     declaracion.remanente_siguiente_periodo = redondear_entero(remanente_sig)
     declaracion.impuesto_a_pagar = redondear_entero(impuesto_det)
 
@@ -845,41 +767,41 @@ async def obtener_facturas_casilla(
     casilla_codigo: str,
 ) -> list[dict]:
     """Obtiene las facturas asociadas a una casilla de la declaración."""
-    stmt = (
-        select(DeclaracionImpuestoFactura)
+    # Buscar el detalle
+    stmt_det = (
+        select(DetalleDeclaracionImpuesto.id)
+        .join(CasillaSat, DetalleDeclaracionImpuesto.casilla_sat_id == CasillaSat.id)
         .where(
-            DeclaracionImpuestoFactura.declaracion_id == declaracion_id,
-            DeclaracionImpuestoFactura.casilla_codigo == casilla_codigo,
+            DetalleDeclaracionImpuesto.declaracion_id == declaracion_id,
+            CasillaSat.codigo == casilla_codigo,
         )
     )
-    asociaciones = list((await db.execute(stmt)).scalars().all())
-
-    if not asociaciones:
+    detalle_id = (await db.execute(stmt_det)).scalar_one_or_none()
+    if detalle_id is None:
         return []
 
-    factura_ids = [a.factura_id for a in asociaciones]
-
+    # Obtener facturas asociadas
     stmt_fac = (
-        select(FacturaElectronica)
-        .where(FacturaElectronica.id.in_(factura_ids))
+        select(FacturaElectronica, DeclaracionImpuestoFactura.base_asignada, DeclaracionImpuestoFactura.impuesto_asignado)
+        .join(
+            DeclaracionImpuestoFactura,
+            FacturaElectronica.id == DeclaracionImpuestoFactura.factura_id,
+        )
+        .where(DeclaracionImpuestoFactura.detalle_declaracion_id == detalle_id)
         .order_by(FacturaElectronica.fecha_emision)
     )
-    facturas = list((await db.execute(stmt_fac)).scalars().all())
+    rows = (await db.execute(stmt_fac)).all()
 
     resultado = []
-    for f in facturas:
+    for factura, base_asig, imp_asig in rows:
         resultado.append({
-            "id": f.id,
-            "numero_documento": f.numero_documento,
-            "serie": getattr(f, "serie", ""),
-            "fecha_emision": f.fecha_emision.isoformat() if f.fecha_emision else None,
-            "nit_emisor": getattr(f, "nit_emisor", ""),
-            "nombre_emisor": getattr(f, "nombre_emisor_receptor", ""),
-            "tipo_operacion": getattr(f, "tipo_operacion", ""),
-            "base_asignada": float(f.total_gravado_gtq or 0),
-            "impuesto_asignado": float(f.total_iva_gtq or 0),
-            "total": float(f.total_gtq or 0),
-            "estado": f.estado,
+            "factura_id": factura.id,
+            "numero": f"{factura.serie or ''}-{factura.numero}",
+            "fecha_emision": factura.fecha_emision.strftime("%Y-%m-%d") if factura.fecha_emision else None,
+            "tercero": factura.receptor_nombre if factura.tipo_operacion == "Venta" else factura.emisor_nombre,
+            "nit": factura.receptor_nit if factura.tipo_operacion == "Venta" else factura.emisor_nit,
+            "base_asignada": float(base_asig or 0),
+            "impuesto_asignado": float(imp_asig or 0),
         })
 
     return resultado

@@ -1,7 +1,4 @@
 """Servicio para gestión de Secciones de Formulario SAT"""
-
-from uuid import UUID
-
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -18,7 +15,7 @@ class SeccionFormularioService:
     # ============================================================
     async def obtener_por_formulario(
         self,
-        formulario_id: UUID,
+        formulario_id: int,  # ✅ BIGINT (era UUID)
         skip: int = 0,
         limit: int = 100,
     ) -> tuple[list[SeccionFormulario], int]:
@@ -36,10 +33,9 @@ class SeccionFormularioService:
         query = query.offset(skip).limit(limit)
         result = await self.db.execute(query)
         secciones = result.scalars().all()
-
         return list(secciones), total
 
-    async def obtener_por_id(self, seccion_id: UUID) -> SeccionFormulario | None:
+    async def obtener_por_id(self, seccion_id: int) -> SeccionFormulario | None:  # ✅ BIGINT (era UUID)
         """Obtiene una sección con sus casillas"""
         query = (
             select(SeccionFormulario)
@@ -49,7 +45,7 @@ class SeccionFormularioService:
         result = await self.db.execute(query)
         return result.scalars().first()
 
-    async def verificar_editable(self, formulario_id: UUID) -> None:
+    async def verificar_editable(self, formulario_id: int) -> None:  # ✅ BIGINT (era UUID)
         """Verifica que el formulario permite modificaciones"""
         query = select(FormularioSat).where(FormularioSat.id == formulario_id)
         result = await self.db.execute(query)
@@ -62,7 +58,7 @@ class SeccionFormularioService:
     # ============================================================
     # CRUD
     # ============================================================
-    async def crear(self, data: dict, usuario_id: UUID | None = None) -> SeccionFormulario:
+    async def crear(self, data: dict, usuario_id: int | None = None) -> SeccionFormulario:  # ✅ BIGINT (era UUID)
         """Crea una nueva sección"""
         # Validar que el formulario existe
         form_query = select(FormularioSat).where(FormularioSat.id == data["formulario_id"])
@@ -85,9 +81,9 @@ class SeccionFormularioService:
 
     async def actualizar(
         self,
-        seccion_id: UUID,
+        seccion_id: int,  # ✅ BIGINT (era UUID)
         data: dict,
-        usuario_id: UUID | None = None,
+        usuario_id: int | None = None,  # ✅ BIGINT (era UUID)
     ) -> SeccionFormulario | None:
         """Actualiza una sección"""
         seccion = await self.obtener_por_id(seccion_id)
@@ -100,6 +96,7 @@ class SeccionFormularioService:
 
         seccion.updated_by = usuario_id
         await self.db.commit()
+
         # ✅ Recargar con eager loading de casillas
         query = (
             select(SeccionFormulario)
@@ -109,12 +106,11 @@ class SeccionFormularioService:
         result = await self.db.execute(query)
         return result.scalars().first()
 
-    async def eliminar(self, seccion_id: UUID) -> bool:
+    async def eliminar(self, seccion_id: int) -> bool:  # ✅ BIGINT (era UUID)
         """Elimina una sección (hard delete con cascade)"""
         seccion = await self.obtener_por_id(seccion_id)
         if seccion is None:
             return False
-
         await self.db.delete(seccion)
         await self.db.commit()
         return True
@@ -124,9 +120,9 @@ class SeccionFormularioService:
     # ============================================================
     async def reordenar(
         self,
-        formulario_id: UUID,
-        orden_secciones: list[UUID],
-        usuario_id: UUID | None = None,
+        formulario_id: int,  # ✅ BIGINT (era UUID)
+        orden_secciones: list[int],  # ✅ BIGINT (era list[UUID])
+        usuario_id: int | None = None,  # ✅ BIGINT (era UUID)
     ) -> bool:
         """Reordena las secciones de un formulario"""
         # Validar que todas las secciones pertenecen al formulario

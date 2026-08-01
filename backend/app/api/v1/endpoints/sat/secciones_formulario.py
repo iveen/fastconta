@@ -1,7 +1,4 @@
 """Router para gestión de Secciones de Formulario SAT"""
-
-from uuid import UUID
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,7 +25,7 @@ def get_service(db: AsyncSession = Depends(get_db)) -> SeccionFormularioService:
 # ============================================================
 @router.get("/", response_model=dict)
 async def listar_secciones(
-    formulario_id: UUID = Query(..., description="ID del formulario"),
+    formulario_id: int = Query(..., description="ID del formulario"),  # ✅ BIGINT (era UUID)
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
     service: SeccionFormularioService = Depends(get_service),
@@ -46,7 +43,7 @@ async def listar_secciones(
 # ============================================================
 @router.get("/{seccion_id}", response_model=SeccionFormularioDetail)
 async def obtener_seccion(
-    seccion_id: UUID,
+    seccion_id: int,  # ✅ BIGINT (era UUID)
     service: SeccionFormularioService = Depends(get_service),
 ):
     """Obtiene una sección con sus casillas"""
@@ -81,12 +78,13 @@ async def crear_seccion(
 # ============================================================
 @router.patch("/{seccion_id}", response_model=SeccionFormularioResponse)
 async def actualizar_seccion(
-    seccion_id: UUID,
+    seccion_id: int,  # ✅ BIGINT (era UUID)
     data: SeccionFormularioUpdate,
     service: SeccionFormularioService = Depends(get_service),
 ):
     """Actualiza una sección"""
-    seccion = await service.actualizar(seccion_id, data.model_dump(exclude_unset=True))
+    # ✅ VALIDACIÓN ANTES de actualizar (no después)
+    seccion = await service.obtener_por_id(seccion_id)
     if seccion is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -95,6 +93,7 @@ async def actualizar_seccion(
     if seccion.es_automatica:
         raise HTTPException(status_code=403, detail="No se puede modificar una sección automática")
 
+    seccion = await service.actualizar(seccion_id, data.model_dump(exclude_unset=True))
     return seccion
 
 
@@ -103,7 +102,7 @@ async def actualizar_seccion(
 # ============================================================
 @router.delete("/{seccion_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_seccion(
-    seccion_id: UUID,
+    seccion_id: int,  # ✅ BIGINT (era UUID)
     service: SeccionFormularioService = Depends(get_service),
 ):
     """Elimina una sección (cascade a casillas)"""
@@ -113,6 +112,8 @@ async def eliminar_seccion(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Sección no encontrada",
         )
+
+    # ✅ VALIDACIÓN ANTES de eliminar (no después)
     if seccion.es_automatica:
         raise HTTPException(status_code=403, detail="No se puede eliminar una sección automática")
 
@@ -130,7 +131,7 @@ async def eliminar_seccion(
 @router.post("/reordenar", status_code=status.HTTP_204_NO_CONTENT)
 async def reordenar_secciones(
     data: SeccionReordenarRequest,
-    formulario_id: UUID = Query(..., description="ID del formulario"),
+    formulario_id: int = Query(..., description="ID del formulario"),  # ✅ BIGINT (era UUID)
     service: SeccionFormularioService = Depends(get_service),
 ):
     """Reordena las secciones de un formulario"""

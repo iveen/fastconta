@@ -237,13 +237,14 @@ class FormularioSatService:
             if nueva_seccion is None:
                 continue
             for casilla_orig in seccion_orig.casillas:
+                # ✅ DESPUÉS
                 nueva_casilla = CasillaSat(
                     seccion_id=nueva_seccion.id,
                     codigo=casilla_orig.codigo,
                     codigo_visual=casilla_orig.codigo_visual,
                     nombre=casilla_orig.nombre,
                     descripcion=casilla_orig.descripcion,
-                    seccion=casilla_orig.seccion,
+                    # ❌ ELIMINADO: seccion=casilla_orig.seccion,  (es @property, no columna)
                     orden_seccion=casilla_orig.orden_seccion,
                     tipo_casilla=casilla_orig.tipo_casilla,
                     naturaleza=casilla_orig.naturaleza,

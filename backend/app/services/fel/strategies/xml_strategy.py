@@ -1,8 +1,11 @@
+import logging
+
 from app.core.file_handlers import FileContent
 from app.services.facturas.parser_xml_service import parse_fel_xml
 
 from .base import FelIngestionStrategy, FelParsedResult
 
+logger = logging.getLogger(__name__)
 
 class XmlFelStrategy(FelIngestionStrategy):
     @classmethod
@@ -13,6 +16,8 @@ class XmlFelStrategy(FelIngestionStrategy):
         xml_text = content.parsed_data.get("xml_text")
         if not xml_text:
             xml_text = content.raw_bytes.decode("utf-8", errors="replace")
+
+        logger.info(f"Processing File: {content.filename}")
 
         data = await parse_fel_xml(xml_text, db)
         if not data:

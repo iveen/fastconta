@@ -11,11 +11,26 @@ Beneficios:
 - Monitoreo vía Flower
 - Si falla el email, el job principal NO falla
 """
+
+import asyncio
 import logging
 
 from app.core.celery_app import celery_app
+from app.core.email.service import email_service
 
 logger = logging.getLogger(__name__)
+
+
+# Helper para ejecutar coroutines en Celery
+def run_async(coro):
+    """Ejecuta una coroutine en un nuevo event loop."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+        asyncio.set_event_loop(None)
 
 
 # ============================================================
@@ -29,7 +44,7 @@ logger = logging.getLogger(__name__)
     max_retries=5,
     default_retry_delay=60,
     acks_late=True,
-    rate_limit="10/m",  # Proteger SMTP
+    rate_limit="10/m",
 )
 def send_fel_import_completada(
     self,
@@ -43,11 +58,9 @@ def send_fel_import_completada(
 ) -> dict:
     """Email de éxito al completar importación FEL."""
     try:
-        import asyncio
-
-        from app.core.email.service import email_service
-
-        asyncio.run(
+        
+        
+        run_async(
             email_service.send_fel_import_completada(
                 to=to,
                 full_name=full_name,
@@ -85,11 +98,9 @@ def send_fel_import_fallida(
 ) -> dict:
     """Email de fallo al procesar importación FEL."""
     try:
-        import asyncio
-
-        from app.core.email.service import email_service
-
-        asyncio.run(
+        
+        
+        run_async(
             email_service.send_fel_import_fallida(
                 to=to,
                 full_name=full_name,
@@ -100,7 +111,7 @@ def send_fel_import_fallida(
         logger.info("📧 Email FEL fallida enviado a %s", to)
         return {"status": "sent", "to": to}
     except Exception as exc:
-        logger.exception("❌ Error enviando email FEL fallida a %s: %s", to, exc)
+        logger.exception(" Error enviando email FEL fallida a %s: %s", to, exc)
         if self.request.retries < self.max_retries:
             raise self.retry(exc=exc)
         return {"status": "failed", "error": str(exc)}
@@ -125,11 +136,9 @@ def send_fel_import_cancelada(
 ) -> dict:
     """Email de cancelación de importación FEL."""
     try:
-        import asyncio
-
-        from app.core.email.service import email_service
-
-        asyncio.run(
+        
+        
+        run_async(
             email_service.send_fel_import_cancelada(
                 to=to,
                 full_name=full_name,
@@ -173,11 +182,9 @@ def send_importacion_completada(
 ) -> dict:
     """Email de éxito al completar importación de inventario."""
     try:
-        import asyncio
-
-        from app.core.email.service import email_service
-
-        asyncio.run(
+        
+        
+        run_async(
             email_service.send_importacion_completada(
                 to=to,
                 full_name=full_name,
@@ -216,11 +223,9 @@ def send_importacion_fallida(
 ) -> dict:
     """Email de fallo al procesar importación de inventario."""
     try:
-        import asyncio
-
-        from app.core.email.service import email_service
-
-        asyncio.run(
+        
+        
+        run_async(
             email_service.send_importacion_fallida(
                 to=to,
                 full_name=full_name,
@@ -228,7 +233,7 @@ def send_importacion_fallida(
                 error_mensaje=error_mensaje,
             )
         )
-        logger.info("📧 Email importación fallida enviado a %s", to)
+        logger.info(" Email importación fallida enviado a %s", to)
         return {"status": "sent", "to": to}
     except Exception as exc:
         logger.exception("❌ Error enviando email importación fallida a %s: %s", to, exc)
@@ -248,7 +253,7 @@ def send_importacion_fallida(
     max_retries=5,
     default_retry_delay=120,
     acks_late=True,
-    rate_limit="5/m",  # Emails críticos, más conservador
+    rate_limit="5/m",
 )
 def send_tenant_aprobado(
     self,
@@ -260,11 +265,9 @@ def send_tenant_aprobado(
 ) -> dict:
     """Email de aprobación de tenant con credenciales."""
     try:
-        import asyncio
-
-        from app.core.email.service import email_service
-
-        asyncio.run(
+        
+        
+        run_async(
             email_service.send_tenant_aprobado(
                 to=to,
                 company_name=company_name,
@@ -300,11 +303,9 @@ def send_tenant_rechazado(
 ) -> dict:
     """Email de rechazo de solicitud de tenant."""
     try:
-        import asyncio
-
-        from app.core.email.service import email_service
-
-        asyncio.run(
+        
+        
+        run_async(
             email_service.send_tenant_rechazado(
                 to=to,
                 company_name=company_name,
@@ -315,7 +316,7 @@ def send_tenant_rechazado(
         logger.info("📧 Email tenant rechazado enviado a %s", to)
         return {"status": "sent", "to": to}
     except Exception as exc:
-        logger.exception("❌ Error enviando email tenant rechazado a %s: %s", to, exc)
+        logger.exception(" Error enviando email tenant rechazado a %s: %s", to, exc)
         if self.request.retries < self.max_retries:
             raise self.retry(exc=exc)
         return {"status": "failed", "error": str(exc)}
@@ -338,11 +339,9 @@ def send_solicitud_recibida(
 ) -> dict:
     """Email de confirmación de solicitud recibida."""
     try:
-        import asyncio
-
-        from app.core.email.service import email_service
-
-        asyncio.run(
+        
+        
+        run_async(
             email_service.send_solicitud_recibida(
                 to=to,
                 company_name=company_name,

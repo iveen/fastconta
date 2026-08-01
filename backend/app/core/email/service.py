@@ -305,7 +305,8 @@ class EmailService:
         archivo_nombre: str,
         total_archivos: int,
         facturas_creadas: int,
-        facturas_rechazadas: int,
+        facturas_duplicadas: int,  # ✅ Cambiado de facturas_rechazadas
+        facturas_con_error: int,   # ✅ Agregado
     ) -> bool:
         """Notifica que la importación FEL se completó."""
         return await self.send_email(
@@ -317,9 +318,10 @@ class EmailService:
                 "archivo_nombre": archivo_nombre,
                 "total_archivos": total_archivos,
                 "facturas_creadas": facturas_creadas,
-                "facturas_rechazadas": facturas_rechazadas,
+                "facturas_duplicadas": facturas_duplicadas,  
+                "facturas_con_error": facturas_con_error,    
             },
-        )
+    )
 
     async def send_fel_import_fallida(
         self,

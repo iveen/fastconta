@@ -1,7 +1,4 @@
 """Router para gestión de Casillas SAT"""
-
-from uuid import UUID
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,7 +25,7 @@ def get_service(db: AsyncSession = Depends(get_db)) -> CasillaSatService:
 # ============================================================
 @router.get("/", response_model=dict)
 async def listar_casillas(
-    seccion_id: UUID = Query(..., description="ID de la sección"),
+    seccion_id: int = Query(..., description="ID de la sección"),  # ✅ BIGINT (era UUID)
     skip: int = Query(0, ge=0),
     limit: int = Query(200, ge=1, le=500),
     service: CasillaSatService = Depends(get_service),
@@ -46,7 +43,7 @@ async def listar_casillas(
 # ============================================================
 @router.get("/{casilla_id}", response_model=CasillaSatDetail)
 async def obtener_casilla(
-    casilla_id: UUID,
+    casilla_id: int,  # ✅ BIGINT (era UUID)
     service: CasillaSatService = Depends(get_service),
 ):
     """Obtiene una casilla con reglas y exclusiones"""
@@ -81,24 +78,23 @@ async def crear_casilla(
 # ============================================================
 @router.patch("/{casilla_id}", response_model=CasillaSatResponse)
 async def actualizar_casilla(
-    casilla_id: UUID,
+    casilla_id: int,  # ✅ BIGINT (era UUID)
     data: CasillaSatUpdate,
     service: CasillaSatService = Depends(get_service),
 ):
     """Actualiza una casilla"""
     casilla = await service.obtener_por_id(casilla_id)
-
     if casilla is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Casilla no encontrada",
         )
 
+    # ✅ VALIDACIÓN ANTES de actualizar (no después)
     if casilla.es_automatica:
         raise HTTPException(status_code=403, detail="No se puede modificar una casilla automática")
 
     casilla = await service.actualizar(casilla_id, data.model_dump(exclude_unset=True))
-
     return casilla
 
 
@@ -107,18 +103,18 @@ async def actualizar_casilla(
 # ============================================================
 @router.delete("/{casilla_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_casilla(
-    casilla_id: UUID,
+    casilla_id: int,  # ✅ BIGINT (era UUID)
     service: CasillaSatService = Depends(get_service),
 ):
     """Elimina una casilla (cascade a reglas y exclusiones)"""
     casilla = await service.obtener_por_id(casilla_id)
-
     if casilla is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Casilla no encontrada",
         )
 
+    # ✅ VALIDACIÓN ANTES de eliminar (no después)
     if casilla.es_automatica:
         raise HTTPException(status_code=403, detail="No se puede eliminar una casilla automática")
 
@@ -135,12 +131,22 @@ async def eliminar_casilla(
 # ============================================================
 @router.post("/{casilla_id}/duplicar", response_model=CasillaSatResponse)
 async def duplicar_casilla(
-    casilla_id: UUID,
+    casilla_id: int,  # ✅ BIGINT (era UUID)
     data: CasillaSatDuplicarRequest,
     service: CasillaSatService = Depends(get_service),
 ):
     """Duplica una casilla con sus reglas y exclusiones"""
     try:
+        # ✅ VALIDACIÓN ANTES de duplicar
+        casilla = await service.obtener_por_id(casilla_id)
+        if casilla is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Casilla no encontrada",
+            )
+        if casilla.es_automatica:
+            raise HTTPException(status_code=403, detail="No se puede duplicar una casilla automática")
+
         nueva = await service.duplicar(
             casilla_id=casilla_id,
             nuevo_codigo=data.nuevo_codigo,

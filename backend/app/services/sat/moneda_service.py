@@ -44,7 +44,7 @@ class CatalogoMonedaService:
         query = select(CatalogoMoneda)
 
         if activo is not None:
-            query = query.where(CatalogoMoneda.activo.is_(activo))
+            query = query.where(CatalogoMoneda.is_active.is_(activo))
         if search:
             search_pattern = f"%{search}%"
             query = query.where(

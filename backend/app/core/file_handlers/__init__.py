@@ -1,6 +1,7 @@
 from . import (
     pdf_handler,
     xml_handler,
+    zip_handler,
 )
 from .base import FileContent, FileHandler, FileHandlerRegistry
 

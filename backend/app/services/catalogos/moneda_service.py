@@ -23,8 +23,8 @@ class MonedaService:
         count_query = select(func.count()).select_from(CatalogoMoneda)
 
         if activo is not None:
-            query = query.where(CatalogoMoneda.activo == activo)
-            count_query = count_query.where(CatalogoMoneda.activo == activo)
+            query = query.where(CatalogoMoneda.is_active.is_(activo))
+            count_query = count_query.where(CatalogoMoneda.is_active.is_(activo))
 
         if search:
             filtro = or_(
@@ -41,7 +41,7 @@ class MonedaService:
         return list(result.scalars().all()), total
 
     async def obtener_todos_activos(self) -> list[CatalogoMoneda]:
-        query = select(CatalogoMoneda).where(CatalogoMoneda.activo.is_(True)).order_by(CatalogoMoneda.codigo_iso)
+        query = select(CatalogoMoneda).where(CatalogoMoneda.is_active.is_(True)).order_by(CatalogoMoneda.codigo_iso)
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
@@ -82,6 +82,6 @@ class MonedaService:
         moneda = await self.obtener_por_id(moneda_id)
         if not moneda:
             return False
-        moneda.activo = False
+        moneda.is_active = False
         await self.db.commit()
         return True

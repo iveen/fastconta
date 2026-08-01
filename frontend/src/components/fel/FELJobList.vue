@@ -44,7 +44,7 @@
     <div v-else class="space-y-3">
       <FELJobProgress
         v-for="job in jobs"
-        :key="job.id"
+        :key="job.id || job.job_id"
         :job="job"
         @updated="onJobUpdated"
         @cancelled="onJobUpdated"
@@ -94,7 +94,12 @@ const onJobReprocessed = () => {
 }
 
 const addJob = (job) => {
-  jobs.value.unshift(job)
+  // ✅ NORMALIZAR: Asegurar que el objeto tenga 'id' para que los demás componentes funcionen
+  const normalizedJob = {
+    ...job,
+    id: job.id || job.job_id
+  }
+  jobs.value.unshift(normalizedJob)
 }
 
 watch(() => companyStore.selectedCompanyId, () => { loadJobs() })

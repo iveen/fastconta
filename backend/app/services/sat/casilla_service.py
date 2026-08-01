@@ -1,7 +1,4 @@
 """Servicio para gestión de Casillas SAT"""
-
-from uuid import UUID
-
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -23,7 +20,7 @@ class CasillaSatService:
     # ============================================================
     async def obtener_por_seccion(
         self,
-        seccion_id: UUID,
+        seccion_id: int,  # ✅ BIGINT (era UUID)
         skip: int = 0,
         limit: int = 200,
     ) -> tuple[list[CasillaSat], int]:
@@ -45,10 +42,9 @@ class CasillaSatService:
         query = query.offset(skip).limit(limit)
         result = await self.db.execute(query)
         casillas = result.scalars().all()
-
         return list(casillas), total
 
-    async def obtener_por_id(self, casilla_id: UUID) -> CasillaSat | None:
+    async def obtener_por_id(self, casilla_id: int) -> CasillaSat | None:  # ✅ BIGINT (era UUID)
         """Obtiene una casilla con reglas y exclusiones"""
         query = (
             select(CasillaSat)
@@ -62,7 +58,7 @@ class CasillaSatService:
         result = await self.db.execute(query)
         return result.scalars().first()
 
-    async def verificar_editable(self, seccion_id: UUID) -> None:
+    async def verificar_editable(self, seccion_id: int) -> None:  # ✅ BIGINT (era UUID)
         """Verifica que el formulario de la sección permite modificaciones"""
         query = (
             select(SeccionFormulario)
@@ -79,19 +75,20 @@ class CasillaSatService:
     # ============================================================
     # CRUD
     # ============================================================
-    async def crear(self, data: dict, usuario_id: UUID | None = None) -> CasillaSat:
+    async def crear(self, data: dict, usuario_id: int | None = None) -> CasillaSat:  # ✅ BIGINT (era UUID)
         """Crea una nueva casilla"""
         # Validar que la sección existe
         sec_query = select(SeccionFormulario).where(SeccionFormulario.id == data["seccion_id"])
         sec_result = await self.db.execute(sec_query)
-        if sec_result.scalars().first() is None:
+        seccion = sec_result.scalars().first()
+        if seccion is None:
             raise ValueError("Sección no encontrada")
 
-        data["seccion"] = sec_result.numero_seccion
-
+        # ✅ FIX: No asignamos 'seccion' porque NO es columna en CasillaSat (es @property)
+        # La sección se deduce via seccion_rel
         casilla = CasillaSat(**data, created_by=usuario_id)
         self.db.add(casilla)
-        await self.db.commit()  # ✅ Commit en lugar de flush
+        await self.db.commit()
 
         # ✅ Recargar con eager loading
         query = (
@@ -108,9 +105,9 @@ class CasillaSatService:
 
     async def actualizar(
         self,
-        casilla_id: UUID,
+        casilla_id: int,  # ✅ BIGINT (era UUID)
         data: dict,
-        usuario_id: UUID | None = None,
+        usuario_id: int | None = None,  # ✅ BIGINT (era UUID)
     ) -> CasillaSat | None:
         """Actualiza una casilla"""
         casilla = await self.obtener_por_id(casilla_id)
@@ -122,7 +119,7 @@ class CasillaSatService:
                 setattr(casilla, key, value)
 
         casilla.updated_by = usuario_id
-        await self.db.commit()  # ✅ Commit en lugar de flush
+        await self.db.commit()
 
         # ✅ Recargar con eager loading
         query = (
@@ -137,14 +134,13 @@ class CasillaSatService:
         result = await self.db.execute(query)
         return result.scalars().first()
 
-    async def eliminar(self, casilla_id: UUID) -> bool:
+    async def eliminar(self, casilla_id: int) -> bool:  # ✅ BIGINT (era UUID)
         """Elimina una casilla (hard delete con cascade)"""
         casilla = await self.obtener_por_id(casilla_id)
         if casilla is None:
             return False
-
         await self.db.delete(casilla)
-        await self.db.commit()  # ✅ Commit en lugar de flush
+        await self.db.commit()
         return True
 
     # ============================================================
@@ -152,12 +148,12 @@ class CasillaSatService:
     # ============================================================
     async def duplicar(
         self,
-        casilla_id: UUID,
+        casilla_id: int,  # ✅ BIGINT (era UUID)
         nuevo_codigo: str,
         nuevo_nombre: str | None = None,
         copiar_reglas: bool = True,
         copiar_exclusiones: bool = True,
-        usuario_id: UUID | None = None,
+        usuario_id: int | None = None,  # ✅ BIGINT (era UUID)
     ) -> CasillaSat:
         """Duplica una casilla con sus reglas y exclusiones"""
         original = await self.obtener_por_id(casilla_id)
@@ -185,7 +181,7 @@ class CasillaSatService:
             created_by=usuario_id,
         )
         self.db.add(nueva)
-        await self.db.commit()  # ✅ Commit en lugar de flush
+        await self.db.commit()
 
         # Duplicar reglas
         if copiar_reglas:
@@ -216,7 +212,7 @@ class CasillaSatService:
                 )
                 self.db.add(nueva_exclusion)
 
-        await self.db.commit()  # ✅ Commit final
+        await self.db.commit()
 
         # ✅ Recargar con eager loading
         query = (

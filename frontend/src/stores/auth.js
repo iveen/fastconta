@@ -63,12 +63,10 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await api.post('/auth/login', credentials)
       const data = response.data
       
-      // ✅ Debug: Log de la respuesta del backend
-      console.log('📡 Respuesta del backend /auth/login:', data)
+
       
       // ✅ Verificar que la respuesta tiene la estructura esperada
       if (!data || !data.user_id) {
-        console.error('❌ Respuesta inesperada del backend:', data)
         throw new Error('Respuesta inválida del servidor')
       }
       

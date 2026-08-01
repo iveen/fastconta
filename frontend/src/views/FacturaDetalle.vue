@@ -264,9 +264,9 @@ const cargarFactura = async () => {
   cargando.value = true
   error.value = ''
   const facturaId = route.params.factura_id
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
-  if (!facturaId || facturaId === 'undefined' || !uuidRegex.test(facturaId)) {
+  // ✅ Validación flexible: acepta UUID o ID numérico
+  if (!facturaId || facturaId === 'undefined') {
     error.value = `ID inválido: "${facturaId}"`
     cargando.value = false
     return
@@ -279,7 +279,7 @@ const cargarFactura = async () => {
     }
     const resp = await api.get(`/facturas/${facturaId}`, { params })
     factura.value = resp.data
-    if (!factura.value?.id) { 
+    if (!factura.value?.id) {  
       error.value = 'La factura no tiene datos válidos'
       factura.value = null
     }

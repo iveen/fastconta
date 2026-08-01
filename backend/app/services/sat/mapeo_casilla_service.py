@@ -1,7 +1,5 @@
 """Servicio para gestión de Mapeo Casilla-Cuenta"""
-
 from io import BytesIO
-from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,15 +36,14 @@ class MapeoCasillaCuentaService:
     # ============================================================
     async def obtener_todos(
         self,
-        casilla_id: UUID | None = None,
-        tenant_id: UUID | None = None,
-        empresa_id: UUID | None = None,
+        casilla_id: int | None = None,  # ✅ BIGINT (era UUID)
+        tenant_id: int | None = None,  # ✅ BIGINT (era UUID)
+        empresa_id: int | None = None,  # ✅ BIGINT (era UUID)
         skip: int = 0,
         limit: int = 50,
     ) -> tuple[list[MapeoCasillaCuenta], int]:
         """Lista mapeos con filtros exactos (incluye NULL)"""
         query = select(MapeoCasillaCuenta).options(selectinload(MapeoCasillaCuenta.casilla))
-
         if casilla_id is not None:
             query = query.where(MapeoCasillaCuenta.casilla_id == casilla_id)
         if tenant_id is not None:
@@ -61,7 +58,7 @@ class MapeoCasillaCuentaService:
         result = await self.db.execute(query)
         return list(result.scalars().all()), total
 
-    async def obtener_por_id(self, mapeo_id: UUID) -> MapeoCasillaCuenta | None:
+    async def obtener_por_id(self, mapeo_id: int) -> MapeoCasillaCuenta | None:  # ✅ BIGINT (era UUID)
         """Obtiene un mapeo específico"""
         query = (
             select(MapeoCasillaCuenta)
@@ -71,14 +68,13 @@ class MapeoCasillaCuentaService:
         result = await self.db.execute(query)
         return result.scalars().first()
 
-    async def obtener_por_casilla(self, casilla_id: UUID, tenant_id: UUID | None = None) -> list[MapeoCasillaCuenta]:
+    async def obtener_por_casilla(self, casilla_id: int, tenant_id: int | None = None) -> list[MapeoCasillaCuenta]:  # ✅ BIGINT (era UUID)
         """Obtiene mapeos de una casilla (prioriza tenant específico, fallback global)"""
         query = (
             select(MapeoCasillaCuenta)
             .where(MapeoCasillaCuenta.casilla_id == casilla_id)
             .order_by(MapeoCasillaCuenta.tipo_movimiento)
         )
-
         if tenant_id is not None:
             # Traer mapeos del tenant O globales
             query = query.where((MapeoCasillaCuenta.tenant_id == tenant_id) | (MapeoCasillaCuenta.tenant_id.is_(None)))
@@ -114,7 +110,7 @@ class MapeoCasillaCuentaService:
         await self.db.refresh(mapeo)
         return mapeo
 
-    async def actualizar(self, mapeo_id: UUID, data: dict) -> MapeoCasillaCuenta | None:
+    async def actualizar(self, mapeo_id: int, data: dict) -> MapeoCasillaCuenta | None:  # ✅ BIGINT (era UUID)
         """Actualiza un mapeo"""
         mapeo = await self.obtener_por_id(mapeo_id)
         if mapeo is None:
@@ -125,7 +121,6 @@ class MapeoCasillaCuentaService:
             nuevo_casilla = data.get("casilla_id", mapeo.casilla_id)
             nuevo_tenant = data.get("tenant_id", mapeo.tenant_id)
             nuevo_empresa = data.get("empresa_id", mapeo.empresa_id)
-
             existente = await self._buscar_existente(nuevo_casilla, nuevo_tenant, nuevo_empresa, exclude_id=mapeo_id)
             if existente is not None:
                 raise ValueError("Ya existe otro mapeo con esta combinación.")
@@ -138,22 +133,21 @@ class MapeoCasillaCuentaService:
         await self.db.refresh(mapeo)
         return mapeo
 
-    async def eliminar(self, mapeo_id: UUID) -> bool:
+    async def eliminar(self, mapeo_id: int) -> bool:  # ✅ BIGINT (era UUID)
         """Elimina un mapeo"""
         mapeo = await self.obtener_por_id(mapeo_id)
         if mapeo is None:
             return False
-
         await self.db.delete(mapeo)
         await self.db.flush()
         return True
 
     async def _buscar_existente(
         self,
-        casilla_id: UUID,
-        tenant_id: UUID | None,
-        empresa_id: UUID | None,
-        exclude_id: UUID | None = None,
+        casilla_id: int,  # ✅ BIGINT (era UUID)
+        tenant_id: int | None,  # ✅ BIGINT (era UUID)
+        empresa_id: int | None,  # ✅ BIGINT (era UUID)
+        exclude_id: int | None = None,  # ✅ BIGINT (era UUID)
     ) -> MapeoCasillaCuenta | None:
         """Busca mapeo existente respetando NULL con .is_()"""
         query = select(MapeoCasillaCuenta).where(
@@ -163,14 +157,13 @@ class MapeoCasillaCuentaService:
         )
         if exclude_id is not None:
             query = query.where(MapeoCasillaCuenta.id != exclude_id)
-
         result = await self.db.execute(query)
         return result.scalars().first()
 
     # ============================================================
     # IMPORT/EXPORT
     # ============================================================
-    async def exportar_excel(self, tenant_id: UUID | None = None, empresa_id: UUID | None = None) -> BytesIO:
+    async def exportar_excel(self, tenant_id: int | None = None, empresa_id: int | None = None) -> BytesIO:  # ✅ BIGINT (era UUID)
         """Exporta mapeos a Excel"""
         query = select(MapeoCasillaCuenta).options(selectinload(MapeoCasillaCuenta.casilla))
         if tenant_id is not None:
@@ -209,7 +202,7 @@ class MapeoCasillaCuentaService:
     async def importar_excel(
         self,
         archivo_bytes: bytes,
-        tenant_id: UUID | None = None,
+        tenant_id: int | None = None,  # ✅ BIGINT (era UUID)
         sobrescribir: bool = False,
     ) -> dict:
         """Importa mapeos desde Excel"""
@@ -235,6 +228,7 @@ class MapeoCasillaCuentaService:
                 if not codigo_casilla or not codigo_cuenta or not nombre_cuenta:
                     errores.append(f"Fila {idx}: Campos obligatorios incompletos")
                     continue
+
                 if tipo_mov not in TIPOS_MOVIMIENTO:
                     errores.append(f"Fila {idx}: Movimiento inválido (DEBE/HABER)")
                     continue
@@ -251,7 +245,6 @@ class MapeoCasillaCuentaService:
                 e_id = None  # Simplificado: empresa se asigna vía contexto o parámetro futuro
 
                 existente = await self._buscar_existente(casilla.id, t_id, e_id)
-
                 if existente is not None:
                     if sobrescribir:
                         existente.codigo_cuenta_sugerido = codigo_cuenta
@@ -271,12 +264,10 @@ class MapeoCasillaCuentaService:
                     )
                     self.db.add(nuevo)
                     creados += 1
-
             except Exception as e:
                 errores.append(f"Fila {idx}: {str(e)}")
 
         await self.db.flush()
-
         return {
             "creados": creados,
             "actualizados": actualizados,

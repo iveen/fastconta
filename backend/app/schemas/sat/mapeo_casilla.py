@@ -1,19 +1,15 @@
 """Schemas para Mapeo Casilla-Cuenta"""
-
-from uuid import UUID
-
 from pydantic import BaseModel, Field, field_validator
 
 TIPOS_MOVIMIENTO = ["DEBE", "HABER"]
-
 
 # ============================================================
 # BASE
 # ============================================================
 class MapeoCasillaCuentaBase(BaseModel):
-    casilla_id: UUID
-    tenant_id: UUID | None = None
-    empresa_id: UUID | None = None
+    casilla_id: int  # ✅ BIGINT (era UUID)
+    tenant_id: int | None = None  # ✅ BIGINT (era UUID)
+    empresa_id: int | None = None  # ✅ BIGINT (era UUID)
     codigo_cuenta_sugerido: str = Field(..., min_length=1, max_length=20)
     nombre_cuenta_sugerido: str = Field(..., min_length=1, max_length=255)
     tipo_movimiento: str = Field(..., min_length=4, max_length=10)
@@ -31,8 +27,8 @@ class MapeoCasillaCuentaCreate(MapeoCasillaCuentaBase):
 
 
 class MapeoCasillaCuentaUpdate(BaseModel):
-    tenant_id: UUID | None = None
-    empresa_id: UUID | None = None
+    tenant_id: int | None = None  # ✅ BIGINT (era UUID)
+    empresa_id: int | None = None  # ✅ BIGINT (era UUID)
     codigo_cuenta_sugerido: str | None = None
     nombre_cuenta_sugerido: str | None = None
     tipo_movimiento: str | None = None
@@ -42,7 +38,7 @@ class MapeoCasillaCuentaUpdate(BaseModel):
 # RESPONSE
 # ============================================================
 class MapeoCasillaCuentaResponse(MapeoCasillaCuentaBase):
-    id: UUID
+    id: int  # ✅ BIGINT (era UUID)
     casilla_codigo: str | None = None
     casilla_nombre: str | None = None
     created_at: str | None = None
@@ -52,11 +48,11 @@ class MapeoCasillaCuentaResponse(MapeoCasillaCuentaBase):
 
 
 class MapeoCasillaCuentaListResponse(BaseModel):
-    id: UUID
-    casilla_id: UUID
+    id: int  # ✅ BIGINT (era UUID)
+    casilla_id: int  # ✅ BIGINT (era UUID)
     casilla_codigo: str | None = None
-    tenant_id: UUID | None = None
-    empresa_id: UUID | None = None
+    tenant_id: int | None = None  # ✅ BIGINT (era UUID)
+    empresa_id: int | None = None  # ✅ BIGINT (era UUID)
     codigo_cuenta_sugerido: str
     tipo_movimiento: str
 
@@ -76,7 +72,6 @@ class MapeoImportItem(BaseModel):
 
 class MapeoImportResult(BaseModel):
     """Resultado de importación"""
-
     creados: int = 0
     actualizados: int = 0
     omitidos: int = 0

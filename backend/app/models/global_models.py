@@ -114,7 +114,6 @@ class Tenant(BigIntPKMixin, AuditableFull, SoftDelete, Base):
             select(func.count(User.id)).where(
                 User.tenant_id == tenant_id,
                 User.is_active.is_(True),
-                User.is_deleted.is_(False),
             )
         )
         return count or 0

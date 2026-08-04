@@ -23,7 +23,12 @@ from sqlalchemy.orm import selectinload
 
 from app.core.constants import ClasificacionGastoSAT
 from app.models.global_models import RegimenFiscal
-from app.models.tenant_models import Empresa, FacturaDetalle, FacturaElectronica, FacturaImpuestoEspecial
+from app.models.tenant_models import (
+    Empresa,
+    FacturaDetalle,
+    FacturaElectronica,
+    FacturaImpuestoEspecial,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +75,7 @@ CODIGOS_PEQUENO_CONTRIBUYENTE = {
 KEYWORDS_MEDICAMENTO = [
     "medicamento", "farmacia", "medicina", "antirretroviral",
     "paracetamol", "ibuprofeno", "amoxicilina", "omeprazol",
-    "genérico", "generico", "antirretroviral",
+    "genérico", "generico",
 ]
 
 # Keywords para detectar vehículos por descripción de items
@@ -153,17 +158,13 @@ def clasificar_por_impuestos_especiales(
     Clasifica la factura según los impuestos especiales asociados.
 
     Returns:
-        Dict con booleanos: es_medicamento, es_vehiculo, es_combustible, es_activo_fijo
+        Dict con booleanos: es_medicamento, es_vehiculo
     """
-    resultado = {
-        "es_medicamento": False,
-        "es_vehiculo": False,
-        "es_combustible": False,
-        "es_activo_fijo": False,
-    }
-
     if not impuestos_especiales:
-        return resultado
+        return {
+            "es_medicamento": False,
+            "es_vehiculo": False,
+        }
 
     # Obtener códigos de los catálogos
     codigos = set()
@@ -171,10 +172,10 @@ def clasificar_por_impuestos_especiales(
         if imp.catalogo and imp.catalogo.codigo:
             codigos.add(imp.catalogo.codigo.upper())
 
-    resultado["es_medicamento"] = bool(codigos & CODIGOS_MEDICAMENTO)
-    resultado["es_vehiculo"] = bool(codigos & CODIGOS_VEHICULO)
-
-    return resultado
+    return {
+        "es_medicamento": bool(codigos & CODIGOS_MEDICAMENTO),
+        "es_vehiculo": bool(codigos & CODIGOS_VEHICULO),
+    }
 
 
 def clasificar_por_heuristica_descripcion(detalles: list[FacturaDetalle]) -> dict[str, bool]:
@@ -206,7 +207,7 @@ def clasificar_por_heuristica_descripcion(detalles: list[FacturaDetalle]) -> dic
     if not descripcion_combinada.strip():
         return resultado
 
-    # Detectar por keywords (primera coincidencia gana)
+    # Detectar por keywords
     if any(kw in descripcion_combinada for kw in KEYWORDS_MEDICAMENTO):
         resultado["es_medicamento"] = True
     if any(kw in descripcion_combinada for kw in KEYWORDS_VEHICULO):
@@ -260,8 +261,8 @@ async def clasificar_pequeno_contribuyente(
         .where(
             Empresa.nit == emisor_nit.replace("-", "").strip(),
             Empresa.tenant_id == empresa_id,
-            RegimenFiscal.is_deleted.is_(False),
-            Empresa.is_deleted.is_(False),
+            RegimenFiscal.is_active.is_(True),
+            Empresa.is_active.is_(True),
         )
         .limit(1)
     )
@@ -366,13 +367,11 @@ async def clasificar_factura(
     es_vehiculo_nuevo = False
     if clasificacion_impuestos["es_vehiculo"]:
         # TODO: Determinar si es usado o nuevo según año de fabricación del XML FEL
-        # Por ahora, dejamos ambos en False y el usuario los ajusta manualmente
         pass
 
     # 8. No genera crédito fiscal (placeholder - requiere lógica adicional)
     no_genera_credito_fiscal = False
     # TODO: Implementar lógica para determinar si no genera crédito fiscal
-    # (ej: gastos personales, vehículos de lujo, etc.)
 
     # 9. Derivar clasificacion_gasto_sat desde los booleanos
     clasificacion_gasto_sat_derived = derivar_clasificacion_gasto_sat(clasificacion_impuestos)
@@ -424,12 +423,15 @@ async def aplicar_clasificacion_a_factura(
 
     clasificacion = await clasificar_factura(db, factura)
 
-    # Aplicar todos los campos excepto el derivado (ese es informativo)
-    for campo, valor in clasificacion.items():
-        if campo == "clasificacion_gasto_sat_derived":
-            continue  # No se guarda en BD, solo es informativo
-        if hasattr(factura, campo):
-            setattr(factura, campo, valor)
+    # Filtrar campos derivados (no existen en el modelo)
+    CAMPOS_DERIVADOS = {"clasificacion_gasto_sat_derived"}
+    clasificacion_aplicable = {
+        k: v for k, v in clasificacion.items()
+        if k not in CAMPOS_DERIVADOS and hasattr(factura, k)
+    }
+
+    for campo, valor in clasificacion_aplicable.items():
+        setattr(factura, campo, valor)
 
     await db.flush()
     logger.info(

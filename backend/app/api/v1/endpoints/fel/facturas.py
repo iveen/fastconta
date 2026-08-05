@@ -35,6 +35,7 @@ from app.services.facturas.contabilidad_service import (
     generar_partida_desde_factura,
 )
 from app.services.facturas.tipo_cambio_service import obtener_tipo_cambio
+from app.services.fel.clasificador_facturas import aplicar_clasificacion_a_factura
 from app.services.fel.context import FelIngestionContext
 
 logger = logging.getLogger(__name__)
@@ -238,6 +239,12 @@ async def upload_facturas(
                 file.filename,
                 content,
             )
+
+            try:
+                await aplicar_clasificacion_a_factura(db, factura.id)
+            except Exception as e:
+                logger.warning(f"⚠️ Error aplicando clasificación a factura {factura.id}: {e}")
+
             facturas_creadas.append(factura)
 
         except Exception as e:

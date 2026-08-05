@@ -150,6 +150,22 @@ def clasificar_bien_o_servicio_predominante(detalles: list) -> str | None:
 
     return None
 
+def clasificar_es_exento(factura: FacturaElectronica) -> bool:
+    """
+    Determina si la factura es exenta.
+    
+    Una factura es exenta si tiene total_exento > 0.
+    Esto se usa en las reglas de la sección 3 del SAT-2237
+    (casilla 3.1: Ventas exentas y servicios exentos).
+    """
+    total_exento = getattr(factura, "total_exento", None)
+    if total_exento is None:
+        return False
+    try:
+        return float(total_exento) > 0
+    except (TypeError, ValueError):
+        return False
+
 
 def clasificar_por_impuestos_especiales(
     impuestos_especiales: list[FacturaImpuestoEspecial],
@@ -326,6 +342,9 @@ async def clasificar_factura(
     Returns:
         Dict con todos los campos de clasificación + clasificacion_gasto_sat_derived
     """
+    # 0. Clasificar si es exenta (derivado de total_exento > 0)
+    es_exento = clasificar_es_exento(factura)
+
     # 1. Clasificar por región destino
     region_destino = clasificar_region_destino(
         factura.pais_destino_exportacion,
@@ -387,6 +406,7 @@ async def clasificar_factura(
         "tiene_constancia_exencion": clasificacion_tipo_doc["tiene_constancia_exencion"],
         "region_destino": region_destino,
         "bien_o_servicio_predominante": bien_o_servicio_predominante,
+        "es_exento": es_exento,
         # Campo derivado (útil para debug y trazabilidad)
         "clasificacion_gasto_sat_derived": clasificacion_gasto_sat_derived,
     }
@@ -441,6 +461,7 @@ async def aplicar_clasificacion_a_factura(
         f"vehiculo={clasificacion['es_vehiculo']}, "
         f"pc={clasificacion['es_pequeno_contribuyente']}, "
         f"b_o_s={clasificacion['bien_o_servicio_predominante']}, "
+        f"exento={clasificacion['es_exento']}, " 
         f"derived={clasificacion['clasificacion_gasto_sat_derived']}"
     )
 

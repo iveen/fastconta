@@ -239,6 +239,7 @@ class FacturaElectronica(BigIntPKMixin, AuditableFull, Base):
     es_no_afecta = Column(Boolean, default=False, server_default="false")
     no_genera_credito_fiscal = Column(Boolean, default=False, server_default="false")
     tiene_constancia_exencion = Column(Boolean, default=False, server_default="false")
+    es_exento = Column(Boolean, default=False, server_default="false", index=True)
 
     # Campo derivado para clasificar exportaciones
     region_destino = Column(String(20), nullable=True, index=True)  # "LOCAL", "CENTROAMERICA", "RESTO_MUNDO"

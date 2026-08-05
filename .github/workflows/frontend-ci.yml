@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, develop]
     paths:
-      - 'frontend/**' # ✅ Se activa con cualquier cambio dentro de la carpeta
+      - 'frontend/**'
   pull_request:
     branches: [main, develop]
     paths:
@@ -12,10 +12,10 @@ on:
 
 jobs:
   frontend-ci:
-    name: Node 20 - Vue + pnpm
+    name: Node 22 - Vue + pnpm
     runs-on: ubuntu-latest
     
-    # ✅ Define el directorio de trabajo una vez para todos los pasos "run"
+    # Define el directorio de trabajo una vez para todos los pasos "run"
     defaults:
       run:
         working-directory: ./frontend
@@ -24,12 +24,16 @@ jobs:
       - name: Checkout código
         uses: actions/checkout@v4
 
-      - name: Configurar Node.js y caché de pnpm
+      - name: Configurar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11 # Usa la versión que tu proyecto requiera (8, 9, etc.)
+          run_install: false
+
+      - name: Configurar Node.js y caché
         uses: actions/setup-node@v4
         with:
-          # ✅ Node 20 es LTS y evita el warning de deprecación de GitHub Actions.
-          # Si tu proyecto requiere Node 22, cámbialo a '22', pero '20' es el más estable actualmente.
-          node-version: '20' 
+          node-version: '22' # LTS estable, evita warnings de deprecación de GitHub
           cache: 'pnpm'
           cache-dependency-path: 'frontend/pnpm-lock.yaml'
 

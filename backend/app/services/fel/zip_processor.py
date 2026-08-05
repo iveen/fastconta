@@ -19,6 +19,7 @@ from app.core.file_handlers import FileContent
 from app.models.global_models import FELImportJob
 from app.services.facturas.contabilidad_service import clasificar_gasto_sat
 from app.services.facturas.tipo_cambio_service import obtener_tipo_cambio
+from app.services.fel.clasificador_facturas import aplicar_clasificacion_a_factura
 from app.services.fel.context import FelIngestionContext
 
 logger = logging.getLogger(__name__)
@@ -161,9 +162,8 @@ class FELZipProcessor:
                             if hasattr(fecha, "date"):
                                 fecha = fecha.date()
                             tc = await obtener_tipo_cambio(fecha, datos["moneda"], db) or tc
-
                         # 7. Crear factura
-                        await _crear_factura_background(
+                        factura = await _crear_factura_background(
                             db,
                             datos,
                             empresa_id,
@@ -173,6 +173,15 @@ class FELZipProcessor:
                             xml_data["filename"],
                             xml_data["xml_text"],
                         )
+
+                        # ✅ NUEVO: Aplicar clasificación denormalizada (booleanos)
+                        # El clasificador carga las relaciones (detalles, impuestos_especiales) vía selectinload
+                        try:
+                            await aplicar_clasificacion_a_factura(db, factura.id)
+                        except Exception as e:
+                            # No fallar todo el job si la clasificación falla
+                            logger.warning(f"⚠️ Error clasificando factura {factura.id}: {e}")
+
                         facturas_creadas += 1
 
                     except Exception as e:

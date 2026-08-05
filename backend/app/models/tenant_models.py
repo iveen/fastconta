@@ -230,6 +230,23 @@ class FacturaElectronica(BigIntPKMixin, AuditableFull, Base):
     fecha_validacion = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    # Nuevos campos en FacturaElectronica
+    es_medicamento = Column(Boolean, default=False, server_default="false", index=True)
+    es_vehiculo = Column(Boolean, default=False, server_default="false", index=True)
+    es_vehiculo_usado = Column(Boolean, default=False, server_default="false")  # 2+ años
+    es_vehiculo_nuevo = Column(Boolean, default=False, server_default="false")  # año actual
+    es_pequeno_contribuyente = Column(Boolean, default=False, server_default="false", index=True)
+    es_no_afecta = Column(Boolean, default=False, server_default="false")
+    no_genera_credito_fiscal = Column(Boolean, default=False, server_default="false")
+    tiene_constancia_exencion = Column(Boolean, default=False, server_default="false")
+    es_exento = Column(Boolean, default=False, server_default="false", index=True)
+
+    # Campo derivado para clasificar exportaciones
+    region_destino = Column(String(20), nullable=True, index=True)  # "LOCAL", "CENTROAMERICA", "RESTO_MUNDO"
+
+    # Campo derivado del detalle (predominante)
+    bien_o_servicio_predominante = Column(String(1), nullable=True)  # "B", "S", "M" (mixto)
+
     empresa = relationship("Empresa")
     detalles = relationship("FacturaDetalle", back_populates="factura", cascade="all, delete-orphan")
     tipo_documento_rel = relationship(TipoDTE, lazy="select")

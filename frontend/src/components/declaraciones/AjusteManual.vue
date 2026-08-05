@@ -53,7 +53,11 @@ import { ref, reactive } from 'vue'
 import { declaracionesApi } from '@/services/declaraciones' 
 
 const props = defineProps({
-  declaracionId: { type: String, required: true },
+  declaracionId: { 
+    type: Number, 
+    required: true,
+    validator: (value) => Number.isInteger(value) && value > 0,
+  },
   casilla: { type: Object, required: true },
 })
 const emit = defineEmits(['close', 'guardado'])

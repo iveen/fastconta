@@ -55,7 +55,11 @@ import { ref, onMounted, computed } from 'vue'
 import { declaracionesApi } from '@/services/declaraciones' 
 
 const props = defineProps({
-  declaracionId: { type: String, required: true },
+  declaracionId: { 
+    type: Number, 
+    required: true,
+    validator: (value) => Number.isInteger(value) && value > 0,
+  },
   casillaCodigo: { type: String, required: true },
 })
 defineEmits(['close'])
